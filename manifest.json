@@ -1,0 +1,40 @@
+{
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": false
+    },
+
+    "content_scripts": [
+        {
+            "matches": ["https://germs.io/*"],
+            "js": ["content.js"]
+        }
+    ],
+
+    "description": "Simple and configurable multiboxing script, designed for Germs.io!",
+
+    "icons": {
+        "48": "gsDuhFox-48.png",
+        "96": "gsDuhFox-96.png"
+    },
+
+    "manifest_version": 2,
+
+    "name": "Germsfox",
+
+    "version": "0.1",
+    
+    "browser_action": {
+        "default_icon": {
+            "19": "gsDuhFox-19.png",
+            "38": "gsDuhFox-38.png"
+        },
+        "default_title": "Germsfox",
+        "default_popup": "popup.html"
+    },
+
+    "permissions": [
+        "storage",
+        "tabs"
+     ]
+}

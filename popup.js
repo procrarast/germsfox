@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.storage.local.get(['switcherEnabled', 'switcherKeycode', 'switcherWindowed'], function(items) {
         document.getElementById('enabledCheckbox').checked = items.switcherEnabled;
         document.getElementById('windowedCheckbox').checked = items.switcherWindowed;
-        document.getElementById('keycodeTester').value = items.switcherKeycode || '';
+        document.getElementById('keyTester').value = items.switcherKeycode || '';
     });
    
     let saveButton = document.getElementById("saveButton");
@@ -12,7 +12,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function saveSettings() {
     const switcherEnabled = document.getElementById('enabledCheckbox').checked;
+    console.log(switcherEnabled);
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
+    console.log(switcherWindowed);
     const switcherKeycode = document.getElementById('keyTester').value;
     
     chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {

@@ -3,21 +3,29 @@
 <html>
     <head>
         <title>Germsfox Popup</title>
+        <style>
+            @font-face {
+                font-family: 'Go Mono';
+                src: url(fonts/Go-Mono.ttf);
+            }
+            body {
+                font-family: Go Mono;
+                background-color: #1e1a1e;
+                color: #e4c6e6;
+
+                padding: 20px;
+                border: 2px solid #6a4d6b;
+                width: 200px;
+            }
+            a {
+                color: rgb(118, 255, 230);
+            }
+        </style>
     </head>
     <body>
-        <h2>Germsfox</h2>
-        <input type="checkbox" id="enabledCheckbox">
-        <label for="enabledCheckbox">Switcher enabled</label><br>
-
-        <input type="checkbox" id="windowedCheckbox">
-        <label for="windowedCheckbox">Windowed mode</label><br>
-
-        <div id = "keyTester" style ="border: 1px solid black; padding: 10px; cursor: pointer;">
-            <script src="popup.js"></script>
-        </div>
-
-        <button id="saveButton" type="button">Save</button>
-        <script src="popup.js"></script>
+        <h2>Germsfox <img src="gsDuhFox-38.png" style="vertical-align: middle; padding-left: 12px; padding-bottom: 8px;"></h2>
+        <p>Thank you for trying out my program, ball gamers! &lt;3 </p>
+        <p>Check out pc's website <a href="https://pishi.dev/">here</a>!</p>
     </body>
 </html>
 

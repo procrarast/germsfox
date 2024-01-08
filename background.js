@@ -32,16 +32,8 @@ browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 case 2: // switch windows
                     browser.windows.update(germsWindows[index ? 0 : 1], {focused: true });
                     break;
-                case 1: // make a new window
-                    browser.windows.get(germsWindows[0], { populate: true }, function(window) {
-                        const germsTab = window.tabs.find(tab => tab.url.includes('germs.io'));
-                            if (germsTab) {
-                                // Create a new window with the germs.io tab URL
-                                browser.windows.create({ url: germsTab.url });
-                            } else {
-                                console.warn("Warning: No germs.io tab found in the existing window.");
-                            }
-                        });
+                case 1: // make a new window (waw many indents)
+                    browser.windows.get(germsWindows[0], { populate: true }, (window) => openWindow(window));
                     break;
                 case 0:
                     console.warn("Warning: No active germs window found.")
@@ -56,9 +48,17 @@ browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 });
 
-function switchWindows() { //TODO
-
+// this is weird, but you pass a window and this function opens a new window with the same url
+function openWindow(window) {
+    const germsTab = window.tabs.find(tab => tab.url.includes('germs.io'));
+    if (germsTab) {
+        // Create a new window with the germs.io tab URL
+        browser.windows.create({ url: germsTab.url });
+    } else {
+        console.warn("Warning: No germs.io tab found in the existing window.");
+    }
 }
+
 /*
  *  Update global variables germsWindows[] and index
  */

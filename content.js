@@ -239,7 +239,7 @@ function updateSettings() {
             return;
         }
         console.info("Germsfox settings retrieved.");
-        customSkins = settings.customSkins;
+        customSkins = settings.customSkins || []; // default to an empty array
         switcherKey = settings.switcherKey || [65, "A"]; // default to [65, "A"] if switcherKey not found
         switcherEnabled = settings.switcherEnabled;
         //console.log(switcherEnabled);
@@ -284,7 +284,7 @@ function updateCustomSkinMenu() {
     
     if (customSkins.length === 0) {
         var pElement = document.createElement('p');
-        pElement.textContent = `You have ${customSkins.length} imgur skins saved!`;
+        pElement.textContent = `You have no imgur skins saved!`;
         customSkinsContainer.appendChild(pElement);
         return 0;
     }

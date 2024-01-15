@@ -32,7 +32,7 @@ browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 case 2: // switch windows
                     browser.windows.update(germsWindows[index ? 0 : 1], {focused: true });
                     break;
-                case 1: // make a new window (waw many indents)
+                case 1: // open a new window
                     browser.windows.get(germsWindows[0], { populate: true }, (window) => openWindow(window));
                     break;
                 case 0:
@@ -59,9 +59,7 @@ function openWindow(window) {
     }
 }
 
-/*
- *  Update global variables germsWindows[] and index
- */
+// update global variables index and window[]
 function updateWindows() {
     return browser.windows.getAll({ populate: true })
     .then((windows) => {

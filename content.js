@@ -7,7 +7,7 @@ var customSkins = [];   // array of custom skin urls
 var switcherWindowed;   // boolean which defines whether the switcher is tabbed or windowed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
-var chatting = false;   // :chatting:
+var usingTextBox = false;   // :chatting:
 var mutedPlayers = [];  // TODO
 var skinBlocklist = []; // TODO
 
@@ -159,6 +159,7 @@ keyTester.addEventListener('click', function() {
 
 saveButton.addEventListener('click', function() {
     stopWaiting();
+    settingsModal.style.display = "none"; // hide settings modal 
     const switcherEnabled = document.getElementById('enabledCheckbox').checked;
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
     const switcherKeycode = document.getElementById('keyTester').value;
@@ -169,16 +170,19 @@ saveButton.addEventListener('click', function() {
     })
 });
 
-chatInput.addEventListener('focus', function() {
-    console.info("You're chatting! Disabling switcher.");
-    chatting = true;
-});
+chatInput.addEventListener('focus', startedUsingTextBox);
+chatInput.addEventListener('blur', stoppedUsingTextBox);
+nickInput.addEventListener('focus', startedUsingTextBox);
+nickInput.addEventListener('blur', stoppedUsingTextBox);
 
-chatInput.addEventListener('blur', function() {
-    console.info("You're done chatting, enabling switcher.");
-    chatting = false;
-})
-  
+function startedUsingTextBox() { // this will pause the tab switcher
+    usingTextBox = true;
+}
+
+function stoppedUsingTextBox() {
+    usingTextBox = false;
+}
+
 browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === "updateSettings") {
         console.info("Updating settings");
@@ -207,7 +211,7 @@ function keydown(event) {
         });
         stopWaiting();
     }
-    else if (!chatting && switcherEnabled && (event.keyCode === switcherKey[0] || event.key === switcherKey[1])) {
+    else if (!usingTextBox && switcherEnabled && (event.keyCode === switcherKey[0] || event.key === switcherKey[1])) {
         if (switcherWindowed) {
             console.log("Switching windows!");
             browser.runtime.sendMessage({ action: "switchWindows"});
@@ -216,9 +220,10 @@ function keydown(event) {
             browser.runtime.sendMessage({ action: "switchTabs"});
         }
     }
+    /*
     if (event.keyCode === feedKey[0] || event.key === feedKey[1]) {
         console.info(`${event.key} pressed.`);
-    }
+    } */
 }
 
 function updateSettings() {
@@ -261,6 +266,7 @@ function nickInit() {
         nickTextarea.style.height = "50px";
 
         nickInput.parentNode.replaceChild(nickTextarea, nickInput);
+        nickInput = document.getElementById("nick"); // set to the new element
     }
 }
 
@@ -275,6 +281,7 @@ function customSkinSubmitted() {
             console.log("New custom skin added");
         });
     }
+    customSkinInput.value = ""; // clear the input box
     updateCustomSkinMenu();
 }
 

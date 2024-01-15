@@ -14,8 +14,8 @@
     "description": "Simple and configurable multiboxing script, designed for Germs.io!",
 
     "icons": {
-        "48": "gsDuhFox-48.png",
-        "96": "gsDuhFox-96.png"
+        "48": "images/gsDuhFox-48.png",
+        "96": "images/gsDuhFox-96.png"
     },
 
     "manifest_version": 2,
@@ -26,8 +26,8 @@
     
     "browser_action": {
         "default_icon": {
-            "19": "gsDuhFox-19.png",
-            "38": "gsDuhFox-38.png"
+            "19": "images/gsDuhFox-19.png",
+            "38": "images/gsDuhFox-38.png"
         },
         "default_title": "Germsfox",
         "default_popup": "popup.html"

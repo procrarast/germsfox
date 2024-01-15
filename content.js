@@ -119,7 +119,7 @@ document.head.insertAdjacentHTML('beforeend', modalStyle);
 
 // this is for the icon on the germsfox button
 var germsfoxIcon = document.getElementById('germsfoxIcon');
-germsfoxIcon.src = browser.runtime.getURL('gsDuhFox-19.png');
+germsfoxIcon.src = browser.runtime.getURL('images/gsDuhFox-19.png');
     
 var germsfoxButton =        document.getElementById("germsfoxButton");
 var settingsModal =         document.getElementById("germsfoxSettingsModal");

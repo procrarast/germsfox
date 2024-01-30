@@ -8,9 +8,8 @@ var switcherWindowed;   // boolean which defines whether the switcher is tabbed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
 var usingTextBox = false;   // :chatting:
-var mutedPlayers = [];  // TODO
+var playerBlocklist;
 var skinBlocklist = []; // TODO
-
 
 //browser.runtime.sendMessage("updateTabs");
 
@@ -24,6 +23,7 @@ var menuCenter =            document.getElementById("menuCenter");
 var customSkinsElement =    document.getElementById("customSkin");
 var customSkinInput =       document.getElementById("loginCustomSkinText");
 var skinsButton =           document.getElementById("skin");
+var muteButton =            playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
 var centerCard =            menuCenter.getElementsByClassName("card")[0];
 
 nickInit();
@@ -32,6 +32,27 @@ updateSettings();
 
 chatInput.setAttribute("maxlength", 100); // Increase max length of chat messages
 animationDelayRange.setAttribute('min', '4'); // Lower minimum animation delay to 4
+
+var chatObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === "childList") {
+            const lastMessage = chatBox.lastElementChild;
+            if (lastMessage) {
+                const chatterNameElement = lastMessage.querySelector('b');
+                if (chatterNameElement) {
+                    chatterName = chatterNameElement.textContent;
+                    console.log(`Recieved message from ${chatterName}`);
+                    if (playerBlocklist.includes(chatterName)) {
+                        lastMessage.remove();
+                        console.log(`Removed message from ${chatterName}`);
+                    }
+                }
+            }
+        }
+    });
+});
+
+chatObserver.observe(chatBox, {childList: true});
 
 const settingsButtonHTML =` 
 <button id="germsfoxButton" 
@@ -157,6 +178,41 @@ keyTester.addEventListener('click', function() {
     }
 });
 
+muteButton.addEventListener('click', function() {
+    const playerNameElement = document.getElementById("userMenuPlayerName");
+    const mutedTextElement = document.getElementById("userMenuBlockText");
+    const playerName = playerNameElement.innerText;
+    const mutedText = mutedTextElement.innerText;
+
+    if (mutedText === "Mute Player" && !playerBlocklist.includes(playerName)) {
+        playerBlocklist.push(playerName);
+        var muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been muted!</font></p></div>`;
+        chatBox.innerHTML += muteMessage;
+        for (var i = 0; i < chatBox.children.length; i++) {
+            const chatMessage = chatBox.children[i];
+            if (chatMessage) {
+                const chatterNameElement = chatMessage.querySelector('b');
+                if (chatterNameElement) {
+                    chatterName = chatterNameElement.textContent;
+                    if (playerBlocklist.includes(chatterName)) {
+                        chatMessage.remove();
+                    }
+                }
+            }
+        }
+    }
+    else if (mutedText === "Unmute Player") {
+        playerBlocklist.splice(playerBlocklist.indexOf(playerName), 1);
+        var muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been unmuted.</font></p></div>`;
+        chatBox.innerHTML += muteMessage;
+    }
+    console.log(playerBlocklist);
+    browser.storage.local.set({ "playerBlocklist": playerBlocklist }, function() {
+        updateSettings();
+    })
+
+});
+
 saveButton.addEventListener('click', function() {
     stopWaiting();
     settingsModal.style.display = "none"; // hide settings modal 
@@ -164,10 +220,10 @@ saveButton.addEventListener('click', function() {
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
     const switcherKeycode = document.getElementById('keyTester').value;
     
-    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {
+    browser.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {
         console.log('Settings saved');
         updateSettings();
-    })
+    });
 });
 
 chatInput.addEventListener('focus', startedUsingTextBox);
@@ -245,6 +301,7 @@ function updateSettings() {
         }
         console.info("Germsfox settings retrieved.");
         customSkins = settings.customSkins || []; // default to an empty array
+        playerBlocklist = settings.playerBlocklist || [];
         switcherKey = settings.switcherKey || [65, "A"]; // default to [65, "A"] if switcherKey not found
         switcherEnabled = settings.switcherEnabled;
         //console.log(switcherEnabled);
@@ -252,7 +309,6 @@ function updateSettings() {
         switcherWindowed = settings.switcherWindowed;
         //console.log(switcherWindowed);
         skinBlocklist = settings.skinBlocklist;
-        playerBlocklist = settings.playerBlocklist;
     });
 }
 

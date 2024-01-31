@@ -4,6 +4,7 @@ Germsfox is a multiboxing extension for https://germs.io/ which aims to implemen
 ## Features
 - Adds a settings button for multiboxing in windowed or tabbed mode
     - Detects when you're chatting to prevent accidental switches
+- Fix the game's broken mute function
 - Custom skins list
 - Set lower animation delay, input multiple-lined names, send longer chat messages.
 ## Installation
@@ -19,5 +20,4 @@ Should be good from here. If you have any issues, contact me @pc31754 on Discord
 - Chromium/MV3 support
 - Set your cell color
 - Optionally stop feeding after switching tabs to prevent it from hanging
-- Chatbox block list manager
 - Skin block list manager

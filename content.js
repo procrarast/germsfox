@@ -31,7 +31,7 @@ updateSettings();
 //updateCustomSkinMenu();
 
 chatInput.setAttribute("maxlength", 100); // Increase max length of chat messages
-animationDelayRange.setAttribute('min', '4'); // Lower minimum animation delay to 4
+animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
 
 var chatObserver = new MutationObserver(function(mutations) {
     mutations.forEach(function(mutation) {
@@ -191,22 +191,11 @@ muteButton.addEventListener('click', function() {
     const mutedText = mutedTextElement.innerText;
 
     if (mutedText === "Mute Player" && !playerBlocklist.includes(playerName)) {
-        playerBlocklist.push(playerName);
+        blockPlayerName(playerName);
         var muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been muted!</font></p></div>`;
         chatBox.innerHTML += muteMessage;
-        for (var i = 0; i < chatBox.children.length; i++) {
-            const chatMessage = chatBox.children[i];
-            if (chatMessage) {
-                const chatterNameElement = chatMessage.querySelector('b');
-                if (chatterNameElement) {
-                    chatterName = chatterNameElement.textContent;
-                    if (playerBlocklist.includes(chatterName)) {
-                        chatMessage.remove();
-                    }
-                }
-            }
-        }
     }
+
     else if (mutedText === "Unmute Player") {
         playerBlocklist.splice(playerBlocklist.indexOf(playerName), 1);
         var muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been unmuted.</font></p></div>`;
@@ -218,6 +207,27 @@ muteButton.addEventListener('click', function() {
     })
 
 });
+
+function unblockPlayerName(playerName) {
+    playerBlocklist.splice(playerBlocklist.indexOf(playerName), 1); 
+}
+
+function blockPlayerName(playerName) {
+    playerBlocklist.push(playerName);
+    
+    for (var i = 0; i <= chatBox.children.length; i++) {
+        const chatMessage = chatBox.children[i];
+        if (chatMessage) {
+            const chatterNameElement = chatMessage.querySelector('b');
+            if (chatterNameElement) {
+                chatterName = chatterNameElement.textContent;
+                if (playerBlocklist.includes(chatterName)) {
+                    chatMessage.remove();
+                }
+            }
+        }
+    }
+}
 
 saveButton.addEventListener('click', function() {
     stopWaiting();
@@ -349,30 +359,7 @@ function customSkinSubmitted() {
 
 function updateCustomSkinMenu() {
     console.log("Updating the custom skins menu.");
-    customSkinsContainer.innerHTML = `
-    <script>
-        function showDeleteButton(event, childIndex) {
-            event.preventDefault();
-            
-            var deleteSkinButton = document.getElementById('deleteSkinButton');
-           
-            if (!deleteSkinButton) {
-                deleteSkinButton = document.createElement('button');
-                deleteSkinButton.id = 'deleteSkinButton';
-                deleteSkinButton.textContent = 'Delete';
-                deleteSkinButton.onClick = 'customSkinsContainer.removeChild(customSkinsContainer.children[childIndex]);'
-                customSkinsElement.appendChild(deleteSkinButton);
-            }
-            deleteSkinButton.style.left = event.clientX + 'px';
-            deleteSkinButton.style.top = event.clientY + 'px';
-            deleteSkinButton.style.display = 'block';
-
-            document.addEventListener('click', function hideDeleteButton(event) {
-                deleteButton.style.display = 'none';
-                document.removeEventListener('click', hideButton);
-            });
-        }
-    </script>`; 
+    customSkinsContainer.innerHTML = ""; 
     
     if (customSkins.length === 0) {
         var pElement = document.createElement('p');

@@ -3,7 +3,7 @@ console.log("Running content.js");
 var feedKey;            // retrieved from germs settings
 var testerWaiting;      // is the tester waiting for the user to input
 var switcherKey;        // array of [keyCode, key]
-var customSkins = [];  // array of custom skin urls
+var customSkins = [];   // array of custom skin urls
 var switcherWindowed;   // boolean which defines whether the switcher is tabbed or windowed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
@@ -85,9 +85,6 @@ const settingsModalHTML = `
 
         <div id = "keyTester" style ="border: 2px solid #1e1a1e; border-radius: 4px; padding: 4px; cursor: pointer; text-align: center; width: 64px; height: 32px;">
         </div> 
-
-        <button id="saveButton" type="button">Save</button>
-
     </div>
 </div>`;
 
@@ -151,15 +148,16 @@ germsfoxIcon.src = chrome.runtime.getURL('images/gsDuhFox-19.png');
 var germsfoxButton =        document.getElementById("germsfoxButton");
 var settingsModal =         document.getElementById("germsfoxSettingsModal");
 var keyTester =             document.getElementById("keyTester");
-var saveButton =            document.getElementById("saveButton");
 var enabledCheckbox =       document.getElementById("enabledCheckbox");
 var windowedCheckbox =      document.getElementById("windowedCheckbox");
 var settingsCloseButton =   document.getElementById("germsfoxSettingsClose");
 var customSkinsContainer =  document.getElementById("customSkinList");
-var applyButton =           document.querySelector("#customSkin .btn-info");
+var applySkinButton =       document.querySelector("#customSkin .btn-info");
 
-applyButton.addEventListener('click', customSkinSubmitted);
+applySkinButton.addEventListener('click', customSkinSubmitted);
 skinsButton.addEventListener('click', updateCustomSkinMenu);
+enabledCheckbox.addEventListener('change', checkboxChanged);
+windowedCheckbox.addEventListener('change', checkboxChanged);
 
 germsfoxButton.addEventListener('click', function() {
     console.log("Settings button clicked");
@@ -212,6 +210,16 @@ function unblockPlayerName(playerName) {
     playerBlocklist.splice(playerBlocklist.indexOf(playerName), 1); 
 }
 
+function checkboxChanged() {
+    const switcherEnabled = document.getElementById('enabledCheckbox').checked;
+    const switcherWindowed = document.getElementById('windowedCheckbox').checked;
+    
+    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherWindowed": switcherWindowed }, function() {
+        console.log('Settings saved');
+        updateSettings();
+    });
+}
+
 function blockPlayerName(playerName) {
     playerBlocklist.push(playerName);
     
@@ -228,19 +236,6 @@ function blockPlayerName(playerName) {
         }
     }
 }
-
-saveButton.addEventListener('click', function() {
-    stopWaiting();
-    settingsModal.style.display = "none"; // hide settings modal 
-    const switcherEnabled = document.getElementById('enabledCheckbox').checked;
-    const switcherWindowed = document.getElementById('windowedCheckbox').checked;
-    const switcherKeycode = document.getElementById('keyTester').value;
-    
-    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {
-        console.log('Settings saved');
-        updateSettings();
-    });
-});
 
 chatInput.addEventListener('focus', startedUsingTextBox);
 chatInput.addEventListener('blur', stoppedUsingTextBox);

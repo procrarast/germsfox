@@ -85,9 +85,7 @@ function updateWindows() {
     });
 }
 
-/*
- *  Update global variables germsTabs[] and index
- */
+// update global variables germsTabs[] and index
 function updateTabs() {
     return chrome.tabs.query({ currentWindow: true, url: "https://germs.io/*" })
     .then((tabs) => {
@@ -97,7 +95,6 @@ function updateTabs() {
         //console.log(activeTab);
         if (activeTab) {
             // If an active tab is found, update switcherTabIndex
-            
             index = germsTabs.indexOf(activeTab.id);
         } else {
             console.log('Found no active germs tab.');

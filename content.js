@@ -3,7 +3,7 @@ console.log("Running content.js");
 var feedKey;            // retrieved from germs settings
 var testerWaiting;      // is the tester waiting for the user to input
 var switcherKey;        // array of [keyCode, key]
-var customSkins = [];   // array of custom skin urls
+var customSkins = [];  // array of custom skin urls
 var switcherWindowed;   // boolean which defines whether the switcher is tabbed or windowed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
@@ -73,7 +73,7 @@ class="btn">
 const settingsModalHTML = `
 <div id="germsfoxSettingsModal" class="germsfox-modal">
     <div class="germsfox-modal-content">
-        <span id="settingsClose" class="germsfox-close">&times;</span>
+        <span id="germsfoxSettingsClose" class="germsfox-close">&times;</span>
 
         <h2><b>Settings</b></h2>
 
@@ -95,7 +95,7 @@ const customSkinsContainerHTML = `
 <div id="customSkinList" style="margin-bottom: 10px;">
 </div>`;
 
-const modalStyle = `
+const germsfoxStyle = `
 <style>
     .germsfox-modal {
         display: none;
@@ -130,13 +130,19 @@ const modalStyle = `
         text-decoration: none;
         cursor: pointer;
     }
+    #skinDeleteButton {
+        position: absolute;
+        background-color: red;
+        color: white;
+        display: none;
+    }
 </style>
 `;
 
 settingsButton.insertAdjacentHTML('afterend', settingsButtonHTML);
 customSkinsElement.insertAdjacentHTML('beforeend', customSkinsContainerHTML);
 document.body.insertAdjacentHTML('beforeend', settingsModalHTML);
-document.head.insertAdjacentHTML('beforeend', modalStyle);
+document.head.insertAdjacentHTML('beforeend', germsfoxStyle);
 
 // this is for the icon on the germsfox button
 var germsfoxIcon = document.getElementById('germsfoxIcon');
@@ -148,7 +154,7 @@ var keyTester =             document.getElementById("keyTester");
 var saveButton =            document.getElementById("saveButton");
 var enabledCheckbox =       document.getElementById("enabledCheckbox");
 var windowedCheckbox =      document.getElementById("windowedCheckbox");
-var settingsCloseButton =   document.getElementById("settingsClose");
+var settingsCloseButton =   document.getElementById("germsfoxSettingsClose");
 var customSkinsContainer =  document.getElementById("customSkinList");
 var applyButton =           document.querySelector("#customSkin .btn-info");
 
@@ -343,7 +349,30 @@ function customSkinSubmitted() {
 
 function updateCustomSkinMenu() {
     console.log("Updating the custom skins menu.");
-    customSkinsContainer.innerHTML = ""; 
+    customSkinsContainer.innerHTML = `
+    <script>
+        function showDeleteButton(event, childIndex) {
+            event.preventDefault();
+            
+            var deleteSkinButton = document.getElementById('deleteSkinButton');
+           
+            if (!deleteSkinButton) {
+                deleteSkinButton = document.createElement('button');
+                deleteSkinButton.id = 'deleteSkinButton';
+                deleteSkinButton.textContent = 'Delete';
+                deleteSkinButton.onClick = 'customSkinsContainer.removeChild(customSkinsContainer.children[childIndex]);'
+                customSkinsElement.appendChild(deleteSkinButton);
+            }
+            deleteSkinButton.style.left = event.clientX + 'px';
+            deleteSkinButton.style.top = event.clientY + 'px';
+            deleteSkinButton.style.display = 'block';
+
+            document.addEventListener('click', function hideDeleteButton(event) {
+                deleteButton.style.display = 'none';
+                document.removeEventListener('click', hideButton);
+            });
+        }
+    </script>`; 
     
     if (customSkins.length === 0) {
         var pElement = document.createElement('p');
@@ -352,10 +381,10 @@ function updateCustomSkinMenu() {
         return 0;
     }
     // create a new element to be displayed for each skin in customSkins
-    customSkins.forEach(function(skinURL) {
-        var imgHTML = '<li id="skinSkin"><img onclick="setSkin(\'' + skinURL + '\');" class="lazy loaded" width="85" height="85" src="' + skinURL + '"></li>';
+    for (i = 0; i < customSkins.length; i++) {
+        var imgHTML = `<li id="skinSkin"><img onContextMenu="showDeleteButton(event, ${i})" onclick="setSkin("${customSkins[i]}");" class="lazy loaded" width="84" height="85" src="${customSkins[i]}"></li>`;
         customSkinsContainer.innerHTML += imgHTML
-    });
+    }
 }
 
 function stopWaiting() {

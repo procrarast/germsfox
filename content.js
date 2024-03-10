@@ -9,7 +9,7 @@ var switcherEnabled;    // boolean which defines whether the switcher is turned 
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
 var usingTextBox = false;   // :chatting:
 var playerBlocklist;
-var skinBlocklist = []; // TODO
+//var skinBlocklist = []; // TODO
 
 //chrome.runtime.sendMessage("updateTabs");
 

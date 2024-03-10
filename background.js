@@ -4,18 +4,18 @@ var germsTabs = [];     // array of tab ids with url germs.io
 var germsWindows = [];  // array of window ids url germs.io
 var index = null;       // index may be 0 or 1
 
-browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === "switchTabs") {
         updateTabs().then(() => {
             console.log("Switching tabs!");
             switch (germsTabs.length) {
                 case 2: // switch tabs
                     console.log(`Switching to index ${index}`);
-                    browser.tabs.update(germsTabs[index ? 0 : 1], { active: true });
+                    chrome.tabs.update(germsTabs[index ? 0 : 1], { active: true });
                     break;
                 case 1: // make a new tab
-                    browser.tabs.get(germsTabs[0], function(tab) {
-                        browser.tabs.create({ url: tab.url });
+                    chrome.tabs.get(germsTabs[0], function(tab) {
+                        chrome.tabs.create({ url: tab.url });
                     });
                     break;
                 case 0:
@@ -30,10 +30,10 @@ browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             console.log("Switching windows!");
             switch (germsWindows.length) {
                 case 2: // switch windows
-                    browser.windows.update(germsWindows[index ? 0 : 1], {focused: true });
+                    chrome.windows.update(germsWindows[index ? 0 : 1], {focused: true });
                     break;
                 case 1: // open a new window
-                    browser.windows.get(germsWindows[0], { populate: true }, (window) => openWindow(window));
+                    chrome.windows.get(germsWindows[0], { populate: true }, (window) => openWindow(window));
                     break;
                 case 0:
                     console.warn("Warning: No active germs window found.")
@@ -53,7 +53,7 @@ function openWindow(window) {
     const germsTab = window.tabs.find(tab => tab.url.includes('germs.io'));
     if (germsTab) {
         // Create a new window with the germs.io tab URL
-        browser.windows.create({ url: germsTab.url });
+        chrome.windows.create({ url: germsTab.url });
     } else {
         console.warn("Warning: No germs.io tab found in the existing window.");
     }
@@ -61,7 +61,7 @@ function openWindow(window) {
 
 // update global variables index and window[]
 function updateWindows() {
-    return browser.windows.getAll({ populate: true })
+    return chrome.windows.getAll({ populate: true })
     .then((windows) => {
         // Filter for windows that have a germs.io tab and store their IDs
         germsWindows = windows.filter(win => 
@@ -89,7 +89,7 @@ function updateWindows() {
  *  Update global variables germsTabs[] and index
  */
 function updateTabs() {
-    return browser.tabs.query({ currentWindow: true, url: "https://germs.io/*" })
+    return chrome.tabs.query({ currentWindow: true, url: "https://germs.io/*" })
     .then((tabs) => {
         germsTabs = tabs.map(tab => tab.id);
         console.log(`Germs.io tabs found: ${germsTabs.length}`);

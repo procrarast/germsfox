@@ -11,7 +11,7 @@ var usingTextBox = false;   // :chatting:
 var playerBlocklist;
 var skinBlocklist = []; // TODO
 
-//browser.runtime.sendMessage("updateTabs");
+//chrome.runtime.sendMessage("updateTabs");
 
 var animationDelayRange =   document.getElementById("animationDelay");
 var settingsButton =        document.getElementById("settingsButton");
@@ -146,7 +146,7 @@ document.head.insertAdjacentHTML('beforeend', germsfoxStyle);
 
 // this is for the icon on the germsfox button
 var germsfoxIcon = document.getElementById('germsfoxIcon');
-germsfoxIcon.src = browser.runtime.getURL('images/gsDuhFox-19.png');
+germsfoxIcon.src = chrome.runtime.getURL('images/gsDuhFox-19.png');
     
 var germsfoxButton =        document.getElementById("germsfoxButton");
 var settingsModal =         document.getElementById("germsfoxSettingsModal");
@@ -202,7 +202,7 @@ muteButton.addEventListener('click', function() {
         chatBox.innerHTML += muteMessage;
     }
     console.log(playerBlocklist);
-    browser.storage.local.set({ "playerBlocklist": playerBlocklist }, function() {
+    chrome.storage.local.set({ "playerBlocklist": playerBlocklist }, function() {
         updateSettings();
     })
 
@@ -236,7 +236,7 @@ saveButton.addEventListener('click', function() {
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
     const switcherKeycode = document.getElementById('keyTester').value;
     
-    browser.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {
+    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {
         console.log('Settings saved');
         updateSettings();
     });
@@ -255,7 +255,7 @@ function stoppedUsingTextBox() {
     usingTextBox = false;
 }
 
-browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === "updateSettings") {
         console.info("Updating settings");
         updateSettings();
@@ -286,10 +286,10 @@ function keydown(event) {
     else if (!usingTextBox && switcherEnabled && (event.keyCode === switcherKey[0] || event.key === switcherKey[1])) {
         if (switcherWindowed) {
             console.log("Switching windows!");
-            browser.runtime.sendMessage({ action: "switchWindows"});
+            chrome.runtime.sendMessage({ action: "switchWindows"});
         } else {
             console.log("Switching tabs!");
-            browser.runtime.sendMessage({ action: "switchTabs"});
+            chrome.runtime.sendMessage({ action: "switchTabs"});
         }
     }
     /*
@@ -310,9 +310,9 @@ function updateSettings() {
     }
     
     // germsfox settings
-    browser.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed"], function(settings){
-        if (browser.runtime.lastError) {
-            console.error("Error retrieving settings:", browser.runtime.lastError);
+    chrome.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed"], function(settings){
+        if (chrome.runtime.lastError) {
+            console.error("Error retrieving settings:", chrome.runtime.lastError);
             return;
         }
         console.info("Germsfox settings retrieved.");

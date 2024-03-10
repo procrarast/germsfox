@@ -369,7 +369,7 @@ function updateCustomSkinMenu() {
     }
     // create a new element to be displayed for each skin in customSkins
     for (i = 0; i < customSkins.length; i++) {
-        var imgHTML = `<li id="skinSkin"><img onContextMenu="showDeleteButton(event, ${i})" onclick="setSkin("${customSkins[i]}");" class="lazy loaded" width="84" height="85" src="${customSkins[i]}"></li>`;
+        var imgHTML = `<li id="skinSkin"><img onContextMenu="showDeleteButton(event, ${i})" onclick="setSkin('${customSkins[i]}');" class="lazy loaded" width="84" height="85" src="${customSkins[i]}"></li>`;
         customSkinsContainer.innerHTML += imgHTML
     }
 }

@@ -80,7 +80,8 @@ const settingsModalHTML = `
         </div> 
         <button id="blocklistButton" 
             type="button" 
-            class="germsfox-btn">
+            class="germsfox-btn"
+            style="margin-left: 0px; margin-right: 20px;">
             <b>Edit Blocklist</b>
         </button>
     </div>
@@ -128,7 +129,8 @@ const germsfoxStyle = `
         transition: color 0.3s ease-in-out;
     }
     .germsfox-btn:hover {
-        background-color:
+        background-color: #241b24;
+        transition: color 0.3s ease-in-out;
     }
     .key-tester {
         border: 2px solid #1e1a1e; 

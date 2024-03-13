@@ -1,5 +1,6 @@
 console.log("Running content.js");
 
+var deleteSkinFunction = null;  // deleteButton's function to remove skins
 var feedKey;            // retrieved from germs settings
 var testerWaiting;      // is the tester waiting for the user to input
 var switcherKey;        // array of [keyCode, key]
@@ -110,6 +111,11 @@ const blockerHTML = `
         <ul id="blockerList"></ul>
     </div>
 </div>`;
+
+const deleteButtonHTML = `
+<button type="button" id="deleteButton" class="btn" style="display: none; position: sticky; z-index: 1000; color: white; background-color: red; border-color: dark-red; padding: 4px; font-size: 12px;"><b>Delete</b></button>
+`;
+
 const germsfoxStyle = `
 <style>
     .germsfox-btn {
@@ -126,14 +132,12 @@ const germsfoxStyle = `
         user-select: none;
         padding: 0.375rem 0.75rem;
         border-radius: 0.25rem;
-        transition: color 0.3s ease-in-out;
     }
     .germsfox-btn:hover {
         background-color: #241b24;
-        transition: color 0.3s ease-in-out;
     }
     .key-tester {
-        border: 2px solid #1e1a1e; 
+        border: 2px solid #947995; 
         border-radius: 4px; 
         padding: 4px; 
         cursor: pointer;
@@ -206,6 +210,7 @@ customSkinsElement.insertAdjacentHTML('beforeend', customSkinsContainerHTML);
 document.body.insertAdjacentHTML('beforeend', settingsModalHTML);
 document.body.insertAdjacentHTML('beforeend', blocklistHTML);
 document.body.insertAdjacentHTML('beforeend', blockerHTML);
+document.body.insertAdjacentHTML('beforeend', deleteButtonHTML);
 document.head.insertAdjacentHTML('beforeend', germsfoxStyle);
 
 var addBlockButton =        document.getElementById("addBlockButton");
@@ -217,6 +222,7 @@ var blocklistButton =       document.getElementById("blocklistButton");
 var blocklistModal =        document.getElementById("blocklistModal");
 var blocklistCloseButton =  document.getElementById("blocklistClose");
 var blocklistList =         document.getElementById("blocklistList");
+var deleteButton =          document.getElementById("deleteButton");
 var germsfoxButton =        document.getElementById("germsfoxButton");
 var settingsModal =         document.getElementById("germsfoxSettingsModal");
 var keyTester =             document.getElementById("keyTester");
@@ -293,7 +299,7 @@ function updateBlockerMenu() {
         for (let i = 0; i < chatters.length; i++) {
             const listItem = document.createElement('li');
             listItem.textContent = chatters[i];
-            listItem.style.cursor = 'pointer'; // Ensure it looks clickable
+            listItem.style.cursor = 'pointer';
         
             listItem.addEventListener('click', function onClick() {
                 console.log('Blocked player', chatters[i]);
@@ -415,8 +421,9 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 });
 
-// close the modal if you click anywhere outside of it
 window.onclick = function(event) {
+    hideDeleteButton();
+
     if (event.target === settingsModal) {
         stopWaiting();
         settingsModal.style.display = "none";
@@ -531,9 +538,47 @@ function updateCustomSkinMenu() {
     }
     // create a new element to be displayed for each skin in customSkins
     for (i = 0; i < customSkins.length; i++) {
-        var imgHTML = `<li id="skinSkin"><img onContextMenu="showDeleteButton(event, ${i})" onclick="setSkin('${customSkins[i]}');" class="lazy loaded" width="84" height="85" src="${customSkins[i]}"></li>`;
+        var imgHTML = `<li id="skinSkin"><img onclick="setSkin('${customSkins[i]}');" class="lazy loaded" width="84" height="85" src="${customSkins[i]}"></li>`;
         customSkinsContainer.innerHTML += imgHTML
     }
+    for (const listItem of customSkinsContainer.children) {
+        listItem.addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            const posY = event.pageY + "px";
+            const posX = event.pageX + "px";
+            const imgElement = listItem.querySelector('img');
+            showDeleteButton(posX, posY, imgElement.src); // pass the skin to delete
+        });
+    }
+}
+
+function showDeleteButton(posX, posY, imgSrc) {
+    console.log(`Showing delete button for skin ${imgSrc}`);
+    deleteButton.style.left = posX;
+    deleteButton.style.top = posY;
+    deleteButton.style.display = "block";
+
+    if(deleteSkinFunction) { // check if an event listener already exists and remove it
+        deleteButton.removeEventListener('click', deleteSkinFunction);
+    }
+
+    deleteSkinFunction = function() {
+        deleteButton.style.display = "none";
+        console.log(`Deleting ${imgSrc}`);
+        customSkins.splice(customSkins.indexOf(imgSrc), 1); // surely it always exists
+        chrome.storage.local.set({"customSkins": customSkins});
+        updateCustomSkinMenu(); 
+    }
+
+    deleteButton.addEventListener('click', deleteSkinFunction);
+}
+
+function hideDeleteButton() {
+    deleteButton.style.display = "none";
+    if (deleteSkinFunction) {
+        deleteButton.removeEventListener('click', deleteSkinFunction);
+    }
+
 }
 
 function updateBlocklistMenu() {
@@ -554,13 +599,13 @@ function updateBlocklistMenu() {
         }
     } else {
         const messageItem = document.createElement('p');
-        messageItem.textContent = "You have nobody blocked. Such a tolerant creature!";
+        messageItem.textContent = "You have nobody blocked. What a tolerant creature!";
         blocklistList.appendChild(messageItem);
     }
 }
 
 function stopWaiting() {
-    keyTester.style.border = '2px solid #1e1a1e';
+    keyTester.style.border = '2px solid #947995';
     keyTester.textContent = switcherKey[1].toUpperCase();
     testerWaiting = false;
 }

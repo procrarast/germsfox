@@ -78,7 +78,7 @@ const settingsModalHTML = `
         <label for="windowedCheckbox">Windowed mode</label><br> 
 
         <div id="keyTester" class="key-tester">
-        </div> 
+        <hr style="margin-top: 24px;">
         <button id="blocklistButton" 
             type="button" 
             class="germsfox-btn"
@@ -97,7 +97,7 @@ const blocklistHTML = `
         <span id="blocklistClose" class="germsfox-close">&times;</span>
         <div style="display: flex; justify-content: space-between; align-items: left; margin-bottom: 20px;">
             <h2><b>Blocklist</b></h2>
-            <button type="button" id="addBlockButton" class="germsfox-btn" style="margin-top: 0px; margin-right: 60px; padding: 0px; height: 40px; width: 40px";><b>+</b></button>
+            <button type="button" id="addBlockButton" class="germsfox-btn";><b>+</b></button>
         </div>
         <ul id="blocklistList"></ul>
     </div>
@@ -113,11 +113,15 @@ const blockerHTML = `
 </div>`;
 
 const deleteButtonHTML = `
-<button type="button" id="deleteButton" class="btn" style="display: none; position: sticky; z-index: 1000; color: white; background-color: red; border-color: dark-red; padding: 4px; font-size: 12px;"><b>Delete</b></button>
+<button type="button" id="deleteButton" class="btn"><b>Delete</b></button>
 `;
 
 const germsfoxStyle = `
 <style>
+    hr {
+        border-width: 2px;
+        background-color: #947995; 
+    }
     .germsfox-btn {
         color: #e4c6e6; 
         background-color: #382938; 
@@ -143,8 +147,11 @@ const germsfoxStyle = `
         cursor: pointer;
         text-align: center; 
         width: 64px; 
-        height: 32px; 
+        height: 36px; 
         user-select: none;
+    }
+    .key-tester:hover {
+        background-color: #241b24;
     }
     .germsfox-modal {
         display: none;
@@ -201,6 +208,28 @@ const germsfoxStyle = `
     #blockerList li:hover {
         color: white;
         transition: color 0.3s ease-in-out;
+    }
+    #deleteButton {
+        display: none; 
+        position: sticky; 
+        z-index: 1000; 
+        color: white; 
+        background-color: #dc3545; 
+        border-color: #dc3545; 
+        padding: 4px; 
+        font-size: 12px;
+    }
+    #deleteButton:hover {
+        background-color: #ad2a37;
+        border-color: #ad2a37;
+        transition: color 0.3s ease-in-out;
+    }
+    #addBlockButton {
+        margin-top: 0px; 
+        margin-right: 60px; 
+        padding: 0px; 
+        height: 40px; 
+        width: 40px
     }
 </style>
 `;

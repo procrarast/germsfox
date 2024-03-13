@@ -12,8 +12,6 @@ var usingTextBox = false;   // :chatting:
 var playerBlocklist = [];
 //var skinBlocklist = []; // TODO
 
-//chrome.runtime.sendMessage("updateTabs");
-
 var animationDelayRange =   document.getElementById("animationDelay");
 var settingsButton =        document.getElementById("settingsButton");
 var chatInput =             document.getElementById("chat_input");
@@ -33,27 +31,6 @@ updateAllSettings();
 
 chatInput.setAttribute("maxlength", 100); // Increase max length of chat messages
 animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
-
-var chatObserver = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === "childList") {
-            const lastMessage = chatBox.lastElementChild;
-            if (lastMessage) {
-                const chatterNameElement = lastMessage.querySelector('b');
-                if (chatterNameElement) {
-                    chatterName = chatterNameElement.textContent;
-                    console.log(`Recieved message from ${chatterName}`);
-                    if (playerBlocklist.includes(chatterName)) {
-                        lastMessage.remove();
-                        console.log(`Removed message from ${chatterName}`);
-                    }
-                }
-            }
-        }
-    });
-});
-
-chatObserver.observe(chatBox, {childList: true});
 
 const settingsButtonHTML =` 
 <button id="germsfoxButton" 
@@ -77,12 +54,12 @@ const settingsModalHTML = `
         <input type="checkbox" id="windowedCheckbox"> 
         <label for="windowedCheckbox">Windowed mode</label><br> 
 
-        <div id="keyTester" class="key-tester">
-        <hr style="margin-top: 24px;">
+        <div id="keyTester" class="key-tester"></div>
+        <hr style="margin-top: 16px;">
         <button id="blocklistButton" 
             type="button" 
             class="germsfox-btn"
-            style="margin-left: 0px; margin-right: 20px;">
+            style="margin-left: 0px; margin-top: 2px; margin-right: 20px;">
             <b>Edit Blocklist</b>
         </button>
     </div>
@@ -262,24 +239,50 @@ var customSkinsContainer =  document.getElementById("customSkinList");
 var applySkinButton =       document.querySelector("#customSkin .btn-info");
 var germsfoxIcon =          document.getElementById('germsfoxIcon');
 
+var chatObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === "childList") {
+            const lastMessage = chatBox.lastElementChild;
+            if (lastMessage) {
+                const chatterNameElement = lastMessage.querySelector('b');
+                if (chatterNameElement) {
+                    chatterName = chatterNameElement.textContent;
+                    console.log(`Recieved message from ${chatterName}`);
+                    if (playerBlocklist.includes(chatterName)) {
+                        lastMessage.remove();
+                        console.log(`Removed message from ${chatterName}`);
+                    }
+                }
+            }
+        }
+    });
+});
+
+chatObserver.observe(chatBox, {childList: true});
+
 germsfoxIcon.src = chrome.runtime.getURL('images/gsDuhFox-19.png');
 
+document.addEventListener('keydown', keydown);
+chatInput.addEventListener('focus', startedUsingTextBox);
+chatInput.addEventListener('blur', stoppedUsingTextBox);
+nickInput.addEventListener('focus', startedUsingTextBox);
+nickInput.addEventListener('blur', stoppedUsingTextBox);
 addBlockButton.addEventListener('click', openBlockerMenu);
 blocklistButton.addEventListener('click', openBlocklistMenu);
 applySkinButton.addEventListener('click', customSkinSubmitted);
 skinsButton.addEventListener('click', updateCustomSkinMenu);
 enabledCheckbox.addEventListener('change', checkboxChanged);
 windowedCheckbox.addEventListener('change', checkboxChanged);
+germsfoxButton.addEventListener('click', openSettingsMenu);
 
-germsfoxButton.addEventListener('click', function() {
-    console.log("Settings button clicked");
+function openSettingsMenu() {
     stopWaiting(); //just to update the style
     chrome.storage.local.get(['switcherEnabled', 'switcherWindowed'], function(items) {
-        document.getElementById('enabledCheckbox').checked = items.switcherEnabled;
-        document.getElementById('windowedCheckbox').checked = items.switcherWindowed;
+        enabledCheckbox.checked = items.switcherEnabled;
+        windowedCheckbox.checked = items.switcherWindowed;
     });
     settingsModal.style.display = "block";
-});
+}
 
 function openBlockerMenu() {
     updateBlockerMenu();
@@ -430,11 +433,6 @@ function blockPlayerName(playerName) {
     }
 }
 
-chatInput.addEventListener('focus', startedUsingTextBox);
-chatInput.addEventListener('blur', stoppedUsingTextBox);
-nickInput.addEventListener('focus', startedUsingTextBox);
-nickInput.addEventListener('blur', stoppedUsingTextBox);
-
 function startedUsingTextBox() { // this will pause the tab switcher
     usingTextBox = true;
 }
@@ -451,9 +449,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 });
 
 window.onclick = function(event) {
-    hideDeleteButton();
-
-    if (event.target === settingsModal) {
+    if(deleteSkinFunction) { // if the delete skin button is on the screen
+        hideDeleteButton();
+    } 
+    else if (event.target === settingsModal) {
         stopWaiting();
         settingsModal.style.display = "none";
     }
@@ -467,8 +466,6 @@ window.onclick = function(event) {
         blocklistModal.style.display = "block";
     }
 };
-
-document.addEventListener('keydown', keydown);
 
 function keydown(event) {
     if (testerWaiting) {

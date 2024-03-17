@@ -245,7 +245,17 @@ var chatObserver = new MutationObserver(function(mutations) {
             const lastMessage = chatBox.lastElementChild;
             if (lastMessage) {
                 const chatterNameElement = lastMessage.querySelector('b');
-                if (chatterNameElement) {
+                if (chatterNameElement) { // valid chat message, not an admin message
+                    // robloxification (im sorry)
+                    const chatParagraph = lastMessage.querySelector('p');
+                    if (!disableProfanityFilter && chatParagraph.textContent.includes('*')) {
+                        const paragraphHTML = chatParagraph.innerHTML;
+                        chatMessageIndex = paragraphHTML.indexOf("</b>") + 4; 
+                        const before = paragraphHTML.substring(0, chatMessageIndex);
+                        const after = paragraphHTML.substring(chatMessageIndex);
+                        const modifiedAfter = after.replace(/\*/g, '#');
+                        chatParagraph.innerHTML = before + modifiedAfter;
+                    }
                     chatterName = chatterNameElement.textContent;
                     console.log(`Recieved message from ${chatterName}`);
                     if (playerBlocklist.includes(chatterName)) {
@@ -500,6 +510,7 @@ function updateAllSettings() {
         console.info("Settings key retrieved");
         const parsedSettings = JSON.parse(settings);
         feedKey = parsedSettings.controls.Feed;
+        disableProfanityFilter = parsedSettings.disableProfanityFilter;
     } else {
         console.warn("Settings key either empty or not found");
     }

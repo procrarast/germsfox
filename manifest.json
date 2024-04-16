@@ -26,7 +26,8 @@
     ],
     "permissions": [
         "storage",
-        "tabs"
+        "tabs",
+        "downloads"
     ],
     "host_permissions": [
         "https://germs.io/*"

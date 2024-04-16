@@ -45,6 +45,19 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         });
     } else if (request.action === "updateTabs") {
         updateTabs();
+    } else if (request.action === 'download') {
+        console.log("Preparing download");
+        chrome.downloads.download({
+            url: request.url,
+            filename: request.filename,
+            saveAs: true
+        }, () => {
+            if (chrome.runtime.lastError) {
+                console.error(chrome.runtime.lastError.request);
+            } else {
+                console.log("Downloaded");
+            }
+        });
     }
 });
 

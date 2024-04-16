@@ -443,6 +443,8 @@ function blockPlayerName(playerName) {
     }
 }
 
+// why did i make these functions dude
+
 function startedUsingTextBox() { // this will pause the tab switcher
     usingTextBox = true;
 }
@@ -452,6 +454,18 @@ function stoppedUsingTextBox() {
 }
 
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === "exportSkins") {
+        console.info("Exporting skins array to json");
+        exportSkinsToJson();
+        sendResponse({ success: true });
+    }
+    if (request.action === "storeSkins") {
+        console.info("Storing skins array");
+        for (const skin of request.skins) {
+            addSkinToList(skin);
+        }
+        sendResponse({ success: true });
+    }
     if (request.action === "updateSettings") {
         console.info("Updating settings");
         updateAllSettings();
@@ -548,19 +562,36 @@ function nickInit() {
     }
 }
 
-// cba to do proper input validation on this, just dont try to break it and youll be fine
 function customSkinSubmitted() {
     console.log("Custom skin submitted.");
     const inputValue = customSkinInput.value;
-
-    if (inputValue.includes("https://i.imgur.com/")) {
-        customSkins.unshift(inputValue.replace(/\s/g, '')); // removes whitespace
-        chrome.storage.local.set({ "customSkins": customSkins }, function() {
-            console.log("New custom skin added");
-        });
-    }
+    addSkinToList(inputValue);
+    chrome.storage.local.set({ "customSkins": customSkins });
     customSkinInput.value = ""; // clear the input box
     updateCustomSkinMenu();
+}
+
+function addSkinToList(skin) {
+    skin = skin.replace(/\s/g, ''); // remove whitespace
+    if (skin.includes("https://i.imgur.com/") && !customSkins.includes(skin)) { // if it's not a duplicate imgur link
+        customSkins.unshift(skin);
+        console.log("Added skin", skin);
+    } else {
+        console.info("Invalid or duplicate skin input, ignoring");
+    }
+}
+
+function exportSkinsToJson() {
+    const stringifiedArray = JSON.stringify(customSkins);
+    const blob = new Blob([stringifiedArray], {type: 'application/json'});
+    const blobUrl = window.URL.createObjectURL(blob);
+    const filename = "skins.json";
+
+    chrome.runtime.sendMessage({ // sent to background.js because mv3 content.js restrictions are ridiculous
+        action: 'download',
+        url: blobUrl,
+        filename: filename
+    }); 
 }
 
 function updateCustomSkinMenu() {

@@ -29,8 +29,8 @@ nickInit();
 updateAllSettings();
 //updateCustomSkinMenu();
 
-chatInput.setAttribute("maxlength", 100); // Increase max length of chat messages
-animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
+chatInput.setAttribute("maxlength", 120); // Increase max length of chat messages
+animationDelayRange.setAttribute('min', '0'); // Lower minimum animation delay to 0
 
 const settingsButtonHTML =` 
 <button id="germsfoxButton" 

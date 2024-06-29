@@ -6,6 +6,7 @@ var switcherKey;        // array of [keyCode, key]
 var customSkins = [];  // array of custom skin urls
 var switcherWindowed;   // boolean which defines whether the switcher is tabbed or windowed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
+var ignoreInvites;      // boolean which defines whether to ignore invites or not
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
 var usingTextBox = false;   // :chatting:
 var playerBlocklist;
@@ -39,12 +40,21 @@ var chatObserver = new MutationObserver(function(mutations) {
             const lastMessage = chatBox.lastElementChild;
             if (lastMessage) {
                 const chatterNameElement = lastMessage.querySelector('b');
+                const inviteMessageElement = lastMessage.querySelector('button');
+
                 if (chatterNameElement) {
                     chatterName = chatterNameElement.textContent;
                     console.log(`Recieved message from ${chatterName}`);
                     if (playerBlocklist.includes(chatterName)) {
                         lastMessage.remove();
                         console.log(`Removed message from ${chatterName}`);
+                    }
+                }
+
+                if (ignoreInvites && inviteMessageElement) {
+                    if (inviteMessageElement.id == "acceptInvite" || inviteMessageElement.id == "declineInvite") {
+                        inviteMessageElement.parentElement.remove();
+                        console.log("Removed invite");
                     }
                 }
             }
@@ -82,6 +92,9 @@ const settingsModalHTML = `
 
         <input type="checkbox" id="windowedCheckbox"> 
         <label for="windowedCheckbox">Windowed mode</label><br> 
+
+        <input type="checkbox" id="invitesCheckbox">
+        <label for="invitesCheckbox">Ignore invites</label><br>
 
         <div id = "keyTester" style ="border: 2px solid #1e1a1e; border-radius: 4px; padding: 4px; cursor: pointer; text-align: center; width: 64px; height: 32px;">
         </div> 
@@ -164,9 +177,10 @@ skinsButton.addEventListener('click', updateCustomSkinMenu);
 germsfoxButton.addEventListener('click', function() {
     console.log("Settings button clicked");
     stopWaiting(); //just to update the style
-    chrome.storage.local.get(['switcherEnabled', 'switcherWindowed'], function(items) {
+    chrome.storage.local.get(['switcherEnabled', 'switcherWindowed', 'invitesEnabled'], function(items) {
         document.getElementById('enabledCheckbox').checked = items.switcherEnabled;
         document.getElementById('windowedCheckbox').checked = items.switcherWindowed;
+        document.getElementById('invitesCheckbox').checked = items.invitesEnabled;
     });
     settingsModal.style.display = "block"; // un-hide settings modal
 });
@@ -236,7 +250,7 @@ saveButton.addEventListener('click', function() {
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
     const switcherKeycode = document.getElementById('keyTester').value;
     
-    browser.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed }, function() {
+    browser.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherKeycode": switcherKeycode, "switcherWindowed": switcherWindowed, "ignoreInvites": ignoreInvites }, function() {
         console.log('Settings saved');
         updateSettings();
     });
@@ -276,7 +290,7 @@ function keydown(event) {
     if (testerWaiting) {
         switcherKey[0] = event.keyCode;
         switcherKey[1] = event.key;
-        
+
         chrome.storage.local.set({ "switcherKey": switcherKey }, function() {
             console.log('Switcher key changes saved');
             updateSettings();
@@ -308,9 +322,9 @@ function updateSettings() {
     } else {
         console.warn("Settings key either empty or not found");
     }
-    
+
     // germsfox settings
-    browser.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed"], function(settings){
+    browser.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed", "ignoreInvites",], function(settings){
         if (browser.runtime.lastError) {
             console.error("Error retrieving settings:", browser.runtime.lastError);
             return;
@@ -325,6 +339,7 @@ function updateSettings() {
         switcherWindowed = settings.switcherWindowed;
         //console.log(switcherWindowed);
         skinBlocklist = settings.skinBlocklist;
+        ignoreInvites = settings.ignoreInvites;
     });
 }
 
@@ -360,7 +375,7 @@ function customSkinSubmitted() {
 function updateCustomSkinMenu() {
     console.log("Updating the custom skins menu.");
     customSkinsContainer.innerHTML = ""; 
-    
+
     if (customSkins.length === 0) {
         var pElement = document.createElement('p');
         pElement.textContent = `You have no imgur skins saved!`;

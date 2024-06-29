@@ -52,10 +52,10 @@ var chatObserver = new MutationObserver(function(mutations) {
                 }
 
                 if (ignoreInvites && inviteMessageElement) {
-                if (inviteMessageElement.id == "acceptInvite" || inviteMessageElement.id == "declineInvite") {
-                    inviteMessageElement.parentElement.remove();
-                    console.log("Removed invite");
-                }
+                    if (inviteMessageElement.id == "acceptInvite" || inviteMessageElement.id == "declineInvite") {
+                        inviteMessageElement.parentElement.remove();
+                        console.log("Removed invite");
+                    }
                 }
             }
         }

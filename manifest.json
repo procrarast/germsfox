@@ -35,7 +35,11 @@
 
     "permissions": [
         "storage",
-        "tabs"
+        "tabs",
+        "webRequest",
+        "webRequestBlocking",
+        "https://i.imgur.com/*",
+        "https://germs.io/*"
     ],
     
     "web_accessible_resources": [

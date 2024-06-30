@@ -10,7 +10,7 @@ var ignoreInvites;      // boolean which defines whether to ignore invites or no
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
 var usingTextBox = false;   // :chatting:
 var playerBlocklist;
-var skinBlocklist = []; // TODO
+var skinBlocklist; // TODO
 
 //browser.runtime.sendMessage("updateTabs");
 
@@ -25,7 +25,13 @@ var customSkinsElement =    document.getElementById("customSkin");
 var customSkinInput =       document.getElementById("loginCustomSkinText");
 var skinsButton =           document.getElementById("skin");
 var muteButton =            playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
+var skinPreview =           playerMenu.firstElementChild;
 var centerCard =            menuCenter.getElementsByClassName("card")[0];
+
+playerMenu.getElementsByTagName("hr")[1].remove();
+playerMenu.innerHTML += `<li class="userMenuItem"><i class="fas fa-ban"></i><p>Block Skin</p></li><hr>`
+
+var blockSkinButton = playerMenu.getElementsByClassName("userMenuItem")[2];
 
 nickInit();
 updateSettings();
@@ -198,6 +204,26 @@ keyTester.addEventListener('click', function() {
     }
 });
 
+blockSkinButton.addEventListener('click', function(e) {
+    const playerSkinElement = document.getElementById("userMenuPlayerSkin");
+    const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1");
+
+    if (!skinBlocklist.includes(skinURL)) {
+        skinBlocklist.push(skinURL);
+        browser.storage.local.set({ "skinBlocklist": skinBlocklist }, function() {
+            updateSettings();
+        });
+        browser.runtime.sendMessage({ action: "updateSkinBlocklist"});
+        
+        var successMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Skin successfully blocked!</font></p></div>`;
+        var successMessage2 = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Due to limitations, you will have to hard-refresh your tab.</font></p></div>`;
+        chatBox.innerHTML += successMessage;
+        chatBox.innerHTML += successMessage2;
+    }
+
+    playerMenu.parentElement.parentElement.style.display = "none";
+});
+
 muteButton.addEventListener('click', function() {
     const playerNameElement = document.getElementById("userMenuPlayerName");
     const mutedTextElement = document.getElementById("userMenuBlockText");
@@ -268,7 +294,7 @@ function startedUsingTextBox() { // this will pause the tab switcher
 function stoppedUsingTextBox() {
     usingTextBox = false;
 }
-
+  
 browser.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === "updateSettings") {
         console.info("Updating settings");
@@ -338,7 +364,7 @@ function updateSettings() {
         switcherKeyUp = settings.switcherKeyUp;
         switcherWindowed = settings.switcherWindowed;
         //console.log(switcherWindowed);
-        skinBlocklist = settings.skinBlocklist;
+        skinBlocklist = settings.skinBlocklist || [];
         ignoreInvites = settings.ignoreInvites;
     });
 }

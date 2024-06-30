@@ -4,13 +4,11 @@ var germsTabs = [];     // array of tab ids with url germs.io
 var germsWindows = [];  // array of window ids url germs.io
 var index = null;       // index may be 0 or 1
 
-browser.storage.local.get('skinBlocklist').then((value) => {
-    value.skinBlocklist || [];
+function cancel() {
+    return { cancel: true };
+}
 
-    function cancel() {
-        return { cancel: true };
-    }
-    
+browser.storage.local.get('skinBlocklist').then((value) => {
     browser.webRequest.onBeforeRequest.addListener(
         cancel,
         { urls: value.skinBlocklist || [], types: ["image", "main_frame"] },
@@ -134,7 +132,7 @@ function updateSkinBlocklist() {
         if (activeTab) {
             browser.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed", "ignoreInvites",], function(settings) {
                 browser.webRequest.onBeforeRequest.addListener(
-                    function() { return { cancel: true } },
+                    cancel,
                     { urls: settings.skinBlocklist || [], types: ["image", "main_frame"] },
                     ["blocking"],
                 );

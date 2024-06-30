@@ -25,13 +25,12 @@ var customSkinsElement =    document.getElementById("customSkin");
 var customSkinInput =       document.getElementById("loginCustomSkinText");
 var skinsButton =           document.getElementById("skin");
 var muteButton =            playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
-var skinPreview =           playerMenu.firstElementChild;
 var centerCard =            menuCenter.getElementsByClassName("card")[0];
 
-playerMenu.getElementsByTagName("hr")[1].remove();
-playerMenu.innerHTML += `<li class="userMenuItem"><i class="fas fa-ban"></i><p>Block Skin</p></li><hr>`
+playerMenu.getElementsByTagName("hr")[1].remove(); // remove the 2nd horizontal line so we can add our own later
+playerMenu.innerHTML += `<li class="userMenuItem"><i class="fas fa-ban"></i><p>Block Skin</p></li><hr>` // add a new button to the player context menu
 
-var blockSkinButton = playerMenu.getElementsByClassName("userMenuItem")[2];
+var blockSkinButton = playerMenu.getElementsByClassName("userMenuItem")[2]; // third menu option now that we've created it
 
 nickInit();
 updateSettings();
@@ -206,9 +205,9 @@ keyTester.addEventListener('click', function() {
 
 blockSkinButton.addEventListener('click', function(e) {
     const playerSkinElement = document.getElementById("userMenuPlayerSkin");
-    const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1");
+    const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
 
-    if (!skinBlocklist.includes(skinURL)) {
+    if (!skinBlocklist.includes(skinURL)) { // don't add unnecessary duplicates to the list
         skinBlocklist.push(skinURL);
         browser.storage.local.set({ "skinBlocklist": skinBlocklist }, function() {
             updateSettings();
@@ -216,12 +215,12 @@ blockSkinButton.addEventListener('click', function(e) {
         browser.runtime.sendMessage({ action: "updateSkinBlocklist"});
         
         var successMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Skin successfully blocked!</font></p></div>`;
-        var successMessage2 = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Due to limitations, you will have to hard-refresh your tab.</font></p></div>`;
+        var successMessage2 = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Due to limitations, you will have to reload the extension and hard-refresh your tab.</font></p></div>`;
         chatBox.innerHTML += successMessage;
         chatBox.innerHTML += successMessage2;
     }
 
-    playerMenu.parentElement.parentElement.style.display = "none";
+    playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
 });
 
 muteButton.addEventListener('click', function() {

@@ -4,7 +4,8 @@ var germsTabs = [];     // array of tab ids with url germs.io
 var germsWindows = [];  // array of window ids url germs.io
 var index = null;       // index may be 0 or 1
 
-function cancel() {
+// here for reusability
+function cancel() { 
     return { cancel: true };
 }
 

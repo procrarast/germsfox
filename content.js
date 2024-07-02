@@ -429,6 +429,10 @@ blockSkinButton.addEventListener('click', function() {
             chatBox.innerHTML += errorMessage;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
+    } else { // only triggers when the user doesn't refresh their tab and tries to block the same skin
+        var errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">Skin has already been blocked! Please refresh your tab for it to take effect.</font></p></div>`;
+        chatBox.innerHTML += errorMessage;
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
 
     playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally

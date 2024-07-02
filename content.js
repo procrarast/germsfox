@@ -7,10 +7,11 @@ var switcherKey;        // array of [keyCode, key]
 var customSkins = [];   // array of custom skin urls
 var switcherWindowed;   // boolean which defines whether the switcher is tabbed or windowed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
+var ignoreInvites;      // boolean which defines whether to ignore invites or not
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
 var usingTextBox = false;   // :chatting:
 var playerBlocklist = [];
-//var skinBlocklist = []; // TODO
+var skinBlocklist = [];
 
 var animationDelayRange =   document.getElementById("animationDelay");
 var settingsButton =        document.getElementById("settingsButton");
@@ -24,6 +25,11 @@ var customSkinInput =       document.getElementById("loginCustomSkinText");
 var skinsButton =           document.getElementById("skin");
 var muteButton =            playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
 var centerCard =            menuCenter.getElementsByClassName("card")[0];
+
+playerMenu.getElementsByTagName("hr")[1].remove(); // remove the 2nd horizontal line so we can add our own later
+playerMenu.innerHTML += `<li class="userMenuItem"><i class="fas fa-ban"></i><p>Block Skin</p></li><hr>` // add a new button to the player context menu
+
+var blockSkinButton = playerMenu.getElementsByClassName("userMenuItem")[2]; // third menu option now that we've created it
 
 nickInit();
 updateAllSettings();
@@ -53,6 +59,9 @@ const settingsModalHTML = `
 
         <input type="checkbox" id="windowedCheckbox"> 
         <label for="windowedCheckbox">Windowed mode</label><br> 
+
+        <input type="checkbox" id="invitesCheckbox"> 
+        <label for="invitesCheckbox">Ignore invites</label><br> 
 
         <div id="keyTester" class="key-tester"></div>
         <hr style="margin-top: 16px;">
@@ -234,6 +243,7 @@ var settingsModal =         document.getElementById("germsfoxSettingsModal");
 var keyTester =             document.getElementById("keyTester");
 var enabledCheckbox =       document.getElementById("enabledCheckbox");
 var windowedCheckbox =      document.getElementById("windowedCheckbox");
+var invitesCheckbox =       document.getElementById("invitesCheckbox");
 var settingsCloseButton =   document.getElementById("germsfoxSettingsClose");
 var customSkinsContainer =  document.getElementById("customSkinList");
 var applySkinButton =       document.querySelector("#customSkin .btn-info");
@@ -245,6 +255,8 @@ var chatObserver = new MutationObserver(function(mutations) {
             const lastMessage = chatBox.lastElementChild;
             if (lastMessage) {
                 const chatterNameElement = lastMessage.querySelector('b');
+                const inviteMessageElement = lastMessage.querySelector('button');
+
                 if (chatterNameElement) { // valid chat message, not an admin message
                     // robloxification (im sorry)
                     const chatParagraph = lastMessage.querySelector('p');
@@ -261,6 +273,13 @@ var chatObserver = new MutationObserver(function(mutations) {
                     if (playerBlocklist.includes(chatterName)) {
                         lastMessage.remove();
                         console.log(`Removed message from ${chatterName}`);
+                    }
+                }
+
+                if (ignoreInvites && inviteMessageElement) {
+                    if (inviteMessageElement.id == "acceptInvite" || inviteMessageElement.id == "declineInvite") {
+                        inviteMessageElement.parentElement.remove();
+                        console.log("Removed invite");
                     }
                 }
             }
@@ -283,13 +302,15 @@ applySkinButton.addEventListener('click', customSkinSubmitted);
 skinsButton.addEventListener('click', updateCustomSkinMenu);
 enabledCheckbox.addEventListener('change', checkboxChanged);
 windowedCheckbox.addEventListener('change', checkboxChanged);
+invitesCheckbox.addEventListener('change', checkboxChanged);
 germsfoxButton.addEventListener('click', openSettingsMenu);
 
 function openSettingsMenu() {
     stopWaiting(); //just to update the style
-    chrome.storage.local.get(['switcherEnabled', 'switcherWindowed'], function(items) {
+    chrome.storage.local.get(['switcherEnabled', 'switcherWindowed', 'ignoreInvites'], function(items) {
         enabledCheckbox.checked = items.switcherEnabled;
         windowedCheckbox.checked = items.switcherWindowed;
+        invitesCheckbox.checked = items.ignoreInvites;
     });
     settingsModal.style.display = "block";
 }
@@ -388,6 +409,35 @@ keyTester.addEventListener('click', function() {
     }
 });
 
+blockSkinButton.addEventListener('click', function() {
+    const playerSkinElement = document.getElementById("userMenuPlayerSkin");
+    const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
+
+    if (!skinBlocklist.includes(skinURL)) { // don't add unnecessary duplicates to the list
+        if (skinURL.includes("imgur")) { // only accept imgur links
+            skinBlocklist.push(skinURL);
+            chrome.storage.local.set({ "skinBlocklist": skinBlocklist }, function() {
+                updateAllSettings();
+            });
+            chrome.runtime.sendMessage({ action: "updateSkinBlocklist", url: skinURL });
+    
+            var successMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Skin successfully blocked! Please refresh your tab for it to take effect.</font></p></div>`;
+            chatBox.innerHTML += successMessage;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } else {
+            var errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">Skin is not an imgur link, or the game failed to load it... Or you already blocked it.</font></p></div>`;
+            chatBox.innerHTML += errorMessage;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    } else { // only triggers when the user doesn't refresh their tab and tries to block the same skin
+        var errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">Skin has already been blocked! Please refresh your tab for it to take effect.</font></p></div>`;
+        chatBox.innerHTML += errorMessage;
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
+});
+
 muteButton.addEventListener('click', function() {
     const playerNameElement = document.getElementById("userMenuPlayerName");
     const mutedTextElement = document.getElementById("userMenuBlockText");
@@ -415,8 +465,9 @@ muteButton.addEventListener('click', function() {
 function checkboxChanged() {
     const switcherEnabled = document.getElementById('enabledCheckbox').checked;
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
+    const ignoreInvites = document.getElementById('invitesCheckbox').checked;
     
-    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherWindowed": switcherWindowed }, function() {
+    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherWindowed": switcherWindowed, "ignoreInvites": ignoreInvites }, function() {
         console.log('Settings saved');
         updateAllSettings();
     });
@@ -530,7 +581,7 @@ function updateAllSettings() {
     }
     
     // germsfox settings
-    chrome.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed"], function(settings){
+    chrome.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed", "ignoreInvites"], function(settings){
         if (chrome.runtime.lastError) {
             console.error("Error retrieving settings:", chrome.runtime.lastError);
             return;
@@ -544,7 +595,8 @@ function updateAllSettings() {
         switcherKeyUp = settings.switcherKeyUp;
         switcherWindowed = settings.switcherWindowed;
         //console.log(switcherWindowed);
-        skinBlocklist = settings.skinBlocklist;
+        skinBlocklist = settings.skinBlocklist || [];
+        ignoreInvites = settings.ignoreInvites;
     });
 }
 

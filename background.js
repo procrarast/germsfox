@@ -58,6 +58,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
                 console.log("Downloaded");
             }
         });
+    } else if (request.action === "updateSkinBlocklist" && request.url) {
+        addBlockingRule(request.url);
     }
 });
 
@@ -116,5 +118,28 @@ function updateTabs() {
     .catch((error) => {
         console.error('Error: ', error);
         throw error;
+    });
+}
+
+// add a declarativeNetRequest rule for each imgur link we want to block
+function addBlockingRule(url) {
+    const ruleId = Math.round(Math.random() * 2.147e9); // each rule needs its own unique id. if you manage to get the same id twice, please consider playing the lottery!
+
+    const rule = {
+        id: ruleId,
+        priority: 1,
+        action: { type: 'block' },
+        condition: { urlFilter: url, resourceTypes: ['image', 'main_frame'] }
+    };
+
+    chrome.declarativeNetRequest.updateDynamicRules({
+        addRules: [rule],
+        removeRuleIds: []
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.error(`Error adding rule: ${chrome.runtime.lastError.message}`);
+        } else {
+            console.log(`Added blocking rule for ${url} with ID ${ruleId}`);
+        }
     });
 }

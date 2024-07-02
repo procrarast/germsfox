@@ -425,7 +425,7 @@ blockSkinButton.addEventListener('click', function() {
             chatBox.innerHTML += successMessage;
             chatBox.scrollTop = chatBox.scrollHeight;
         } else {
-            var errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">Skin is not an imgur link, or the game failed to load it... Or you already blocked it.</font></p></div>`
+            var errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">Skin is not an imgur link, or the game failed to load it... Or you already blocked it.</font></p></div>`;
             chatBox.innerHTML += errorMessage;
             chatBox.scrollTop = chatBox.scrollHeight;
         }

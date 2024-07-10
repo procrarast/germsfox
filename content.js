@@ -23,13 +23,13 @@ var menuCenter =            document.getElementById("menuCenter");
 var customSkinsElement =    document.getElementById("customSkin");
 var customSkinInput =       document.getElementById("loginCustomSkinText");
 var skinsButton =           document.getElementById("skin");
-var muteButton =            playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
 var centerCard =            menuCenter.getElementsByClassName("card")[0];
 
 playerMenu.getElementsByTagName("hr")[1].remove(); // remove the 2nd horizontal line so we can add our own later
 playerMenu.innerHTML += `<li class="userMenuItem"><i class="fas fa-ban"></i><p>Block Skin</p></li><hr>` // add a new button to the player context menu
 
-var blockSkinButton = playerMenu.getElementsByClassName("userMenuItem")[2]; // third menu option now that we've created it
+var muteButton =        playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
+var blockSkinButton =   playerMenu.getElementsByClassName("userMenuItem")[2]; // third menu option now that we've created it
 
 nickInit();
 updateAllSettings();

@@ -8,6 +8,7 @@ var customSkins = [];   // array of custom skin urls
 var switcherWindowed;   // boolean which defines whether the switcher is tabbed or windowed 
 var switcherEnabled;    // boolean which defines whether the switcher is turned on
 var ignoreInvites;      // boolean which defines whether to ignore invites or not
+var autoLogout;         // boolean which defines whether to automatically log out or not when picking a preset cell color
 //var switcherKeyUp;      // boolean which defines whether we want to send a feed keyup after switching tabs
 var usingTextBox = false;   // :chatting:
 var playerBlocklist = [];
@@ -30,6 +31,21 @@ playerMenu.innerHTML += `<li class="userMenuItem"><i class="fas fa-ban"></i><p>B
 
 var muteButton =        playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
 var blockSkinButton =   playerMenu.getElementsByClassName("userMenuItem")[2]; // third menu option now that we've created it
+
+// name of the cell picker - name of the skin - approximate color that the skin provides
+const cellColorList = {
+    "Brown": [ "Griffin", "#371f0f" ],
+    "Dark red": ["black comets", "#860410" ],
+    "Bright orange": [ "Trident", "#d37400" ],
+    "Yellow": [ "Xiphos", "#ddb920" ],
+    "Lime green": [ "green dragon" , "#75d600"],
+    "Green": [ "germs gorilla", "#00dd00" ],
+    "Dark green": [ "jello alien", "#3fbb00" ],
+    "Tuorquoise": [ "robo cat", "#0aaada" ],
+    "Blue": [ "Omega", "#2389dd" ],
+    "Dark blue": [ "scenery", "#406cc7" ],
+    "Purple": [ "boo", "#6936a6" ],
+}
 
 nickInit();
 updateAllSettings();
@@ -63,6 +79,9 @@ const settingsModalHTML = `
         <input type="checkbox" id="invitesCheckbox"> 
         <label for="invitesCheckbox">Ignore invites</label><br> 
 
+        <input type="checkbox" id="logoutCheckbox">
+        <label for="logoutCheckbox">Logout for color picker</label><br>
+
         <div id="keyTester" class="key-tester"></div>
         <hr style="margin-top: 16px;">
         <button id="blocklistButton" 
@@ -76,6 +95,12 @@ const settingsModalHTML = `
 
 const customSkinsContainerHTML = `
 <div id="customSkinList"</div>`;
+
+const colorPickerContainerHTML = `
+<div id="customCellColor" style="display: block;">
+    <span class="badge badge-pill badge-primary" style="margin-bottom: 15px;width: 100%;font-size: 17px;">Cell Color Picker</span>
+    <div id="customColorList"></div>
+</div>`;
 
 const blocklistHTML = `
 <div id="blocklistModal" class="germsfox-modal">
@@ -221,6 +246,7 @@ const germsfoxStyle = `
 `;
 
 settingsButton.insertAdjacentHTML('afterend', settingsButtonHTML);
+customSkinsElement.insertAdjacentHTML('beforebegin', colorPickerContainerHTML);
 customSkinsElement.insertAdjacentHTML('beforeend', customSkinsContainerHTML);
 document.body.insertAdjacentHTML('beforeend', settingsModalHTML);
 document.body.insertAdjacentHTML('beforeend', blocklistHTML);
@@ -244,8 +270,10 @@ var keyTester =             document.getElementById("keyTester");
 var enabledCheckbox =       document.getElementById("enabledCheckbox");
 var windowedCheckbox =      document.getElementById("windowedCheckbox");
 var invitesCheckbox =       document.getElementById("invitesCheckbox");
+var logoutCheckbox =        document.getElementById("logoutCheckbox");
 var settingsCloseButton =   document.getElementById("germsfoxSettingsClose");
 var customSkinsContainer =  document.getElementById("customSkinList");
+var customColorsContainer = document.getElementById("customColorList");
 var applySkinButton =       document.querySelector("#customSkin .btn-info");
 var germsfoxIcon =          document.getElementById('germsfoxIcon');
 
@@ -287,6 +315,26 @@ var chatObserver = new MutationObserver(function(mutations) {
     });
 });
 
+function renderButtons() {
+    chrome.storage.local.get(['autoLogout'], function(items) {
+        for (const key in cellColorList) {
+            const skinName = cellColorList[key][0];
+            const cellColor = cellColorList[key][1];
+    
+            var imgHTML = `<li id="cellColorBtn"><img onclick="${items.autoLogout ? "logout();" : ""} setSkin('premium/${skinName}')" class="lazy loaded" style="border: 5px solid ${cellColor}; width="84" height="85"><p>${key}</p></li>`
+            customColorsContainer.innerHTML += imgHTML;
+        }
+    });
+}
+
+renderButtons();
+
+// re-render the buttons whenever the user toggles the auto logout checkbox on/off so that they function correctly
+function logoutChanged() {
+    customColorsContainer.innerHTML = "";
+    renderButtons();
+}
+
 chatObserver.observe(chatBox, {childList: true});
 
 germsfoxIcon.src = chrome.runtime.getURL('images/gsDuhFox-19.png');
@@ -303,14 +351,17 @@ skinsButton.addEventListener('click', updateCustomSkinMenu);
 enabledCheckbox.addEventListener('change', checkboxChanged);
 windowedCheckbox.addEventListener('change', checkboxChanged);
 invitesCheckbox.addEventListener('change', checkboxChanged);
+logoutCheckbox.addEventListener('change', checkboxChanged);
+logoutCheckbox.addEventListener('change', logoutChanged);
 germsfoxButton.addEventListener('click', openSettingsMenu);
 
 function openSettingsMenu() {
     stopWaiting(); //just to update the style
-    chrome.storage.local.get(['switcherEnabled', 'switcherWindowed', 'ignoreInvites'], function(items) {
+    chrome.storage.local.get(['switcherEnabled', 'switcherWindowed', 'ignoreInvites', 'autoLogout'], function(items) {
         enabledCheckbox.checked = items.switcherEnabled;
         windowedCheckbox.checked = items.switcherWindowed;
         invitesCheckbox.checked = items.ignoreInvites;
+        logoutCheckbox.checked = items.autoLogout;
     });
     settingsModal.style.display = "block";
 }
@@ -466,8 +517,9 @@ function checkboxChanged() {
     const switcherEnabled = document.getElementById('enabledCheckbox').checked;
     const switcherWindowed = document.getElementById('windowedCheckbox').checked;
     const ignoreInvites = document.getElementById('invitesCheckbox').checked;
-    
-    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherWindowed": switcherWindowed, "ignoreInvites": ignoreInvites }, function() {
+    const autoLogout = document.getElementById('logoutCheckbox').checked;
+
+    chrome.storage.local.set({ "switcherEnabled": switcherEnabled, "switcherWindowed": switcherWindowed, "ignoreInvites": ignoreInvites, "autoLogout": autoLogout }, function() {
         console.log('Settings saved');
         updateAllSettings();
     });
@@ -581,7 +633,7 @@ function updateAllSettings() {
     }
     
     // germsfox settings
-    chrome.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed", "ignoreInvites"], function(settings){
+    chrome.storage.local.get(["customSkins", "switcherKey", "switcherEnabled", "switcherKeyup", "skinBlocklist", "playerBlocklist", "switcherWindowed", "ignoreInvites", "autoLogout"], function(settings){
         if (chrome.runtime.lastError) {
             console.error("Error retrieving settings:", chrome.runtime.lastError);
             return;
@@ -597,6 +649,7 @@ function updateAllSettings() {
         //console.log(switcherWindowed);
         skinBlocklist = settings.skinBlocklist || [];
         ignoreInvites = settings.ignoreInvites;
+        autoLogout = settings.autoLogout;
     });
 }
 

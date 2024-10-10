@@ -7,7 +7,8 @@ Germsfox is a multiboxing extension for https://germs.io/ which aims to implemen
     - Adds a block-list manager
 - Custom skins list
 - Set lower animation delay, input multiple-lined names, send longer chat messages
-- Ability to ignore invites and block specific skins.
+- Ability to ignore invites and block specific skins
+- Set your cell color from a pre-defined list.
 ## Installation
 Because this extension is still in development and is not available on the Chrome extensions store, you must manually install this program on your computer to run it.
 1. Download the source code. You can download it as `.zip` from the green "<> Code" button above, or you may clone the repository.

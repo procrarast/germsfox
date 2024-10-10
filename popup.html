@@ -3,29 +3,18 @@
 <html>
     <head>
         <title>Germsfox Popup</title>
-        <style>
-            @font-face {
-                font-family: 'Go Mono';
-                src: url(fonts/Go-Mono.ttf);
-            }
-            body {
-                font-family: Go Mono;
-                background-color: #1e1a1e;
-                color: #e4c6e6;
-
-                padding: 20px;
-                border: 2px solid #6a4d6b;
-                width: 200px;
-            }
-            a {
-                color: rgb(118, 255, 230);
-            }
-        </style>
+        <link rel="stylesheet" href="/popup.css">
     </head>
     <body>
         <h2>Germsfox <img src="images/gsDuhFox-38.png" style="vertical-align: middle; padding-left: 12px; padding-bottom: 8px;"></h2>
+        <div class="container">
+            <label id="skinsInputLabel" for="skinsInput">Import Skins</label>
+            <input id="skinsInput" type="file" accept=".json"></input>
+            <button id="exportBtn" class="btn">Export Skins</button>
+        </div>
         <p>Thank you for trying out my program, ball gamers! &lt;3 </p>
         <p>Check out pc's website <a href="https://pishi.dev/">here</a>!</p>
+        <script src="/popup.js"></script>
     </body>
 </html>
 

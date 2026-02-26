@@ -211,7 +211,7 @@ function renderBlocklistTabPane() {
             Nobody has chatted yet.\n
             When someone does, you can block them here!`;
         const messageLabel = document.createElement("p");
-        messageLabel.innerText = message;
+        messageLabel.textContent = message;
         pane.append(messageLabel, ltgGif);
         return pane;
     }
@@ -243,7 +243,7 @@ function createFileInputButton(onChange, labelText, buttonText) {
     const buttonLabelColumn = document.createElement("div");
     buttonLabelColumn.classList.add("col-md-6");
     buttonLabelColumn.style.fontSize = "20px";
-    buttonLabelColumn.innerText = labelText;
+    buttonLabelColumn.textContent = labelText;
     buttonLabelColumn.style.textAlign = "left";
     buttonLabelColumn.style.paddingLeft = "0px";
 
@@ -288,7 +288,7 @@ function createButton(onClick, labelText, buttonText) {
     const buttonLabelColumn = document.createElement("div");
     buttonLabelColumn.classList.add("col-md-6");
     buttonLabelColumn.style.fontSize = "20px";
-    buttonLabelColumn.innerText = labelText;
+    buttonLabelColumn.textContent = labelText;
     buttonLabelColumn.style.textAlign = "left";
     buttonLabelColumn.style.paddingLeft = "0px";
 
@@ -496,7 +496,7 @@ function renderCustomColorsMenu() {
     customColorsPill.style.marginBottom = "15px";
     customColorsPill.style.width = "100%";
     customColorsPill.style.fontSize = "17px";
-    customColorsPill.innerText = "Cell Colors";
+    customColorsPill.textContent = "Cell Colors";
 
     const customColorsTable = document.createElement("div");
     customColorsTable.id = "customColorList";
@@ -522,12 +522,12 @@ function renderCustomColorsMenu() {
 
             const colorTooltipInner = document.createElement("p");
             colorTooltipInner.classList.add("tooltip-inner");
-            colorTooltipInner.innerText = "You will be logged out!";
+            colorTooltipInner.textContent = "You will be logged out!";
 
             colorTooltip.appendChild(colorTooltipInner);
 
             const colorWarning = document.createElement("span");
-            colorWarning.innerText = "!";
+            colorWarning.textContent = "!";
             colorWarning.classList.add("cellColorWarning");
             colorWarning.appendChild(colorTooltip);
 
@@ -545,7 +545,7 @@ function renderCustomColorsMenu() {
         }
 
         const colorLabel = document.createElement("p");
-        colorLabel.innerText = key;
+        colorLabel.textContent = key;
 
         colorLi.append(colorDiv, colorLabel);
         customColorsTable.appendChild(colorLi);
@@ -557,50 +557,74 @@ function renderCustomColorsMenu() {
 function renderPlayerMenu() {
     console.debug("Rendering player menu");
 
-    const chatBox = document.getElementById("worldTab");
+    //const chatBox = document.getElementById("worldTab");
     const playerMenu = document.getElementById("userMenuPlayer");
+    const userMenu = document.getElementById("userMenu");
     let muteButton = playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
 
-    muteButton.addEventListener('click', function() {
-        console.debug("Mute button clicked");
-        const playerNameElement = document.getElementById("userMenuPlayerName");
-        const mutedTextElement = document.getElementById("userMenuBlockText");
-        const playerName = playerNameElement.innerText;
-        const mutedText = mutedTextElement.innerText;
-
-        if (mutedText === "Mute Player" && !settings.playerBlocklist.includes(playerName)) {
-            blockPlayerName(playerName);
-            //let muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been muted!</font></p></div>`;
-            //chatBox.innerHTML += muteMessage;
-        }
-
-        else if (mutedText === "Unmute Player") {
-            unblockPlayerName(playerName);
-            //settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
-            //let muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been unmuted.</font></p></div>`;
-            //chatBox.innerHTML += muteMessage;
-        }
-        setSetting("playerBlocklist", settings.playerBlocklist);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    });
-
     playerMenu.getElementsByTagName("hr")[1].remove(); // remove the 2nd horizontal line so we can add our own later
-    const menuItem = document.createElement("li");
-    menuItem.classList.add("userMenuItem");
 
-    const icon = document.createElement("i");
-    icon.classList.add("fas", "fa-ban");
+    // ===== Block Skin =====
+    const blockSkinItem = document.createElement("li");
+    blockSkinItem.classList.add("userMenuItem");
 
-    const label = document.createElement("p");
-    label.textContent = "Block Skin";
+    const blockIcon = document.createElement("i");
+    blockIcon.classList.add("fas", "fa-ban");
 
+    const blockLabel = document.createElement("p");
+    blockLabel.textContent = "Block Skin";
+
+    blockSkinItem.append(blockIcon, blockLabel);
+
+    // ===== Copy Skin =====
+    const copySkinItem = document.createElement("li");
+    copySkinItem.classList.add("userMenuItem");
+
+    const copyIcon = document.createElement("i");
+    copyIcon.classList.add("fas", "fa-copy");
+    
+    const copyLabel = document.createElement("p");
+    copyLabel.textContent = "Copy Skin";
+
+    copySkinItem.append(copyIcon, copyLabel);
+
+    // ===== Assemble menu =====
     const hr = document.createElement("hr");
 
-    menuItem.append(icon, label);
-    playerMenu.append(menuItem, hr);
+    playerMenu.append(
+        blockSkinItem,
+        copySkinItem,
+        hr
+    );
 
-    menuItem.addEventListener('click', function() {
-        const playerSkinElement = document.getElementById("userMenuPlayerSkin");
+    // Remove screenshot button 
+
+    const menuLeave = document.getElementById("userMenuLeaveParty");
+    const menuCreate = document.getElementById("userMenuCreateParty");
+    const menuItems = userMenu.querySelectorAll(".userMenuItem");
+    const menuScreenshot = menuItems[menuItems.length - 1];
+    menuCreate.querySelector("hr").remove();
+    menuScreenshot.remove();
+
+    const playerSkinElement = document.getElementById("userMenuPlayerSkin");
+
+    copySkinItem.addEventListener('click', async function() {
+        try {
+            const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
+            if (skinURL.includes("imgur")) {
+                await navigator.clipboard.writeText(skinURL);
+                console.log(`Copied ${skinURL} to clipboard`);
+            } else {
+                console.log("Tried to copy a regular skin, doing nothing");
+            }
+            playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
+        }  
+            catch (error) {
+            console.error("Failed to copy skin: ", error);
+        }
+    });
+
+    blockSkinItem.addEventListener('click', function() {
         const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
 
         if (!settings.skinBlocklist.includes(skinURL)) { // don't add unnecessary duplicates to the list
@@ -609,7 +633,7 @@ function renderPlayerMenu() {
                 chrome.storage.local.set({ "skinBlocklist": settings.skinBlocklist });
                 chrome.runtime.sendMessage({ action: "addBlockRule", url: skinURL });
 
-                let successMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Skin successfully blocked! Please refresh your tab for it to take effect.</font></p></div>`;
+                let successMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Skin blocked, please refresh this tab!</font></p></div>`;
                 chatBox.innerHTML += successMessage;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } else {
@@ -626,6 +650,47 @@ function renderPlayerMenu() {
         playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
     });
 
+    muteButton.addEventListener('click', function() {
+        console.debug("Mute button clicked");
+        const playerNameElement = document.getElementById("userMenuPlayerName");
+        const mutedTextElement = document.getElementById("userMenuBlockText");
+        const playerName = playerNameElement.textContent;
+        const mutedText = mutedTextElement.textContent;
+
+        if (mutedText === "Mute Player" && !settings.playerBlocklist.includes(playerName)) {
+            blockPlayerName(playerName);
+            //let muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been muted!</font></p></div>`;
+            //chatBox.innerHTML += muteMessage;
+        }
+
+        else if (mutedText === "Unmute Player") {
+            unblockPlayerName(playerName);
+            //settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
+            //let muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been unmuted.</font></p></div>`;
+            //chatBox.innerHTML += muteMessage;
+        }
+        setSetting("playerBlocklist", settings.playerBlocklist);
+        //chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // If the menu opens for an imgur skin, show related options. Else, hide them
+    let userMenuObserver = new MutationObserver((mutations) => {
+        console.debug("Player menu mutated");
+        mutations.forEach((mutation) => {
+            if (mutation.type === "attributes" && mutation.attributeName === "style" && userMenu.style.display === "block") {
+                const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
+                if (skinURL.includes("imgur")) {
+                    blockSkinItem.style.display = "block";
+                    copySkinItem.style.display = "block";
+                } else {
+                    blockSkinItem.style.display = "none";
+                    copySkinItem.style.display = "none";
+                }
+            }
+        });
+    });
+    userMenuObserver.observe(userMenu, { attributes: true, attributeFilter: ["style"] });
+
     return playerMenu;
 }
 
@@ -634,8 +699,8 @@ function renderNick() {
     let nickInput = document.getElementById("nick");
     if (nickInput) {
         const nickTextarea = document.createElement('textarea');
-        nickTextarea.id = nickInput.id; // copy the ID from the input element
-        nickTextarea.value = nickInput.value; // copy the current value
+        nickTextarea.id = nickInput.id;
+        nickTextarea.value = nickInput.value;
         nickTextarea.placeholder = "Nickname";
         nickTextarea.style.textAlign = "left";
         nickTextarea.style.height = "50px";
@@ -720,7 +785,7 @@ function renderCustomSkinsMenu() {
         deleteButton.type = "button";
         deleteButton.id = "deleteButton";
         deleteButton.classList.add("btn");
-        deleteButton.innerText = "Delete";
+        deleteButton.textContent = "Delete";
 
         deleteButton.addEventListener('click', () => {
             deleteButton.remove();
@@ -765,7 +830,6 @@ function createSkinLi(url) {
     return skinLi;
 }
 
-//TODO: reference in blocker tab menu
 function unblockPlayerName(playerName) {
     settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1); 
 

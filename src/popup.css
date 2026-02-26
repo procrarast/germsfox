@@ -1,7 +1,7 @@
 
 @font-face {
     font-family: 'Go Mono';
-    src: url(fonts/Go-Mono.ttf);
+    src: url(/fonts/Go-Mono.ttf);
 }
 body {
     font-family: Go Mono;

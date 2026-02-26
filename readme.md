@@ -1,14 +1,15 @@
 # Germsfox 
 ## Description
-Germsfox is a multiboxing extension for https://germs.io/ which aims to implement some necessary features to help make the game less bad.
+Germsfox is an extension for https://germs.io/
 ## Features
-- Multibox in windowed or tabbed mode
-- Fix the game's broken mute function
-    - Adds a block-list manager
-- Custom skins list
+- Multiboxing support
+- Fixes the mute function
+- Custom cell color menu
+- Custom skins menu
+    - Export and import skins to share them with your friends!
 - Set lower animation delay, input multiple-lined names, send longer chat messages
-- Ability to ignore invites and block specific skins
-- Set your cell color from a pre-defined list.
+- Ignore invites and block rude custom skins
+- Exclusive emotes
 ## Installation
 Because this extension is still in development and is not available on the Chrome extensions store, you must manually install this program on your computer to run it.
 1. Download the source code. You can download it as `.zip` from the green "<> Code" button above, or you may clone the repository.

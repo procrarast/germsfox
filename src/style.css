@@ -1,0 +1,339 @@
+ul.skinList li {
+    position: relative;
+}
+.germsfox-btn {
+    cursor: pointer;
+    color: white;
+    background-color: #cf6700;
+    font-weight: 700 !important;
+    margin-top: 10px; 
+    margin-left: 10px; 
+    font-weight: 700;
+    height: 40px;
+    width: 100%;
+}
+.germsfox-btn:hover {
+    background-color: #994c00;
+}
+#skinDeleteButton {
+    position: absolute;
+    background-color: red;
+    color: white;
+    display: none;
+}
+#blocklistList {
+    user-select: none;
+    cursor: pointer;
+}
+#blocklistList li:hover {
+    text-decoration: line-through;
+    color: red;
+    transition: color 0.3s ease-in-out;
+}
+#blockerList {
+    user-select: none;
+    cursor: pointer;
+}
+#blockerList li:hover {
+    color: white;
+    transition: color 0.3s ease-in-out;
+}
+#deleteButton {
+    color: white; 
+    background-color: #dc3545; 
+    border-color: #dc3545; 
+    border-radius: 4px;
+    box-shadow: 0 0 8px black;
+    margin: 2px;
+    padding: 2px 24px; 
+    font-size: 12px;
+    top: 0px;
+    left: 0px;
+    transition: all 0.3s ease-in-out;
+}
+#deleteButton:hover {
+    background-color: #ad2a37;
+    border-color: #ad2a37;
+}
+#addBlockButton {
+    margin-top: 0px; 
+    margin-right: 60px; 
+    padding: 0px; 
+    height: 40px; 
+    width: 40px
+}
+#germsfoxSettings {
+    background: rgba(0, 0, 0, 0.46);
+    z-index: 76;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#germsfoxSettingsCard {
+    width: 420px;
+    height: 385px;
+    -webkit-box-shadow: 0 0 15px 1px rgba(0, 0, 0, 0.35);
+    -moz-box-shadow: 0 0 15px 1px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 15px 1px rgba(0, 0, 0, 0.35);
+}
+#germsfoxSettingsTabs {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    width: 400px;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+}
+#germsfoxSettingsTabsContent {
+    position: absolute;
+    left: 10px;
+    top: 88px;
+    width: 400px;
+    height: 285px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 5px;
+    padding: 10px;
+}
+#germsfoxSettingsClose {
+    background: #0955ff;
+    border-radius: 50%;
+    padding: 10px;
+    line-height: 14px;
+    display: block;
+    position: absolute;
+    top: -23px;
+    right: -19px;
+    z-index: 1;
+    cursor: pointer;
+    margin: 10px;
+    font-size: 20px;
+    -webkit-box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.45);
+    -moz-box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 0 5px 1px rgba(0, 0, 0, 0.45);
+}
+#germsfoxSettingsClose:hover {
+    background: #4a82ff;
+}
+#germsfox-settings-general input[type="text"], textarea {
+    background-color: rgba(0, 0, 0, 0.2);
+    color: #fff;
+    text-align: center;
+    font-size: 20px;
+    font-family: Ubuntu;
+    font-weight: 700;
+}
+#germsfox-settings-general {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-align: center;
+    height: 100%;
+}
+#germsfox-settings-general::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#germsfox-settings-general::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#germsfox-settings-general::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-bottom-right-radius: 6px;
+}
+#germsfox-settings-general .row {
+    width: 443px;
+    margin-bottom: 2px;
+}
+#germsfox-settings-general .clearfix {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+#germsfox-settings-general .badge {
+    margin-bottom: 15px;
+}
+#germsfox-settings-blocklist::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#germsfox-settings-blocklist::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#germsfox-settings-blocklist::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-bottom-right-radius: 6px;
+}
+#germsfox-settings-blocklist {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-align: center;
+    height: 100%;
+    padding: 0 20px;
+}
+#germsfox-settings-blocklist img {
+    height: 100px;
+    margin: 20px;
+}
+
+#germsfox-settings-blocklist p {
+    line-height: 1em;
+}
+#germsfox-settings-blocklist .block-button {
+    margin: 8px 0 0 0;
+    width: 100%;
+    color: #FFF;
+    background-color: #343a40;
+    border-color: rgba(0, 0, 0, 0.3);
+}
+#germsfox-settings-blocklist .block-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px #fff;
+}
+#germsfox-settings-blocklist .block-button:focus {
+    outline: none;
+    box-shadow: none;
+}
+#germsfox-settings-blocklist .block-button:hover {
+    text-decoration: line-through;
+    background-color: rgba(256, 256, 256, 0.1);
+}
+#germsfox-settings-blocklist .block-button.blocked{
+    text-decoration: line-through;
+    color: #898989;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+#germsfox-settings-blocklist .block-button.blocked:hover {
+    text-decoration: none;
+}
+#germsfox-settings-skins {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-align: center;
+    height: 100%;
+}
+#germsfox-settings-skins input.btn {
+    color: #FFF;
+    background-color: #007bff;
+}
+#germsfox-settings-skins input.btn:hover {
+    cursor: pointer;
+    background-color: #095cb5;
+}
+#germsfox-settings-skins label {
+    padding-block: 8px;
+    text-align: center;
+    width: 100px;
+    height: 35px;
+    color: #FFF;
+    line-height: 1;
+    background-color: #007bff;
+}
+#germsfox-settings-skins label:hover {
+    cursor: pointer;
+    background-color: #095cb5;
+}
+#germsfox-settings-skins .row {
+    width: 443px;
+    margin-bottom: 2px;
+}
+#germsfox-settings-skins .badge {
+    margin-bottom: 15px;
+}
+#germsfox-settings-skins::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#germsfox-settings-skins::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#germsfox-settings-skins::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-bottom-right-radius: 6px;
+}
+#customCellColor {
+    display: table;
+}
+#customColorList {
+    display: table;
+}
+.cellColorBtn {
+    width: 84px;
+    height: 85px;
+    box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.2), 0 5px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    transition: all 0.3s ease 0s;
+}
+.cellColorWarning {
+    border-radius: 50%;
+    border: 2px solid #a81c2a;
+    width: 24px;
+    height: 24px;
+    top: 0;
+    left: 0;
+    position: absolute;
+    user-select: none;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    font-size: 22px;
+    line-height: 23px;
+    background-color: #dc3545;
+    justify-content: center;
+}
+.cellColorWarning .tooltip {
+    pointer-events: none;
+    opacity: 0;
+    position: absolute;
+    bottom: 100%;
+    left: 0px;
+    transition: opacity 0.3s ease;
+}
+.cellColorWarning .tooltip-inner {
+    margin: 0 0 6px 0;
+    color: #FFF;
+    text-align: center;
+    background-color: #000;
+    font-size: 14px;
+    line-height: 1em;
+    padding: 8px;
+    max-width: 200px;
+    border-radius: .25rem;
+    height: auto;
+}
+.cellColorWarning:hover .tooltip {
+    opacity: 1;
+}
+.cellColorBtn:hover {
+    cursor: pointer;
+    transform: scale(1.1);
+}
+#customSkin {
+    display: table;
+}
+#customSkinList {
+    display: table;
+}
+#nick::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#nick::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#nick::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-bottom-right-radius: 6px;
+}

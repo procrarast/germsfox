@@ -6,12 +6,21 @@
 
 console.debug("Running storage.js");
 
-// Default Germsfox settings
+// [event.code, 'pretty' key label]
+// An unset keybind is an empty string ""
+const DEFAULT_CONTROLS = {
+    multibox: ["Tab", "Tab"],
+    toggleNames: ["KeyN", "N"],
+    toggleSkins: ["KeyB", "B"],
+    toggleMass: ["KeyM", "M"],
+    toggleFood: ["", ""]
+};
+
 const DEFAULT_SETTINGS = {
+    controls: DEFAULT_CONTROLS,
     customSkins: [],
     skinBlocklist: [],
     playerBlocklist: [],
-    switcherKey: ["Tab", "Tab"], // [code, key]
     switcherEnabled: false,
     switcherWindowed: false,
     ignoreInvites: false,
@@ -80,7 +89,7 @@ async function getSettings() {
     } catch(error) {
         console.warn("Could not get stored settings: " + error);
     }
-    console.debug("Successfully got settings struct: " + settings);
+    console.debug("Retrieved settings");
     return settings;
 }
 
@@ -89,10 +98,23 @@ async function setSetting(key, value) {
     console.debug(`Setting ${key} from ${settings[key]} to ${value}`);
     settings[key] = value;
 
-    chrome.storage.local.set({ [key]: value });
+    await chrome.storage.local.set({ [key]: value });
     if (chrome.runtime.lastError) {
         console.error(`Failed to save ${key}: ${chrome.runtime.lastError}`);
     }
+    chrome.runtime.sendMessage({ action: "updateSettings" });
+}
+
+// Same as above, except it sets settings.controls[key] since the original settings API design was flat
+async function setControlsSetting(key, value) {
+    console.debug(`Setting ${key} from ${settings.controls[key]} to ${value}`);
+    settings.controls[key] = value;
+
+    await chrome.storage.local.set({ controls: settings.controls });
+    if (chrome.runtime.lastError) {
+        console.error(`Failed to save ${key}: ${chrome.runtime.lastError}`);
+    }
+
     chrome.runtime.sendMessage({ action: "updateSettings" });
 }
 

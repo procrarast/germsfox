@@ -7,6 +7,7 @@
 
 console.info("Running content.js");
 
+// TODO: Set global settings state in a background service worker rather than within content_scripts
 let settings = null;
 let usingInput = false;
 
@@ -27,17 +28,45 @@ async function init() {
         renderCustomSkinsMenu();
         renderPlayerMenu();
 
-        // Multiboxing
+        const showNamesSelect = document.getElementById("showNames");
+        const showSkinsSelect = document.getElementById("showSkins");
+        const showMassCheckbox = document.getElementById("showMass");
+        const hideFoodCheckbox = document.getElementById("hideFood");
 
         document.addEventListener('keydown', (event) => {
-            if (!usingInput && settings.switcherEnabled && event.code === settings.switcherKey[0]) {
-                if (settings.switcherWindowed) {
-                    console.debug("Switching windows!");
-                    chrome.runtime.sendMessage({ action: "switchWindows"});
-                } else {
-                    console.debug("Switching tabs!");
-                    chrome.runtime.sendMessage({ action: "switchTabs"});
-                }
+            if (usingInput) return;
+            switch (event.code) {
+                case settings.controls.multibox[0]:
+                    if (settings.switcherEnabled === false) break;
+                    if (settings.switcherWindowed) {
+                        console.debug("Switching windows!");
+                        chrome.runtime.sendMessage({ action: "switchWindows"});
+                    } else {
+                        console.debug("Switching tabs!");
+                        chrome.runtime.sendMessage({ action: "switchTabs"});
+                    }
+                    break;
+                case settings.controls.toggleNames[0]:
+                    console.debug("Toggling names");
+                    showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length;
+                    showNamesSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                    //showNamesSelect.onchange();
+                    break;
+                case settings.controls.toggleSkins[0]:
+                    showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length;
+                    showSkinsSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                    //showSkinsSelect.onchange();
+                    break;
+                case settings.controls.toggleMass[0]:
+                    showMassCheckbox.checked = !showMassCheckbox.checked;
+                    showMassCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
+                    //showMassCheckbox.onchange();
+                    break;
+                case settings.controls.toggleFood[0]:
+                    hideFoodCheckbox.checked = !hideFoodCheckbox.checked;
+                    hideFoodCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
+                    //hideFoodCheckbox.onchange();
+                    break;
             }
         });
 

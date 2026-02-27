@@ -83,7 +83,7 @@ function renderGermsfoxSettings() {
     tabContent.id = "germsfoxSettingsTabsContent";
     tabContent.classList.add("tab-content");
 
-    const tabNames = ["General", "Blocklist", "Skins"]; // Feel free to add another section later
+    const tabNames = ["General", "Controls", "Blocklist", "Skins"];
 
     tabNames.forEach((name, index) => {
         const tabId = `germsfox-settings-${name.toLowerCase()}`;
@@ -141,10 +141,36 @@ function renderGermsfoxSettings() {
     menu.appendChild(overlay);
 
     renderGeneralTabPane();
+    renderControlsTabPane();
     renderBlocklistTabPane();
     renderSkinsTabPane();
 
     return overlay;
+}
+
+function renderControlsTabPane() {
+    const pane = document.getElementById("germsfox-settings-controls");
+    pane.replaceChildren();
+
+    const multiboxPill = createPill("Multibox");
+    const multiboxCheckbox = createKeyTester("multibox", "Switch Tabs");
+
+    const togglePill = createPill("Toggle Settings");
+    const toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
+    const toggleSkinsKeyTester = createKeyTester("toggleSkins", "Toggle Skins");
+    const toggleMassKeyTester = createKeyTester("toggleMass", "Toggle Show Mass");
+    const toggleFoodKeyTester = createKeyTester("toggleFood", "Toggle Food");
+
+    pane.append(
+        multiboxPill,
+        multiboxCheckbox,
+        togglePill,
+        toggleNamesKeyTester,
+        toggleSkinsKeyTester,
+        toggleMassKeyTester,
+        toggleFoodKeyTester
+    );
+    return pane;
 }
 
 function renderSkinsTabPane() {
@@ -156,6 +182,7 @@ function renderSkinsTabPane() {
     const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
     const skinsBlockerPill = createPill("Skin Blocker");
     const skinsResetButton = createButton(resetBlockRules, "Unblock All Skins", "Reset");
+
     pane.append(
         skinsPill,
         skinsExportButton,
@@ -173,7 +200,6 @@ function renderGeneralTabPane() {
     const multiboxPill = createPill("Multibox"); 
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
     const multiboxWindowedCheckbox = createCheckbox("switcherWindowed", "Windowed Mode");
-    const multiboxKeyTester = createKeyTester("switcherKey", "Switch Tabs");
 
     const generalPill = createPill("General");
     const generalInvitesCheckbox = createCheckbox("ignoreInvites", "Ignore Party Invites");
@@ -187,7 +213,6 @@ function renderGeneralTabPane() {
         multiboxPill,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
-        multiboxKeyTester
     ); 
 
     return pane;
@@ -341,7 +366,7 @@ function createKeyTester(key, text) {
     keyTester.id = "keyMultibox"
     keyTester.classList.add("form-control");
     keyTester.type = "text";
-    keyTester.value = settings[key][1];
+    keyTester.value = settings.controls[key][1];
 
     keyTester.addEventListener('focus', () => {
         keyTester.addEventListener('keydown', submitSwitcherKey);
@@ -354,12 +379,18 @@ function createKeyTester(key, text) {
     });
 
     function submitSwitcherKey(event) {
-        event.stopPropagation(); // Don't worry, I've never seen this before either! It prevents it from reaching the document event listener
+        event.stopPropagation(); // I've never seen this before either! It prevents the event from reaching the document event listener
         event.preventDefault();
-        let prettyEventKey = event.key.charAt(0).toUpperCase() + event.key.slice(1);
-        if (prettyEventKey === " ") prettyEventKey = "Space";
-        keyTester.value = prettyEventKey;
-        setSetting(key, [event.code, prettyEventKey]);
+        if (event.key === "Escape") {
+            // Unset the keybind
+            keyTester.value = "";
+            setControlsSetting(key, ["", ""]);
+        } else {
+            let prettyEventKey = event.key.charAt(0).toUpperCase() + event.key.slice(1);
+            if (prettyEventKey === " ") prettyEventKey = "Space"; // There may be more edge cases to prettify
+            keyTester.value = prettyEventKey;
+            setControlsSetting(key, [event.code, prettyEventKey]);
+        }
         keyTester.blur();
     }
 
@@ -387,7 +418,6 @@ function createCheckbox(key, text) {
     checkbox.type = "checkbox";
     checkbox.checked = settings[key];
     checkbox.onchange = function() {
-        // TODO: remove dependency on setSetting()?
         setSetting(key, this.checked);
     }
 

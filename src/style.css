@@ -183,9 +183,11 @@ ul.skinList li {
     height: 100px;
     margin: 20px;
 }
-
 #germsfox-settings-blocklist p {
-    line-height: 1em;
+    line-height: 1.5em;
+}
+#germsfox-settings-blocklist .badge {
+    margin-bottom: 15px;
 }
 #germsfox-settings-blocklist .block-button {
     margin: 8px 0 0 0;
@@ -258,6 +260,40 @@ ul.skinList li {
     border-radius: 6px;
 }
 #germsfox-settings-skins::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-bottom-right-radius: 6px;
+}
+#germsfox-settings-controls {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-align: center;
+    height: 100%;
+}
+#germsfox-settings-controls input[type="text"], textarea {
+    background-color: rgba(0, 0, 0, 0.2);
+    color: #fff;
+    text-align: center;
+    font-size: 20px;
+    font-family: Ubuntu;
+    font-weight: 700;
+}
+#germsfox-settings-controls .row {
+    width: 443px;
+    margin-bottom: 2px;
+}
+#germsfox-settings-controls .badge {
+    margin-bottom: 15px;
+}
+#germsfox-settings-controls::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#germsfox-settings-controls::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#germsfox-settings-controls::-webkit-scrollbar-track {
     background-color: transparent;
     border-bottom-right-radius: 6px;
 }

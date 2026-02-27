@@ -1,6 +1,6 @@
 # Germsfox 
 ## Description
-Germsfox is an extension for https://germs.io/
+Germsfox is a necessary extension for https://germs.io/, adding settings and features to improve the baller experience.
 ## Features
 - Multiboxing support
 - Fixes the mute function

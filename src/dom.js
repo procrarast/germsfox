@@ -30,6 +30,7 @@ function renderGermsfoxButton() {
         if (germsfoxSettings) {
             renderGeneralTabPane();
             renderBlocklistTabPane();
+            renderSkinsTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
             germsfoxSettingsContainer.style.transform = settingsContainer.style.transform;
@@ -178,7 +179,7 @@ function renderSkinsTabPane() {
     pane.replaceChildren();
 
     const skinsPill = createPill("Custom Skins");
-    const skinsExportButton = createButton(exportSkins, "Export to File", "Export");
+    const skinsExportButton = createDownloadButton("Export to File", "Export");
     const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
     const skinsBlockerPill = createPill("Skin Blocker");
     const skinsResetButton = createButton(resetBlockRules, "Unblock All Skins", "Reset");
@@ -304,6 +305,50 @@ function createFileInputButton(onChange, labelText, buttonText) {
     return buttonRow;
 }
 
+function createDownloadButton(labelText, buttonText) {
+    const stringifiedArray = JSON.stringify(settings.customSkins);
+    const blob = new Blob([stringifiedArray], {type: 'application/json'});
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    const buttonRow = document.createElement("div");
+    buttonRow.classList.add("row");
+    buttonRow.style.marginLeft = "20px";
+
+    const buttonLabelColumn = document.createElement("div");
+    buttonLabelColumn.classList.add("col-md-6");
+    buttonLabelColumn.style.fontSize = "20px";
+    buttonLabelColumn.textContent = labelText;
+    buttonLabelColumn.style.textAlign = "left";
+    buttonLabelColumn.style.paddingLeft = "0px";
+
+    const buttonColumn = document.createElement("div");
+    buttonColumn.classList.add("col-md-6");
+    buttonColumn.style.fontSize = "20px";
+
+    const buttonContainer = document.createElement("div");
+    buttonContainer.classList.add("input-group", "input-group-sm");
+    buttonContainer.style.marginBottom = "15px";
+
+    const button = document.createElement("input");
+    button.type = "button";
+    button.classList.add("btn");
+    button.value = buttonText;
+    button.style.width = "100px";
+    button.style.height = "35px";
+    button.style.lineHeight = "1";
+
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = "skins";
+    
+    // ===== Assemble =====
+    a.append(button);
+    buttonContainer.append(a);
+    buttonColumn.appendChild(buttonContainer);
+    buttonRow.append(buttonLabelColumn, buttonColumn);
+
+    return buttonRow;
+}
 // Creates a button row
 function createButton(onClick, labelText, buttonText) {
     const buttonRow = document.createElement("div");

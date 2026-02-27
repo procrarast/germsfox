@@ -15,6 +15,9 @@ ul.skinList li {
 .germsfox-btn:hover {
     background-color: #994c00;
 }
+.germsfox-btn:focus, .germsfox-btn:active {
+    box-shadow: 0 0 0 .2rem #cf670080 !important;
+}
 #skinDeleteButton {
     position: absolute;
     background-color: red;

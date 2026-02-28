@@ -16,7 +16,8 @@
         }
     },
     "background": {
-        "service_worker": "src/background.js"
+        "service_worker": "src/background.js",
+        "scripts": ["src/background.js"]
     },
     "content_scripts": [
         {
@@ -43,5 +44,14 @@
             "resources": ["fonts/*", "images/*"],
             "matches": ["<all_urls>"]
         }
-    ]
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "@germsfox-dev",
+            "strict_min_version": "58.0",
+            "data_collection_permissions": {
+                "required": ["none"]
+            }
+        }
+    }
 }

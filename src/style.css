@@ -1,6 +1,9 @@
 ul.skinList li {
     position: relative;
 }
+.chatEmote {
+    margin-top: -2px;
+}
 .germsfox-btn {
     cursor: pointer;
     color: white;

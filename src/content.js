@@ -156,6 +156,8 @@ function blockPlayerName(playerName) {
 function initChat() {
     let chatInput = document.getElementById("chat_input");
     chatInput.setAttribute("maxlength", 138); // Reflect the (strange) server-side max length of chat messages
+    chatInput.style.width = "175px";
+    renderEmotesPanel();
 
     chatInput.addEventListener('focus', () => {
         usingInput = true;
@@ -183,19 +185,21 @@ function initChat() {
                 const chatterName = chatterNameElement.textContent;
                 //console.debug(`Received message from ${chatterName}`);
 
-                // The funny roblock censorship (kinda sucks though)
+                if (settings.playerBlocklist.includes(chatterName)) {
+                    lastMessage.style.display = "none";
+                    console.debug(`Hid message from ${chatterName}`);
+                    return;
+                }
+                // funny roblock censorship (kinda sucks though)
                 if (!germsSettings.disableProfanityFilter && chatParagraph?.textContent.includes('*')) {
                     const paragraphHTML = chatParagraph.innerHTML;
                     const splitIndex = paragraphHTML.indexOf("</b>") + 4;
                     chatParagraph.innerHTML =
                         paragraphHTML.substring(0, splitIndex) +
                         paragraphHTML.substring(splitIndex).replace(/\*/g, '#');
-                }
-
-                if (settings.playerBlocklist.includes(chatterName)) {
-                    lastMessage.style.display = "none";
-                    console.debug(`Hid message from ${chatterName}`);
-                    return;
+                }// Replace emotes
+                if (chatParagraph) {
+                    replaceEmotes(chatParagraph);
                 }
             }
 
@@ -208,5 +212,75 @@ function initChat() {
 
     chatObserver.observe(chatBox, {childList: true});
     return chatBox;
+
+    function replaceEmotes(node) {
+        // Only operate on text nodes
+        if (node.nodeType === Node.TEXT_NODE) {
+            let text = node.nodeValue;
+            let matched = false;
+
+            for (const emote of emotes) {
+                const filename = emote.slice(0, emote.lastIndexOf("."));
+
+                if (text.includes(filename)) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) return;
+
+            const fragment = document.createDocumentFragment();
+
+            while (text.length > 0) {
+                let earliestIndex = -1;
+                let matchedEmote = null;
+                let matchedFilename = null;
+
+                for (const emote of emotes) {
+                    const filename = emote.slice(0, emote.lastIndexOf("."));
+                    const index = text.indexOf(filename);
+
+                    if (index !== -1 && (earliestIndex === -1 || index < earliestIndex)) {
+                        earliestIndex = index;
+                        matchedEmote = emote;
+                        matchedFilename = filename;
+                    }
+                }
+
+                if (earliestIndex === -1) {
+                    console.debug("No matches found");
+                    fragment.appendChild(document.createTextNode(text));
+                    break;
+                }
+
+                console.debug("Matched emote " + matchedEmote);
+
+                if (earliestIndex > 0) {
+                    fragment.appendChild(
+                        document.createTextNode(text.slice(0, earliestIndex))
+                    );
+                }
+
+                const img = document.createElement("img");
+                img.src = chrome.runtime.getURL(`images/emotes/${matchedEmote}`);
+                img.classList.add("chatEmote");
+
+                console.debug("Appending image");
+                fragment.appendChild(img);
+
+                text = text.slice(earliestIndex + matchedFilename.length);
+            }
+
+            console.debug("Replacing with complete text+emote fragment");
+            node.replaceWith(fragment);
+            return;
+        }
+
+        // Recursively process child nodes
+        if (node.tagName === "B") return; // Username
+
+        node.childNodes.forEach(replaceEmotes);
+    }
 }
 

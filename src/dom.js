@@ -20,7 +20,7 @@ function renderGermsfoxButton() {
         let img = document.createElement("img");
         img.id = "germsfoxIcon";
         img.alt = "Icon";
-        img.src = chrome.runtime.getURL('images/gsDuhFox-19.png');
+        img.src = chrome.runtime.getURL('images/gsDuhFox-38.png');
 
         button.append(img, " Germsfox ");
         settingsButton.insertAdjacentElement('afterend', button);
@@ -42,7 +42,6 @@ function renderGermsfoxButton() {
         germsfoxSettings.setAttribute("style", "");
     }
 }
-
 
 function renderGermsfoxSettings() {
     // Settings overlay will be appended to menu later
@@ -975,6 +974,58 @@ function renderCustomSkinsMenu() {
             return true;
         } return false;
     }
+}
+
+function renderEmotesPanel() {
+    const chatContainer = document.getElementById("chat");
+
+    const emotesButton = document.createElement("button");
+    emotesButton.id = "btnGermsfoxEmotes";
+    // This is how germs hides related elements. Truly horrifying... but perhaps better than how I just handled #toggleSettings!
+    emotesButton.setAttribute("onclick", `$('#germsfoxEmotes').toggle(); $('#channels').hide(); $('#emotes').hide(); $('#germsfoxEmotes').focus();`);
+
+    const icon = document.createElement("img");
+    icon.src = chrome.runtime.getURL('images/gsDuhFox-48.png');
+    icon.classList.add("nodrag");
+
+    emotesButton.appendChild(icon);
+
+    const emotesPanel = document.createElement("div");
+    emotesPanel.id = "germsfoxEmotes";
+    emotesPanel.style.display = "none";
+
+    const emotesList = document.createElement("ul");
+    emotesList.id = "germsfoxEmotesList";
+
+    const emotesHeader = document.createElement("h3");
+    emotesHeader.textContent = "Emotes";
+
+    for (const emote of emotes) {
+        const filename = emote.slice(0, emote.lastIndexOf("."));
+
+        const emoteLi = document.createElement("li");
+        emoteLi.classList.add("emotesEmote");
+        emoteLi.setAttribute("onclick", `addEmote('${filename}'); $('#germsfoxEmotes').hide();`);
+
+        const emoteImg = document.createElement("img");
+        emoteImg.src = chrome.runtime.getURL(`images/emotes/${emote}`);
+        emoteImg.title = filename;
+        emoteImg.name = filename; // Yes I know it's deprecated
+        
+        emoteLi.appendChild(emoteImg);
+        emotesList.appendChild(emoteLi);
+    }
+
+    document.addEventListener("click", (event) => {
+        // Would rather this not be so hacky, but trying to adhere to outdated germs style+convention makes this difficult
+        if (emotesPanel.style.display === "block" && event.target != emotesButton && !emotesPanel.contains(event.target)) {
+            //console.debug("Closing emotes tab");
+            emotesPanel.style.display = 'none';
+        }
+    });
+
+    emotesPanel.append(emotesHeader, emotesList);
+    chatContainer.append(emotesButton, emotesPanel);
 }
 
 function createSkinLi(url) {

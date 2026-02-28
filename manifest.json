@@ -1,7 +1,7 @@
 {
     "name": "Germsfox",
     "version": "0.2",
-    "description": "Custom skins, cell colors, and multibox support for Germs.io",
+    "description": "Emotes, skins, gameplay and moderation tools for Germs.io!",
     "manifest_version": 3,
     "icons": {
         "48": "images/gsDuhFox-48.png",

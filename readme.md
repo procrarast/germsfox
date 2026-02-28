@@ -9,6 +9,7 @@ Germsfox is a necessary extension for https://germs.io/, adding settings and fea
     - Export and import skins to share them with your friends!
 - Set lower animation delay, input multiple-lined names, send longer chat messages
 - Ignore invites and block rude custom skins
+- Set keybinds to toggle names, skins, etc.
 - Exclusive emotes
 ## Installation
 Because this extension is still in development and is not available on the Chrome extensions store, you must manually install this program on your computer to run it.

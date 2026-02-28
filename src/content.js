@@ -36,7 +36,9 @@ async function init() {
         document.addEventListener('keydown', (event) => {
             if (usingInput) return;
             switch (event.code) {
+
                 case settings.controls.multibox[0]:
+                    event.preventDefault();
                     if (settings.switcherEnabled === false) break;
                     if (settings.switcherWindowed) {
                         console.debug("Switching windows!");
@@ -46,26 +48,48 @@ async function init() {
                         chrome.runtime.sendMessage({ action: "switchTabs"});
                     }
                     break;
+
                 case settings.controls.toggleNames[0]:
-                    console.debug("Toggling names");
-                    showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length;
-                    showNamesSelect.dispatchEvent(new Event("change", { bubbles: true }));
-                    //showNamesSelect.onchange();
+                    event.preventDefault();
+                    if (!settings.toggleSettings) {
+                        console.debug("Cycling names");
+                        showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
+                        showNamesSelect.dispatchEvent(new Event("change"));
+                    } else {
+                        console.debug("Toggling names");
+                        if (showNamesSelect.value === settings.toggleNames[0]) {
+                            showNamesSelect.value = settings.toggleNames[1];
+                        } else showNamesSelect.value = settings.toggleNames[0];
+                        showNamesSelect.dispatchEvent(new Event("change"));
+                    }
                     break;
+
                 case settings.controls.toggleSkins[0]:
-                    showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length;
-                    showSkinsSelect.dispatchEvent(new Event("change", { bubbles: true }));
-                    //showSkinsSelect.onchange();
+                    event.preventDefault();
+                    if (!settings.toggleSettings) {
+                        console.debug("Cycling skins");
+                        showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
+                        showSkinsSelect.dispatchEvent(new Event("change"));
+                    } else {
+                        console.debug("Toggling names");
+                        if (showSkinsSelect.value === settings.toggleSkins[0]) {
+                            showSkinsSelect.value = settings.toggleSkins[1];
+                        } else showSkinsSelect.value = settings.toggleSkins[0];
+                        showSkinsSelect.dispatchEvent(new Event("change"));
+                    }
+                    showSkinsSelect.dispatchEvent(new Event("change"));
                     break;
+
                 case settings.controls.toggleMass[0]:
+                    event.preventDefault();
                     showMassCheckbox.checked = !showMassCheckbox.checked;
-                    showMassCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
-                    //showMassCheckbox.onchange();
+                    showMassCheckbox.dispatchEvent(new Event("change"));
                     break;
+
                 case settings.controls.toggleFood[0]:
+                    event.preventDefault();
                     hideFoodCheckbox.checked = !hideFoodCheckbox.checked;
-                    hideFoodCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
-                    //hideFoodCheckbox.onchange();
+                    hideFoodCheckbox.dispatchEvent(new Event("change"));
                     break;
             }
         });

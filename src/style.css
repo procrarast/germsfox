@@ -277,6 +277,14 @@ ul.skinList li {
     font-family: Ubuntu;
     font-weight: 700;
 }
+#germsfox-settings-controls .clearfix {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+#germsfox-settings-controls .clearfix select {
+    float: right;
+    margin-top: 5px;
+}
 #germsfox-settings-controls .row {
     width: 443px;
     margin-bottom: 2px;

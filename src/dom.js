@@ -6,6 +6,7 @@
 console.debug("Running dom.js");
 
 function renderGermsfoxButton() {
+    const settingsButton = document.getElementById("settingsButton");
     if (settingsButton) {
         let button = document.createElement("button");
         button.id = "germsfoxButton";
@@ -29,7 +30,9 @@ function renderGermsfoxButton() {
         let germsfoxSettings = document.getElementById("germsfoxSettings");
         if (germsfoxSettings) {
             renderGeneralTabPane();
+            renderControlsTabPane();
             renderBlocklistTabPane();
+            renderSkinsTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
             germsfoxSettingsContainer.style.transform = settingsContainer.style.transform;
@@ -149,6 +152,7 @@ function renderGermsfoxSettings() {
 }
 
 function renderControlsTabPane() {
+    console.debug("Rendering");
     const pane = document.getElementById("germsfox-settings-controls");
     pane.replaceChildren();
 
@@ -156,22 +160,150 @@ function renderControlsTabPane() {
     const multiboxCheckbox = createKeyTester("multibox", "Switch Tabs");
 
     const togglePill = createPill("Toggle Settings");
+
+    const toggleCheckbox = createCheckbox("toggleSettings", "Toggle Names/Skins");
+    const toggleInput = toggleCheckbox.querySelector("#toggleSettings");
+
     const toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
+    const toggleNamesDropdown = createToggleDropdown("toggleNames", "Switch Between");
     const toggleSkinsKeyTester = createKeyTester("toggleSkins", "Toggle Skins");
-    const toggleMassKeyTester = createKeyTester("toggleMass", "Toggle Show Mass");
+    const toggleSkinsDropdown = createToggleDropdown("toggleSkins", "Switch Between");
+
     const toggleFoodKeyTester = createKeyTester("toggleFood", "Toggle Food");
+    const toggleMassKeyTester = createKeyTester("toggleMass", "Toggle Show Mass");
 
     pane.append(
         multiboxPill,
         multiboxCheckbox,
+
         togglePill,
+        toggleCheckbox,
         toggleNamesKeyTester,
+        toggleNamesDropdown,
         toggleSkinsKeyTester,
+        toggleSkinsDropdown,
         toggleMassKeyTester,
         toggleFoodKeyTester
     );
+
+    updateControlsTabPane();
+
+    // Would love it if this were animated
+    function updateControlsTabPane() {
+        const clearfixes = pane.querySelectorAll(".clearfix");
+
+        const toggleNamesLabel = toggleNamesKeyTester.querySelector(".col-md-6"); // The first column, whose textContent is the label
+        const toggleSkinsLabel = toggleSkinsKeyTester.querySelector(".col-md-6");
+        const toggleNamesClearfix = clearfixes[clearfixes.length - 2];
+        const toggleSkinsClearfix = clearfixes[clearfixes.length - 1];
+
+        if (settings.toggleSettings) {
+            toggleNamesLabel.textContent = "Toggle Names";
+            toggleSkinsLabel.textContent = "Toggle Skins";
+            toggleNamesClearfix.style.display = "block";
+            toggleSkinsClearfix.style.display = "block";
+        } else {
+            toggleNamesLabel.textContent = "Cycle Names";
+            toggleSkinsLabel.textContent = "Cycle Skins";
+            toggleNamesClearfix.style.display = "none";
+            toggleSkinsClearfix.style.display = "none";
+        }
+    }
+    
+    // This input is special in that it updates a few elements, so override onchange
+    toggleInput.onchange = async function() {
+        await setSetting("toggleSettings", toggleInput.checked);
+        updateControlsTabPane();
+    };
+
     return pane;
 }
+
+// Update an existing controls tab pane
+function updateControlsTabPane() {
+    const pane = document.getElementById("germsfox-settings-controls");
+    if (settings.toggleSettings) {
+        toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
+        toggleNamesDropdown = createToggleDropdown("toggleNames", "Switch Between");
+        toggleSkinsKeyTester = createKeyTester("toggleSkins", "Toggle Skins");
+        toggleSkinsDropdown = createToggleDropdown("toggleSkins", "Switch Between");
+        pane.replaceChildren(
+            toggleNamesKeyTester,
+            toggleNamesDropdown,
+            toggleSkinsKeyTester,
+            toggleSkinsDropdown
+        );
+    } else {
+        toggleNamesKeyTester = createKeyTester("toggleNames", "Cycle Names");
+        toggleSkinsKeyTester = createKeyTester("toggleSkins", "Cycle Skins");
+        pane.append(toggleNamesKeyTester, toggleSkinsKeyTester);
+    }
+}
+
+function createToggleDropdown(key, text) {
+    const clearfix = document.createElement("div");
+    clearfix.classList.add("clearfix");
+
+    const label = document.createElement("p");
+    label.classList.add("optionLabel");
+    label.style.marginRight = "8px";
+    label.style.float = "right";
+    label.textContent = text;
+
+    const firstSelect = createDropdown(key + "First");
+    console.debug(settings[key]);
+    firstSelect.value = settings[key][0];
+    firstSelect.onchange = function() {
+        setSetting(key, [this.value, settings[key][1]]);
+    };
+
+    const betweenText = document.createElement("p");
+    betweenText.classList.add("optionLabel");
+    betweenText.style.float = "right";
+    betweenText.style.marginLeft = "8px";
+    betweenText.style.marginRight = "8px";
+    betweenText.textContent = "and";
+
+    const secondSelect = createDropdown(key + "Second");
+    secondSelect.value = settings[key][1];
+    secondSelect.onchange = function() {
+        setSetting(key, [settings[key][0], this.value]);
+    };
+
+    // backwards cause of float: right
+    clearfix.append(
+        secondSelect,
+        betweenText,
+        firstSelect,
+        label
+    );
+
+    return clearfix;
+}
+
+
+// Return dropdown select
+// onchange() is defined afterwards
+function createDropdown(id) {
+    const select = document.createElement("select");
+    select.id = id;
+    
+    const values = [
+        "All",
+        "Party",
+        "Self",
+        "None"
+    ];
+
+    for (const value of values) {
+        const option = document.createElement("option");
+        option.value = value.toLowerCase();
+        option.textContent = value;
+        select.appendChild(option);
+    }
+    return select;
+}
+
 
 function renderSkinsTabPane() {
     const pane = document.getElementById("germsfox-settings-skins");
@@ -192,6 +324,7 @@ function renderSkinsTabPane() {
     );
     return pane;
 }
+
 
 function renderGeneralTabPane() {
     const pane = document.getElementById("germsfox-settings-general");

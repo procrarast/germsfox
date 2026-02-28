@@ -21,9 +21,12 @@ const DEFAULT_SETTINGS = {
     customSkins: [],
     skinBlocklist: [],
     playerBlocklist: [],
+    toggleNames: ["all", "none"],
+    toggleSkins: ["all", "none"],
     switcherEnabled: false,
     switcherWindowed: false,
     ignoreInvites: false,
+    toggleSettings: true,
     autoLogout: false
 };
 

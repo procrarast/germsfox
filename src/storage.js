@@ -18,7 +18,7 @@ const emotes = [
     "SKUL.png",
     "trollskull.png",
     "gsSmil.png",
-    ":33:.png",
+    "colon33.png",
     "NAILS.png",
     "idio.png",
     "YIPPEE.png",

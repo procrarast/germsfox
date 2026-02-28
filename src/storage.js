@@ -10,6 +10,7 @@ const emotes = [
     "flafDuh.png",
     "gsFlooshed.png",
     "gsPls.png",
+    "gsHollow.png",
     "Self.png",
     "Tree.png",
     "mafu.png",

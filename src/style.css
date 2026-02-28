@@ -20,6 +20,7 @@ ul.skinList li {
 }
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
+}
 #germsfoxIcon {
     width: 19px;
 }

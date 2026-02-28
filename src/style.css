@@ -1,6 +1,9 @@
 ul.skinList li {
     position: relative;
 }
+.chatEmote {
+    margin-top: -2px;
+}
 .germsfox-btn {
     cursor: pointer;
     color: white;
@@ -17,6 +20,94 @@ ul.skinList li {
 }
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
+#germsfoxIcon {
+    width: 19px;
+}
+#btnGermsfoxEmotes {
+    position: absolute;
+    z-index: 5;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    border: 0;
+    outline: none;
+    color: #fff;
+    height: 30px;
+    left: 175px;
+    width: 35px;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: all;
+    font-weight: 700;
+}
+#btnGermsfoxEmotes img {
+    pointer-events: none;
+    width: 18px;
+    height: auto;
+    margin-bottom: 2px;
+    margin-left: 1px;
+}
+#btnGermsfoxEmotes:hover {
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.3);
+}
+#germsfoxEmotes {
+    color: #fff;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: block;
+    display: none;
+    position: absolute;
+    bottom: 29px;
+    left: 145px;
+    width: 135px;
+    height: 110px;
+    border-radius: 6px;
+    border-bottom: 0;
+    overflow-x: hidden;
+    overflow-y: scroll;
+    pointer-events: auto;
+    user-select: auto;
+    -webkit-user-select: auto;
+    -moz-user-select: auto;
+    -ms-user-select: auto;
+    z-index: 3;
+}
+#germsfoxEmotes h3 {
+    font-size: 15px;
+    margin: 0;
+    padding: 2px 0 0 5px;
+    font-family: Roboto;
+    font-weight: 900;
+}
+#germsfoxEmotes ul {
+    display: flex;
+    flex-flow: row wrap;
+    list-style-type: none;
+    padding: 0;
+    margin: 2px 0 0 3px;
+}
+#germsfoxEmotes ul li {
+    width: 25px;
+    height: 25px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+#germsfoxEmotes ul li:hover {
+    cursor: pointer;
+    border: 1px solid #0f0;
+}
+#germsfoxEmotes ul li img {
+    width: 20px;
+    height: auto;
+    margin: 0 0 2.5px 1.5px;
+}
+#germsfoxEmotes::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 4px;
+}
+#germsfoxEmotes::-webkit-scrollbar {
+    width: 6px;
 }
 #skinDeleteButton {
     position: absolute;
@@ -279,6 +370,14 @@ ul.skinList li {
     font-size: 20px;
     font-family: Ubuntu;
     font-weight: 700;
+}
+#germsfox-settings-controls .clearfix {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+#germsfox-settings-controls .clearfix select {
+    float: right;
+    margin-top: 5px;
 }
 #germsfox-settings-controls .row {
     width: 443px;

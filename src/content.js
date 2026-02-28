@@ -36,7 +36,9 @@ async function init() {
         document.addEventListener('keydown', (event) => {
             if (usingInput) return;
             switch (event.code) {
+
                 case settings.controls.multibox[0]:
+                    event.preventDefault();
                     if (settings.switcherEnabled === false) break;
                     if (settings.switcherWindowed) {
                         console.debug("Switching windows!");
@@ -46,26 +48,48 @@ async function init() {
                         chrome.runtime.sendMessage({ action: "switchTabs"});
                     }
                     break;
+
                 case settings.controls.toggleNames[0]:
-                    console.debug("Toggling names");
-                    showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length;
-                    showNamesSelect.dispatchEvent(new Event("change", { bubbles: true }));
-                    //showNamesSelect.onchange();
+                    event.preventDefault();
+                    if (!settings.toggleSettings) {
+                        console.debug("Cycling names");
+                        showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
+                        showNamesSelect.dispatchEvent(new Event("change"));
+                    } else {
+                        console.debug("Toggling names");
+                        if (showNamesSelect.value === settings.toggleNames[0]) {
+                            showNamesSelect.value = settings.toggleNames[1];
+                        } else showNamesSelect.value = settings.toggleNames[0];
+                        showNamesSelect.dispatchEvent(new Event("change"));
+                    }
                     break;
+
                 case settings.controls.toggleSkins[0]:
-                    showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length;
-                    showSkinsSelect.dispatchEvent(new Event("change", { bubbles: true }));
-                    //showSkinsSelect.onchange();
+                    event.preventDefault();
+                    if (!settings.toggleSettings) {
+                        console.debug("Cycling skins");
+                        showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
+                        showSkinsSelect.dispatchEvent(new Event("change"));
+                    } else {
+                        console.debug("Toggling names");
+                        if (showSkinsSelect.value === settings.toggleSkins[0]) {
+                            showSkinsSelect.value = settings.toggleSkins[1];
+                        } else showSkinsSelect.value = settings.toggleSkins[0];
+                        showSkinsSelect.dispatchEvent(new Event("change"));
+                    }
+                    showSkinsSelect.dispatchEvent(new Event("change"));
                     break;
+
                 case settings.controls.toggleMass[0]:
+                    event.preventDefault();
                     showMassCheckbox.checked = !showMassCheckbox.checked;
-                    showMassCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
-                    //showMassCheckbox.onchange();
+                    showMassCheckbox.dispatchEvent(new Event("change"));
                     break;
+
                 case settings.controls.toggleFood[0]:
+                    event.preventDefault();
                     hideFoodCheckbox.checked = !hideFoodCheckbox.checked;
-                    hideFoodCheckbox.dispatchEvent(new Event("change", { bubbles: true }));
-                    //hideFoodCheckbox.onchange();
+                    hideFoodCheckbox.dispatchEvent(new Event("change"));
                     break;
             }
         });
@@ -132,6 +156,8 @@ function blockPlayerName(playerName) {
 function initChat() {
     let chatInput = document.getElementById("chat_input");
     chatInput.setAttribute("maxlength", 138); // Reflect the (strange) server-side max length of chat messages
+    chatInput.style.width = "175px";
+    renderEmotesPanel();
 
     chatInput.addEventListener('focus', () => {
         usingInput = true;
@@ -159,19 +185,21 @@ function initChat() {
                 const chatterName = chatterNameElement.textContent;
                 //console.debug(`Received message from ${chatterName}`);
 
-                // The funny roblock censorship (kinda sucks though)
+                if (settings.playerBlocklist.includes(chatterName)) {
+                    lastMessage.style.display = "none";
+                    console.debug(`Hid message from ${chatterName}`);
+                    return;
+                }
+                // funny roblock censorship (kinda sucks though)
                 if (!germsSettings.disableProfanityFilter && chatParagraph?.textContent.includes('*')) {
                     const paragraphHTML = chatParagraph.innerHTML;
                     const splitIndex = paragraphHTML.indexOf("</b>") + 4;
                     chatParagraph.innerHTML =
                         paragraphHTML.substring(0, splitIndex) +
                         paragraphHTML.substring(splitIndex).replace(/\*/g, '#');
-                }
-
-                if (settings.playerBlocklist.includes(chatterName)) {
-                    lastMessage.style.display = "none";
-                    console.debug(`Hid message from ${chatterName}`);
-                    return;
+                }// Replace emotes
+                if (chatParagraph) {
+                    replaceEmotes(chatParagraph);
                 }
             }
 
@@ -184,5 +212,75 @@ function initChat() {
 
     chatObserver.observe(chatBox, {childList: true});
     return chatBox;
+
+    function replaceEmotes(node) {
+        // Only operate on text nodes
+        if (node.nodeType === Node.TEXT_NODE) {
+            let text = node.nodeValue;
+            let matched = false;
+
+            for (const emote of emotes) {
+                const filename = emote.slice(0, emote.lastIndexOf("."));
+
+                if (text.includes(filename)) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) return;
+
+            const fragment = document.createDocumentFragment();
+
+            while (text.length > 0) {
+                let earliestIndex = -1;
+                let matchedEmote = null;
+                let matchedFilename = null;
+
+                for (const emote of emotes) {
+                    const filename = emote.slice(0, emote.lastIndexOf("."));
+                    const index = text.indexOf(filename);
+
+                    if (index !== -1 && (earliestIndex === -1 || index < earliestIndex)) {
+                        earliestIndex = index;
+                        matchedEmote = emote;
+                        matchedFilename = filename;
+                    }
+                }
+
+                if (earliestIndex === -1) {
+                    console.debug("No matches found");
+                    fragment.appendChild(document.createTextNode(text));
+                    break;
+                }
+
+                console.debug("Matched emote " + matchedEmote);
+
+                if (earliestIndex > 0) {
+                    fragment.appendChild(
+                        document.createTextNode(text.slice(0, earliestIndex))
+                    );
+                }
+
+                const img = document.createElement("img");
+                img.src = chrome.runtime.getURL(`images/emotes/${matchedEmote}`);
+                img.classList.add("chatEmote");
+
+                console.debug("Appending image");
+                fragment.appendChild(img);
+
+                text = text.slice(earliestIndex + matchedFilename.length);
+            }
+
+            console.debug("Replacing with complete text+emote fragment");
+            node.replaceWith(fragment);
+            return;
+        }
+
+        // Recursively process child nodes
+        if (node.tagName === "B") return; // Username
+
+        node.childNodes.forEach(replaceEmotes);
+    }
 }
 

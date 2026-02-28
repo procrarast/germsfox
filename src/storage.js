@@ -1,10 +1,58 @@
-
+    
 /* The purpose of this """module""" is to handle browser state.
  * Specifically, it handles most browser storage queries,
  * including extension settings and user-submitted skins/blocklist data
  */
 
 console.debug("Running storage.js");
+
+const emotes = [
+    "flafDuh.png",
+    "gsFlooshed.png",
+    "gsPls.png",
+    "gsHollow.png",
+    "Self.png",
+    "Tree.png",
+    "mafu.png",
+    "josemorales.png",
+    "SKUL.png",
+    "trollskull.png",
+    "gsSmil.png",
+    ":33:.png",
+    "NAILS.png",
+    "idio.png",
+    "YIPPEE.png",
+    "sademoji.png",
+    "LOAL.png",
+    "steamhappy.png",
+    "yippie.png",
+    "AGONY.png",
+    "HAHA.png",
+    "fucker.png",
+    "rice_cat.png",
+    "shup.png",
+    "catAware.png",
+    "catQue.png",
+    "OMG.png",
+    "catBath.png",
+    "catHi.png",
+    "catnodwashingmachine.gif",
+    "catResort.png",
+    "flabbergastedMilly.png",
+    "gg28.png",
+    "katameow.png",
+    "pcRacc.png",
+    "pcStare.png",
+    "widekisser.png",
+    "firTilt.gif",
+    "UIOHADFGIUOHDAVFB.png",
+    "catWhat.png",
+    "myhonesterection.png",
+    "munch.png",
+    "choccy.png",
+    "yapyapyap.gif",
+    "gsPuddle.png",
+];
 
 // [event.code, 'pretty' key label]
 // An unset keybind is an empty string ""
@@ -21,9 +69,12 @@ const DEFAULT_SETTINGS = {
     customSkins: [],
     skinBlocklist: [],
     playerBlocklist: [],
+    toggleNames: ["all", "none"],
+    toggleSkins: ["all", "none"],
     switcherEnabled: false,
     switcherWindowed: false,
     ignoreInvites: false,
+    toggleSettings: true,
     autoLogout: false
 };
 

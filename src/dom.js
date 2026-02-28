@@ -6,6 +6,7 @@
 console.debug("Running dom.js");
 
 function renderGermsfoxButton() {
+    const settingsButton = document.getElementById("settingsButton");
     if (settingsButton) {
         let button = document.createElement("button");
         button.id = "germsfoxButton";
@@ -19,7 +20,7 @@ function renderGermsfoxButton() {
         let img = document.createElement("img");
         img.id = "germsfoxIcon";
         img.alt = "Icon";
-        img.src = chrome.runtime.getURL('images/gsDuhFox-19.png');
+        img.src = chrome.runtime.getURL('images/gsDuhFox-38.png');
 
         button.append(img, " Germsfox ");
         settingsButton.insertAdjacentElement('afterend', button);
@@ -29,6 +30,7 @@ function renderGermsfoxButton() {
         let germsfoxSettings = document.getElementById("germsfoxSettings");
         if (germsfoxSettings) {
             renderGeneralTabPane();
+            renderControlsTabPane();
             renderBlocklistTabPane();
             renderSkinsTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
@@ -40,7 +42,6 @@ function renderGermsfoxButton() {
         germsfoxSettings.setAttribute("style", "");
     }
 }
-
 
 function renderGermsfoxSettings() {
     // Settings overlay will be appended to menu later
@@ -150,6 +151,7 @@ function renderGermsfoxSettings() {
 }
 
 function renderControlsTabPane() {
+    console.debug("Rendering");
     const pane = document.getElementById("germsfox-settings-controls");
     pane.replaceChildren();
 
@@ -157,22 +159,150 @@ function renderControlsTabPane() {
     const multiboxCheckbox = createKeyTester("multibox", "Switch Tabs");
 
     const togglePill = createPill("Toggle Settings");
+
+    const toggleCheckbox = createCheckbox("toggleSettings", "Toggle Names/Skins");
+    const toggleInput = toggleCheckbox.querySelector("#toggleSettings");
+
     const toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
+    const toggleNamesDropdown = createToggleDropdown("toggleNames", "Switch Between");
     const toggleSkinsKeyTester = createKeyTester("toggleSkins", "Toggle Skins");
-    const toggleMassKeyTester = createKeyTester("toggleMass", "Toggle Show Mass");
+    const toggleSkinsDropdown = createToggleDropdown("toggleSkins", "Switch Between");
+
     const toggleFoodKeyTester = createKeyTester("toggleFood", "Toggle Food");
+    const toggleMassKeyTester = createKeyTester("toggleMass", "Toggle Show Mass");
 
     pane.append(
         multiboxPill,
         multiboxCheckbox,
+
         togglePill,
+        toggleCheckbox,
         toggleNamesKeyTester,
+        toggleNamesDropdown,
         toggleSkinsKeyTester,
+        toggleSkinsDropdown,
         toggleMassKeyTester,
         toggleFoodKeyTester
     );
+
+    updateControlsTabPane();
+
+    // Would love it if this were animated
+    function updateControlsTabPane() {
+        const clearfixes = pane.querySelectorAll(".clearfix");
+
+        const toggleNamesLabel = toggleNamesKeyTester.querySelector(".col-md-6"); // The first column, whose textContent is the label
+        const toggleSkinsLabel = toggleSkinsKeyTester.querySelector(".col-md-6");
+        const toggleNamesClearfix = clearfixes[clearfixes.length - 2];
+        const toggleSkinsClearfix = clearfixes[clearfixes.length - 1];
+
+        if (settings.toggleSettings) {
+            toggleNamesLabel.textContent = "Toggle Names";
+            toggleSkinsLabel.textContent = "Toggle Skins";
+            toggleNamesClearfix.style.display = "block";
+            toggleSkinsClearfix.style.display = "block";
+        } else {
+            toggleNamesLabel.textContent = "Cycle Names";
+            toggleSkinsLabel.textContent = "Cycle Skins";
+            toggleNamesClearfix.style.display = "none";
+            toggleSkinsClearfix.style.display = "none";
+        }
+    }
+    
+    // This input is special in that it updates a few elements, so override onchange
+    toggleInput.onchange = async function() {
+        await setSetting("toggleSettings", toggleInput.checked);
+        updateControlsTabPane();
+    };
+
     return pane;
 }
+
+// Update an existing controls tab pane
+function updateControlsTabPane() {
+    const pane = document.getElementById("germsfox-settings-controls");
+    if (settings.toggleSettings) {
+        toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
+        toggleNamesDropdown = createToggleDropdown("toggleNames", "Switch Between");
+        toggleSkinsKeyTester = createKeyTester("toggleSkins", "Toggle Skins");
+        toggleSkinsDropdown = createToggleDropdown("toggleSkins", "Switch Between");
+        pane.replaceChildren(
+            toggleNamesKeyTester,
+            toggleNamesDropdown,
+            toggleSkinsKeyTester,
+            toggleSkinsDropdown
+        );
+    } else {
+        toggleNamesKeyTester = createKeyTester("toggleNames", "Cycle Names");
+        toggleSkinsKeyTester = createKeyTester("toggleSkins", "Cycle Skins");
+        pane.append(toggleNamesKeyTester, toggleSkinsKeyTester);
+    }
+}
+
+function createToggleDropdown(key, text) {
+    const clearfix = document.createElement("div");
+    clearfix.classList.add("clearfix");
+
+    const label = document.createElement("p");
+    label.classList.add("optionLabel");
+    label.style.marginRight = "8px";
+    label.style.float = "right";
+    label.textContent = text;
+
+    const firstSelect = createDropdown(key + "First");
+    console.debug(settings[key]);
+    firstSelect.value = settings[key][0];
+    firstSelect.onchange = function() {
+        setSetting(key, [this.value, settings[key][1]]);
+    };
+
+    const betweenText = document.createElement("p");
+    betweenText.classList.add("optionLabel");
+    betweenText.style.float = "right";
+    betweenText.style.marginLeft = "8px";
+    betweenText.style.marginRight = "8px";
+    betweenText.textContent = "and";
+
+    const secondSelect = createDropdown(key + "Second");
+    secondSelect.value = settings[key][1];
+    secondSelect.onchange = function() {
+        setSetting(key, [settings[key][0], this.value]);
+    };
+
+    // backwards cause of float: right
+    clearfix.append(
+        secondSelect,
+        betweenText,
+        firstSelect,
+        label
+    );
+
+    return clearfix;
+}
+
+
+// Return dropdown select
+// onchange() is defined afterwards
+function createDropdown(id) {
+    const select = document.createElement("select");
+    select.id = id;
+    
+    const values = [
+        "All",
+        "Party",
+        "Self",
+        "None"
+    ];
+
+    for (const value of values) {
+        const option = document.createElement("option");
+        option.value = value.toLowerCase();
+        option.textContent = value;
+        select.appendChild(option);
+    }
+    return select;
+}
+
 
 function renderSkinsTabPane() {
     const pane = document.getElementById("germsfox-settings-skins");
@@ -193,6 +323,7 @@ function renderSkinsTabPane() {
     );
     return pane;
 }
+
 
 function renderGeneralTabPane() {
     const pane = document.getElementById("germsfox-settings-general");
@@ -887,6 +1018,58 @@ function renderCustomSkinsMenu() {
             return true;
         } return false;
     }
+}
+
+function renderEmotesPanel() {
+    const chatContainer = document.getElementById("chat");
+
+    const emotesButton = document.createElement("button");
+    emotesButton.id = "btnGermsfoxEmotes";
+    // This is how germs hides related elements. Truly horrifying... but perhaps better than how I just handled #toggleSettings!
+    emotesButton.setAttribute("onclick", `$('#germsfoxEmotes').toggle(); $('#channels').hide(); $('#emotes').hide(); $('#germsfoxEmotes').focus();`);
+
+    const icon = document.createElement("img");
+    icon.src = chrome.runtime.getURL('images/gsDuhFox-48.png');
+    icon.classList.add("nodrag");
+
+    emotesButton.appendChild(icon);
+
+    const emotesPanel = document.createElement("div");
+    emotesPanel.id = "germsfoxEmotes";
+    emotesPanel.style.display = "none";
+
+    const emotesList = document.createElement("ul");
+    emotesList.id = "germsfoxEmotesList";
+
+    const emotesHeader = document.createElement("h3");
+    emotesHeader.textContent = "Emotes";
+
+    for (const emote of emotes) {
+        const filename = emote.slice(0, emote.lastIndexOf("."));
+
+        const emoteLi = document.createElement("li");
+        emoteLi.classList.add("emotesEmote");
+        emoteLi.setAttribute("onclick", `addEmote('${filename}'); $('#germsfoxEmotes').hide();`);
+
+        const emoteImg = document.createElement("img");
+        emoteImg.src = chrome.runtime.getURL(`images/emotes/${emote}`);
+        emoteImg.title = filename;
+        emoteImg.name = filename; // Yes I know it's deprecated
+        
+        emoteLi.appendChild(emoteImg);
+        emotesList.appendChild(emoteLi);
+    }
+
+    document.addEventListener("click", (event) => {
+        // Would rather this not be so hacky, but trying to adhere to outdated germs style+convention makes this difficult
+        if (emotesPanel.style.display === "block" && event.target != emotesButton && !emotesPanel.contains(event.target)) {
+            //console.debug("Closing emotes tab");
+            emotesPanel.style.display = 'none';
+        }
+    });
+
+    emotesPanel.append(emotesHeader, emotesList);
+    chatContainer.append(emotesButton, emotesPanel);
 }
 
 function createSkinLi(url) {

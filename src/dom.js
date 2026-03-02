@@ -763,7 +763,7 @@ function renderCustomColorsMenu() {
 function renderPlayerMenu() {
     console.debug("Rendering player menu");
 
-    //const chatBox = document.getElementById("worldTab");
+    const chatBox = document.getElementById("worldTab");
     const playerMenu = document.getElementById("userMenuPlayer");
     const userMenu = document.getElementById("userMenu");
     let muteButton = playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option

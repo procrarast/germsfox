@@ -9,7 +9,6 @@ const handlers = {
     switchTabs,
     switchWindows,
     updateSettings,
-    download,
     clearBlockRules,
     addBlockRule: ({ url }) => url && addBlockRule(url)
 };
@@ -127,19 +126,6 @@ function duplicateGermsWindow(windowObj) {
     }
 
     chrome.windows.create({ url: germsTab.url });
-}
-
-// For skin exports, sent by popup.js
-async function download({ url, filename }) {
-    console.log("Preparing download");
-
-    await chrome.downloads.download({ url, filename, saveAs: true });
-    if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError.message);
-        sendResponse({success: true});
-    } else {
-        console.log("Downloaded");
-    }
 }
 
 async function clearBlockRules() {

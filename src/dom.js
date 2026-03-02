@@ -843,12 +843,12 @@ function renderPlayerMenu() {
                 chatBox.innerHTML += successMessage;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } else {
-                let errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">You can only block custom skins.</font></p></div>`;
+                let errorMessage = `<div class="errorMessage" style="color: white;" ><p> <font color="#FF0000">You can only block custom skins.</font></p></div>`;
                 chatBox.innerHTML += errorMessage;
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
         } else { // only triggers when the user doesn't refresh their tab and tries to block the same skin
-            let errorMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#FF0000">Skin has already been blocked! Refresh your tab for it to take effect.</font></p></div>`;
+            let errorMessage = `<div class="errorMessage" style="color: white;"><p> <font color="#FF0000">Skin has already been blocked! Refresh your tab for it to take effect.</font></p></div>`;
             chatBox.innerHTML += errorMessage;
             chatBox.scrollTop = chatBox.scrollHeight;
         }

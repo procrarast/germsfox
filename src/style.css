@@ -476,3 +476,26 @@ ul.skinList li {
     background-color: transparent;
     border-bottom-right-radius: 6px;
 }
+.errorMessage {
+    z-index: 8;
+    display: block;
+    font-family: Ubuntu;
+    font-size: 15px;
+    font-weight: 700;
+    width: 100%;
+    border-radius: 3px;
+    word-wrap: break-word;
+    margin-top: 5px;
+    margin-left: 5px;
+    padding: 0 5px;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -o-user-select: none;
+    user-select: none;
+    margin-bottom: -10px;
+    font-weight: 900;
+}
+.errorMessage font {
+    text-shadow: 0 0 7px #3e0000a6;
+}

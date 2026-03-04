@@ -1,0 +1,17 @@
+
+@font-face {
+    font-family: 'Go Mono';
+    src: url(/fonts/Go-Mono.ttf);
+}
+body {
+    font-family: Go Mono;
+    background-color: #1e1a1e;
+    color: #e4c6e6;
+
+    padding: 20px;
+    border: 2px solid #6a4d6b;
+    width: 200px;
+}
+a {
+    color: rgb(118, 255, 230);
+}

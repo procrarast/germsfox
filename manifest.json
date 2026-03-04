@@ -1,14 +1,14 @@
 {
     "name": "Germsfox",
-    "version": "0.1",
-    "description": "Simple and configurable multiboxing script, designed for Germs.io!",
+    "version": "0.2",
+    "description": "Emotes, skins, gameplay and moderation tools for Germs.io!",
     "manifest_version": 3,
     "icons": {
         "48": "images/gsDuhFox-48.png",
         "96": "images/gsDuhFox-96.png"
     },
     "action": {
-        "default_popup": "popup.html",
+        "default_popup": "src/popup.html",
         "default_icon": {
             "16": "images/gsDuhFox-16.png",
             "48": "images/gsDuhFox-48.png",
@@ -16,12 +16,18 @@
         }
     },
     "background": {
-        "service_worker": "background.js"
+        "service_worker": "src/background.js",
+        "scripts": ["src/background.js"]
     },
     "content_scripts": [
         {
-            "matches": ["https://germs.io/*"],
-            "js": ["content.js"]
+            "matches": ["*://*.germs.io/*"],
+            "css": ["src/style.css"],
+            "js": [
+                "src/dom.js",
+                "src/storage.js",
+                "src/content.js"
+            ]
         }
     ],
     "permissions": [
@@ -31,12 +37,21 @@
         "declarativeNetRequest"
     ],
     "host_permissions": [
-        "https://germs.io/*"
+        "*://*.germs.io/*"
     ],
     "web_accessible_resources": [
         {
             "resources": ["fonts/*", "images/*"],
             "matches": ["<all_urls>"]
         }
-    ]
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "@germsfox-dev",
+            "strict_min_version": "58.0",
+            "data_collection_permissions": {
+                "required": ["none"]
+            }
+        }
+    }
 }

@@ -325,6 +325,14 @@ ul.skinList li {
     cursor: pointer;
     background-color: #095cb5;
 }
+#germsfox-settings-skins input.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+#germsfox-settings-skins input.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
 #germsfox-settings-skins label {
     padding-block: 8px;
     text-align: center;

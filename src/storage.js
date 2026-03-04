@@ -172,7 +172,7 @@ async function setControlsSetting(key, value) {
 function deleteAllCustomSkins() {
     const message = "Are you sure you want to delete all saved custom skins? This cannot be undone!";
     if (confirm(message)) {
-        setSetting(customSkins, []);
+        setSetting("customSkins", []);
     }
 }
 

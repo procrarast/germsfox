@@ -169,6 +169,13 @@ async function setControlsSetting(key, value) {
     chrome.runtime.sendMessage({ action: "updateSettings" });
 }
 
+function deleteAllCustomSkins() {
+    const message = "Are you sure you want to delete all saved custom skins? This cannot be undone!";
+    if (confirm(message)) {
+        setSetting(customSkins, []);
+    }
+}
+
 function tryAddingSkin(skin) {
     skin = skin.replace(/\s/g, ''); // remove whitespace
     if (skin.includes("https://i.imgur.com/") && !settings.customSkins.includes(skin)) { // if it's not a duplicate imgur link

@@ -303,6 +303,43 @@ function createDropdown(id) {
     return select;
 }
 
+// Creates a scary red button
+function createDangerousButton(onClick, labelText, buttonText) {
+    const buttonRow = document.createElement("div");
+    buttonRow.classList.add("row");
+    buttonRow.style.marginLeft = "20px";
+
+    const buttonLabelColumn = document.createElement("div");
+    buttonLabelColumn.classList.add("col-md-6");
+    buttonLabelColumn.style.fontSize = "20px";
+    buttonLabelColumn.textContent = labelText;
+    buttonLabelColumn.style.textAlign = "left";
+    buttonLabelColumn.style.paddingLeft = "0px";
+
+    const buttonColumn = document.createElement("div");
+    buttonColumn.classList.add("col-md-6");
+    buttonColumn.style.fontSize = "20px";
+
+    const buttonContainer = document.createElement("div");
+    buttonContainer.classList.add("input-group", "input-group-sm");
+    buttonContainer.style.marginBottom = "15px";
+
+    const button = document.createElement("input");
+    button.onclick = onClick;
+    button.type = "button";
+    button.classList.add("btn", "btn-danger");
+    button.value = buttonText;
+    button.style.width = "100px";
+    button.style.height = "35px";
+    button.style.lineHeight = "1";
+    
+    // ===== Assemble =====
+    buttonContainer.append(button);
+    buttonColumn.appendChild(buttonContainer);
+    buttonRow.append(buttonLabelColumn, buttonColumn);
+
+    return buttonRow;
+}
 
 function renderSkinsTabPane() {
     const pane = document.getElementById("germsfox-settings-skins");
@@ -311,13 +348,15 @@ function renderSkinsTabPane() {
     const skinsPill = createPill("Custom Skins");
     const skinsExportButton = createDownloadButton("Export to File", "Export");
     const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
+    const skinsDeleteButton = createDangerousButton(deleteAllCustomSkins, "Delete All Skins", "Delete");
     const skinsBlockerPill = createPill("Skin Blocker");
-    const skinsResetButton = createButton(resetBlockRules, "Unblock All Skins", "Reset");
+    const skinsResetButton = createDangerousButton(resetBlockRules, "Unblock All Skins", "Reset");
 
     pane.append(
         skinsPill,
         skinsExportButton,
         skinsImportButton,
+        skinsDeleteButton,
         skinsBlockerPill,
         skinsResetButton
     );
@@ -480,6 +519,7 @@ function createDownloadButton(labelText, buttonText) {
 
     return buttonRow;
 }
+
 // Creates a button row
 function createButton(onClick, labelText, buttonText) {
     const buttonRow = document.createElement("div");
@@ -517,6 +557,7 @@ function createButton(onClick, labelText, buttonText) {
 
     return buttonRow;
 }
+
 // Return a div .row with a key (as in "keyboard") tester for settings.key
 function createKeyTester(key, text) {
     const keyRow = document.createElement("div");
@@ -539,7 +580,7 @@ function createKeyTester(key, text) {
     keyTesterContainer.style.width = "100px";
 
     const keyTester = document.createElement("input");
-    keyTester.id = "keyMultibox"
+    keyTester.id = "key" + key.charAt(0).toUpperCase() + key.slice(1);
     keyTester.classList.add("form-control");
     keyTester.type = "text";
     keyTester.value = settings.controls[key][1];

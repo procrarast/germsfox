@@ -185,6 +185,22 @@ ul.skinList li {
     padding: 15px;
     border-radius: 5px;
     text-align: center;
+    display: flex;
+    overflow-x: scroll;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+    scroll-behavior: smooth;
+}
+#germsfoxSettingsTabs::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 4px;
+}
+#germsfoxSettingsTabs::-webkit-scrollbar {
+    width: 6px;
+    height: 5px;
+}
+#germsfoxSettingsTabs li {
+    flex-shrink: 0;
 }
 #germsfoxSettingsTabsContent {
     position: absolute;
@@ -310,6 +326,36 @@ ul.skinList li {
 }
 #germsfox-settings-blocklist .block-button.blocked:hover {
     text-decoration: none;
+}
+#germsfox-settings-theme {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-align: center;
+    height: 100%;
+}
+#germsfox-settings-theme::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#germsfox-settings-theme::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#germsfox-settings-theme::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-bottom-right-radius: 6px;
+}
+#germsfox-settings-theme .row {
+    width: 443px;
+    margin-bottom: 2px;
+}
+#germsfox-settings-theme .clearfix {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+#germsfox-settings-theme .badge {
+    margin-bottom: 15px;
 }
 #germsfox-settings-skins {
     overflow-y: scroll;
@@ -506,4 +552,12 @@ ul.skinList li {
 }
 .errorMessage font {
     text-shadow: 0 0 7px #3e0000a6;
+}
+.colorPicker {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: black;
+    background-clip: border-box;
 }

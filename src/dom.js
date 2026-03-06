@@ -16,7 +16,7 @@ function renderGermsfoxButton() {
         button.addEventListener("click", () => overlay.setAttribute("style", ""));*/
         // onclick for consistency with how germs handles similar button clicks
         button.onclick = openGermsfoxSettings;
-        
+
         let img = document.createElement("img");
         img.id = "germsfoxIcon";
         img.alt = "Icon";
@@ -33,6 +33,7 @@ function renderGermsfoxButton() {
             renderControlsTabPane();
             renderBlocklistTabPane();
             renderSkinsTabPane();
+            renderThemeTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
             germsfoxSettingsContainer.style.transform = settingsContainer.style.transform;
@@ -78,6 +79,13 @@ function renderGermsfoxSettings() {
     const tabsNav = document.createElement("ul");
     tabsNav.id = "germsfoxSettingsTabs";
     tabsNav.classList.add("nav", "nav-pills");
+    // Horizontal scroll by default
+    // (tries to scroll vertically by default and needs shift to be held down for horizontal scroll)
+    // feel free to remove this if you think shift scroll for horizontal is fine
+    tabsNav.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        tabsNav.scrollLeft += e.deltaY;
+    });
 
     // ===== Tab Content div =====
 
@@ -85,7 +93,7 @@ function renderGermsfoxSettings() {
     tabContent.id = "germsfoxSettingsTabsContent";
     tabContent.classList.add("tab-content");
 
-    const tabNames = ["General", "Controls", "Blocklist", "Skins"];
+    const tabNames = ["General", "Controls", "Theme", "Blocklist", "Skins"];
 
     tabNames.forEach((name, index) => {
         const tabId = `germsfox-settings-${name.toLowerCase()}`;
@@ -146,6 +154,7 @@ function renderGermsfoxSettings() {
     renderControlsTabPane();
     renderBlocklistTabPane();
     renderSkinsTabPane();
+    renderThemeTabPane();
 
     return overlay;
 }
@@ -208,9 +217,9 @@ function renderControlsTabPane() {
             toggleSkinsClearfix.style.display = "none";
         }
     }
-    
+
     // This input is special in that it updates a few elements, so override onchange
-    toggleInput.onchange = async function() {
+    toggleInput.onchange = async function () {
         await setSetting("toggleSettings", toggleInput.checked);
         updateControlsTabPane();
     };
@@ -252,7 +261,7 @@ function createToggleDropdown(key, text) {
     const firstSelect = createDropdown(key + "First");
     console.debug(settings[key]);
     firstSelect.value = settings[key][0];
-    firstSelect.onchange = function() {
+    firstSelect.onchange = function () {
         setSetting(key, [this.value, settings[key][1]]);
     };
 
@@ -265,7 +274,7 @@ function createToggleDropdown(key, text) {
 
     const secondSelect = createDropdown(key + "Second");
     secondSelect.value = settings[key][1];
-    secondSelect.onchange = function() {
+    secondSelect.onchange = function () {
         setSetting(key, [settings[key][0], this.value]);
     };
 
@@ -286,7 +295,7 @@ function createToggleDropdown(key, text) {
 function createDropdown(id) {
     const select = document.createElement("select");
     select.id = id;
-    
+
     const values = [
         "All",
         "Party",
@@ -332,7 +341,7 @@ function createDangerousButton(onClick, labelText, buttonText) {
     button.style.width = "100px";
     button.style.height = "35px";
     button.style.lineHeight = "1";
-    
+
     // ===== Assemble =====
     buttonContainer.append(button);
     buttonColumn.appendChild(buttonContainer);
@@ -364,18 +373,116 @@ function renderSkinsTabPane() {
 }
 
 
+function renderThemeTabPane() {
+    const pane = document.getElementById("germsfox-settings-theme");
+    pane.replaceChildren();
+
+    const customThemePill = createPill("Custom Theme");
+    const customThemeBackgroundColorCheckbox = createCheckbox("backgroundColorEnabled", "Background Color Enabled");
+    const backgroundColorInput = customThemeBackgroundColorCheckbox.querySelector("#backgroundColorEnabled");
+    const customThemeBackgroundColorPicker = createColorPicker("backgroundColor", "Background Color");
+    const customThemeCellColorCheckbox = createCheckbox("cellColorEnabled", "Cell Color Enabled");
+    const cellColorInput = customThemeCellColorCheckbox.querySelector("#cellColorEnabled");
+    const customThemeCellColorPicker = createColorPicker("cellColor", "Cell Color");
+    const customThemeFoodColorCheckbox = createCheckbox("foodColorEnabled", "Food Color Enabled");
+    const foodColorInput = customThemeFoodColorCheckbox.querySelector("#foodColorEnabled");
+    const customThemeFoodColorPicker = createColorPicker("foodColor", "Food Color");
+    const customThemeVirusColorCheckbox = createCheckbox("virusColorEnabled", "Virus Color Enabled");
+    const virusColorInput = customThemeVirusColorCheckbox.querySelector("#virusColorEnabled");
+    const customThemeVirusColorPicker = createColorPicker("virusColor", "Virus Color");
+    const customThemeBorderColorCheckbox = createCheckbox("borderColorEnabled", "Border Color Enabled");
+    const borderColorInput = customThemeBorderColorCheckbox.querySelector("#borderColorEnabled");
+    const customThemeBorderColorPicker = createColorPicker("borderColor", "Border Color");
+
+    pane.append(
+        customThemePill,
+        customThemeBackgroundColorCheckbox,
+        customThemeBackgroundColorPicker,
+        customThemeCellColorCheckbox,
+        customThemeCellColorPicker,
+        customThemeFoodColorCheckbox,
+        customThemeFoodColorPicker,
+        customThemeVirusColorCheckbox,
+        customThemeVirusColorPicker,
+        customThemeBorderColorCheckbox,
+        customThemeBorderColorPicker
+    )
+
+    updateThemeTabPane();
+
+    function updateThemeTabPane() {
+        if (settings.backgroundColorEnabled) {
+            customThemeBackgroundColorPicker.style.display = "flex";
+        } else {
+            customThemeBackgroundColorPicker.style.display = "none";
+        }
+
+        if (settings.cellColorEnabled) {
+            customThemeCellColorPicker.style.display = "flex";
+        } else {
+            customThemeCellColorPicker.style.display = "none";
+        }
+
+        if (settings.foodColorEnabled) {
+            customThemeFoodColorPicker.style.display = "flex";
+        } else {
+            customThemeFoodColorPicker.style.display = "none";
+        }
+
+        if (settings.virusColorEnabled) {
+            customThemeVirusColorPicker.style.display = "flex";
+        } else {
+            customThemeVirusColorPicker.style.display = "none";
+        }
+
+        if (settings.borderColorEnabled) {
+            customThemeBorderColorPicker.style.display = "flex";
+        } else {
+            customThemeBorderColorPicker.style.display = "none";
+        }
+    }
+
+    backgroundColorInput.onchange = async function () {
+        await setSetting("backgroundColorEnabled", backgroundColorInput.checked);
+        updateThemeTabPane();
+    };
+
+    cellColorInput.onchange = async function () {
+        await setSetting("cellColorEnabled", cellColorInput.checked);
+        updateThemeTabPane();
+    };
+
+    foodColorInput.onchange = async function () {
+        await setSetting("foodColorEnabled", foodColorInput.checked);
+        updateThemeTabPane();
+    };
+
+    virusColorInput.onchange = async function () {
+        await setSetting("virusColorEnabled", virusColorInput.checked);
+        updateThemeTabPane();
+    };
+
+    borderColorInput.onchange = async function () {
+        await setSetting("borderColorEnabled", borderColorInput.checked);
+        updateThemeTabPane();
+    };
+
+    return pane;
+}
+
+
 function renderGeneralTabPane() {
     const pane = document.getElementById("germsfox-settings-general");
     pane.replaceChildren();
 
-    const multiboxPill = createPill("Multibox"); 
+    const multiboxPill = createPill("Multibox");
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
     const multiboxWindowedCheckbox = createCheckbox("switcherWindowed", "Windowed Mode");
 
     const generalPill = createPill("General");
     const generalInvitesCheckbox = createCheckbox("ignoreInvites", "Ignore Party Invites");
     const generalWarningCheckbox = createCheckbox("autoLogout", "Skip Logout Warnings");
-   
+
     pane.append(
         generalPill,
         generalInvitesCheckbox,
@@ -384,7 +491,7 @@ function renderGeneralTabPane() {
         multiboxPill,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
-    ); 
+    );
 
     return pane;
 }
@@ -428,6 +535,81 @@ function createPill(text) {
     pill.classList.add("badge", "badge-pill", "badge-primary");
     pill.textContent = text;
     return pill;
+}
+
+function createColorPicker(key, labelText) {
+    function hexToRgbFloat(hex) {
+        hex = hex.startsWith("#") ? hex.slice(1) : hex;
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join("");
+
+        const r = parseInt(hex.slice(0, 2), 16) / 255;
+        const g = parseInt(hex.slice(2, 4), 16) / 255;
+        const b = parseInt(hex.slice(4, 6), 16) / 255;
+
+        return [r, g, b];
+    }
+
+    function componentToHex(c) {
+        var hex = c.toString(16);
+        return hex.length == 1 ? "0" + hex : hex;
+    }
+
+    function rgbToHex(r, g, b) {
+        return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+    }
+
+    const colorPickerRow = document.createElement("div");
+    colorPickerRow.classList.add("row");
+    colorPickerRow.style.marginLeft = "20px";
+
+    const colorPickerLabelColumn = document.createElement("div");
+    colorPickerLabelColumn.classList.add("col-md-6");
+    colorPickerLabelColumn.style.fontSize = "20px";
+    colorPickerLabelColumn.textContent = labelText;
+    colorPickerLabelColumn.style.textAlign = "left";
+    colorPickerLabelColumn.style.paddingLeft = "0px";
+    colorPickerLabelColumn.style.paddingBottom = ".5rem";
+
+    const colorPickerColumn = document.createElement("div");
+    colorPickerColumn.classList.add("col-md-6");
+    colorPickerColumn.style.fontSize = "20px";
+
+    const colorPickerContainer = document.createElement("div");
+    colorPickerContainer.style.position = "relative";
+    colorPickerContainer.style.width = "100px";
+    colorPickerContainer.style.height = "35px";
+
+    const realColorPicker = document.createElement("input");
+    realColorPicker.id = key;
+    realColorPicker.type = "color";
+    realColorPicker.style.position = "absolute";
+    realColorPicker.style.top = "0";
+    realColorPicker.style.left = "0";
+    realColorPicker.style.width = "100%";
+    realColorPicker.style.height = "100%";
+    realColorPicker.style.opacity = "0";
+    realColorPicker.style.cursor = "pointer";
+    realColorPicker.style.border = "none";
+    realColorPicker.style.padding = "0";
+    realColorPicker.value = rgbToHex(settings[key][0] * 255, settings[key][1] * 255, settings[key][2] * 255).toString();
+
+    const fakeColorPicker = document.createElement("div");
+    fakeColorPicker.classList.add("colorPicker", "form-control");
+    fakeColorPicker.style.width = "100%";
+    fakeColorPicker.style.height = "100%";
+    fakeColorPicker.style.backgroundColor = realColorPicker.value;
+
+    realColorPicker.onchange = function () {
+        fakeColorPicker.style.backgroundColor = realColorPicker.value;
+        setSetting(key, hexToRgbFloat(this.value));
+    };
+
+    colorPickerContainer.append(fakeColorPicker);
+    colorPickerContainer.append(realColorPicker);
+    colorPickerColumn.appendChild(colorPickerContainer);
+    colorPickerRow.append(colorPickerLabelColumn, colorPickerColumn);
+
+    return colorPickerRow;
 }
 
 function createFileInputButton(onChange, labelText, buttonText) {
@@ -477,7 +659,7 @@ function createFileInputButton(onChange, labelText, buttonText) {
 
 function createDownloadButton(labelText, buttonText) {
     const stringifiedArray = JSON.stringify(settings.customSkins);
-    const blob = new Blob([stringifiedArray], {type: 'application/json'});
+    const blob = new Blob([stringifiedArray], { type: 'application/json' });
     const blobUrl = window.URL.createObjectURL(blob);
 
     const buttonRow = document.createElement("div");
@@ -510,7 +692,7 @@ function createDownloadButton(labelText, buttonText) {
     const a = document.createElement("a");
     a.href = blobUrl;
     a.download = "skins";
-    
+
     // ===== Assemble =====
     a.append(button);
     buttonContainer.append(a);
@@ -549,7 +731,7 @@ function createButton(onClick, labelText, buttonText) {
     button.style.width = "100px";
     button.style.height = "35px";
     button.style.lineHeight = "1";
-    
+
     // ===== Assemble =====
     buttonContainer.append(button);
     buttonColumn.appendChild(buttonContainer);
@@ -574,7 +756,7 @@ function createKeyTester(key, text) {
     const keyTesterColumn = document.createElement("div");
     keyTesterColumn.classList.add("col-md-6");
     keyTesterColumn.style.fontSize = "20px";
-    
+
     const keyTesterContainer = document.createElement("div");
     keyTesterContainer.classList.add("input-group", "input-group-sm");
     keyTesterContainer.style.width = "100px";
@@ -634,7 +816,7 @@ function createCheckbox(key, text) {
     checkbox.id = key;
     checkbox.type = "checkbox";
     checkbox.checked = settings[key];
-    checkbox.onchange = function() {
+    checkbox.onchange = function () {
         setSetting(key, this.checked);
     }
 
@@ -699,32 +881,32 @@ function getOwnedSkins() {
             }
         }
     }
-    console.debug(`You have ${ownedSkins.length} owned skins.`); 
+    console.debug(`You have ${ownedSkins.length} owned skins.`);
     return ownedSkins;
 }
 
 function renderCustomColorsMenu() {
     console.debug("Rendering custom colors menu");
-    
+
     const ownedSkins = getOwnedSkins();
 
     // name of the cell picker - name of the skin - approximate color that the skin provides
     const cellColorList = {
-        "Brown": [ "Griffin", "#371f0f" ],
-        "Dark Red": ["black comets", "#860410" ],
-        "Orange": [ "Trident", "#d37400" ],
-        "Yellow": [ "Xiphos", "#ddb920" ],
-        "Lime": [ "green dragon" , "#75d600"],
-        "Green": [ "germs gorilla", "#00dd00" ],
-        "Dark green": [ "jello alien", "#3fbb00" ],
-        "Turquoise": [ "robo cat", "#0aaada" ],
-        "Blue": [ "Omega", "#2389dd" ],
-        "Dark Blue": [ "scenery", "#406cc7" ],
-        "Purple": [ "boo", "#6936a6" ],
+        "Brown": ["Griffin", "#371f0f"],
+        "Dark Red": ["black comets", "#860410"],
+        "Orange": ["Trident", "#d37400"],
+        "Yellow": ["Xiphos", "#ddb920"],
+        "Lime": ["green dragon", "#75d600"],
+        "Green": ["germs gorilla", "#00dd00"],
+        "Dark green": ["jello alien", "#3fbb00"],
+        "Turquoise": ["robo cat", "#0aaada"],
+        "Blue": ["Omega", "#2389dd"],
+        "Dark Blue": ["scenery", "#406cc7"],
+        "Purple": ["boo", "#6936a6"],
     }
 
     const skinListUl = document.getElementsByClassName("skinList")[0];
-    
+
     const oldColorList = skinListUl.querySelector("#customCellColor");
     if (oldColorList) oldColorList.remove();
 
@@ -782,7 +964,7 @@ function renderCustomColorsMenu() {
                 colorDiv.setAttribute("onclick", `logout(); setSkin('premium/${skinName}')`);
             } else {
                 // If you think this is disgusting, that's because it is. But it works!
-                const message = 
+                const message =
                     `You are about to be logged out!\\n\\nTo stay logged in, use an account that does not own the ${skinName} skin.`;
                 colorDiv.setAttribute("onclick", `if(confirm('${message}')){logout();}else{return;}setSkin('premium/${skinName}');`);
             }
@@ -829,7 +1011,7 @@ function renderPlayerMenu() {
 
     const copyIcon = document.createElement("i");
     copyIcon.classList.add("fas", "fa-copy");
-    
+
     const copyLabel = document.createElement("p");
     copyLabel.textContent = "Copy Skin";
 
@@ -855,7 +1037,7 @@ function renderPlayerMenu() {
 
     const playerSkinElement = document.getElementById("userMenuPlayerSkin");
 
-    copySkinItem.addEventListener('click', async function() {
+    copySkinItem.addEventListener('click', async function () {
         try {
             const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
             if (skinURL.includes("imgur")) {
@@ -865,13 +1047,13 @@ function renderPlayerMenu() {
                 console.log("Tried to copy a regular skin, doing nothing");
             }
             playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
-        }  
-            catch (error) {
+        }
+        catch (error) {
             console.error("Failed to copy skin: ", error);
         }
     });
 
-    blockSkinItem.addEventListener('click', function() {
+    blockSkinItem.addEventListener('click', function () {
         const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
 
         if (!settings.skinBlocklist.includes(skinURL)) { // don't add unnecessary duplicates to the list
@@ -897,7 +1079,7 @@ function renderPlayerMenu() {
         playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
     });
 
-    muteButton.addEventListener('click', function() {
+    muteButton.addEventListener('click', function () {
         console.debug("Mute button clicked");
         const playerNameElement = document.getElementById("userMenuPlayerName");
         const mutedTextElement = document.getElementById("userMenuBlockText");
@@ -998,7 +1180,7 @@ function renderCustomSkinsMenu() {
     customSkinsContainer.appendChild(customSkinsTable);
 
     // right click to display a delete button
-    customSkinsTable.addEventListener("contextmenu", function(event) {
+    customSkinsTable.addEventListener("contextmenu", function (event) {
         console.debug("Context menu opened");
         tryRemoveDeleteButton();
 
@@ -1037,7 +1219,7 @@ function renderCustomSkinsMenu() {
         deleteButton.addEventListener('click', () => {
             deleteButton.remove();
             settings.customSkins.splice(settings.customSkins.indexOf(imgSrc), 1); // assuming it always exists
-            chrome.storage.local.set({"customSkins": settings.customSkins});
+            chrome.storage.local.set({ "customSkins": settings.customSkins });
             console.log(`Deleted ${imgSrc}`);
             renderCustomSkinsMenu(); // Would rather do a parentNode.remove() but it won't work, so just re-render the whole thing
         });
@@ -1045,14 +1227,14 @@ function renderCustomSkinsMenu() {
         const skinsCard = document.getElementById("skinsCard");
         skinsCard.addEventListener('click', () => {
             tryRemoveDeleteButton();
-        }, { once: true } );
+        }, { once: true });
 
         return deleteButton;
     }
 
     function tryRemoveDeleteButton() {
-    // Trying to remove delete button
-    let deleteButton = customSkinsTable.querySelector("#deleteButton");
+        // Trying to remove delete button
+        let deleteButton = customSkinsTable.querySelector("#deleteButton");
 
         if (deleteButton) {
             deleteButton.remove();
@@ -1096,7 +1278,7 @@ function renderEmotesPanel() {
         emoteImg.src = chrome.runtime.getURL(`images/emotes/${emote}`);
         emoteImg.title = filename;
         emoteImg.name = filename; // Yes I know it's deprecated
-        
+
         emoteLi.appendChild(emoteImg);
         emotesList.appendChild(emoteLi);
     }
@@ -1130,12 +1312,12 @@ function createSkinLi(url) {
 }
 
 function unblockPlayerName(playerName) {
-    settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1); 
+    settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
 
     const chatBox = document.getElementById("worldTab");
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    chrome.storage.local.set({"playerBlocklist": settings.playerBlocklist});
+    chrome.storage.local.set({ "playerBlocklist": settings.playerBlocklist });
 }
 
 function blockPlayerName(playerName) {

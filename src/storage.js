@@ -1,4 +1,4 @@
-    
+
 /* The purpose of this """module""" is to handle browser state.
  * Specifically, it handles most browser storage queries,
  * including extension settings and user-submitted skins/blocklist data
@@ -75,7 +75,17 @@ const DEFAULT_SETTINGS = {
     switcherWindowed: false,
     ignoreInvites: false,
     toggleSettings: true,
-    autoLogout: false
+    autoLogout: false,
+    backgroundColorEnabled: false,
+    backgroundColor: [0.0, 0.0, 0.0],
+    cellColorEnabled: false,
+    cellColor: [1.0, 1.0, 1.0],
+    foodColorEnabled: false,
+    foodColor: [1.0, 1.0, 1.0],
+    virusColorEnabled: false,
+    virusColor: [1.0, 1.0, 1.0],
+    borderColorEnabled: false,
+    borderColor: [1.0, 1.0, 1.0]
 };
 
 const DEFAULT_GERMS_SETTINGS = {
@@ -94,7 +104,7 @@ const handlers = {
 };
 
 chrome.runtime.onMessage.addListener((request, sender) => {
-    const handler = handlers [request.action];
+    const handler = handlers[request.action];
     if (handler) handler(request, sender);
 });
 
@@ -122,9 +132,9 @@ function getGermsSettings() {
 async function getSettings() {
     try {
         const storedSettings = await chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS));
-            
+
         // Merge stored settings with defaults
-        settings = {...DEFAULT_SETTINGS};
+        settings = { ...DEFAULT_SETTINGS };
         for (item in settings) {
             if (storedSettings[item] != null) {
                 settings[item] = storedSettings[item];
@@ -137,7 +147,7 @@ async function getSettings() {
                 //console.debug("Temporarily set " + item + " to value " + DEFAULT_SETTINGS[item]);
             }
         }
-    } catch(error) {
+    } catch (error) {
         console.warn("Could not get stored settings: " + error);
     }
     console.debug("Retrieved settings");
@@ -221,13 +231,13 @@ function importSkinsFromFile(files) {
 
 function exportSkins() {
     const stringifiedArray = JSON.stringify(settings.customSkins);
-    const blob = new Blob([stringifiedArray], {type: 'application/json'});
+    const blob = new Blob([stringifiedArray], { type: 'application/json' });
     const blobUrl = window.URL.createObjectURL(blob);
 
     chrome.runtime.sendMessage({ // you can't download from content_scripts
         action: 'download',
         url: blobUrl,
-        filename: "skins.json" 
+        filename: "skins.json"
     });
 }
 

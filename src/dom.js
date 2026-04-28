@@ -5,6 +5,417 @@
 
 console.debug("Running dom.js");
 
+function renderGameMenu() {
+    // Move socials to the right side of the menu to make room for cell preview+customizations
+    const spectateIcon = document.getElementById("spectate").querySelector("i");
+    spectateIcon.classList.replace("fa-eye", "fa-search"); // The eye has always creeped me out
+
+    // Version href doesn't even work, so adding our own shouldn't be too invasive
+    const versionAnchor = document.getElementById("version");
+    versionAnchor.removeAttribute("href");
+    //TODO add germsfox info
+
+    const menuLeft = document.getElementById("menuLeft");
+
+    const partyCard = document.getElementsByClassName("partyCard")[0];
+    const socialIconsCard = document.getElementById("socialIcons").parentElement.parentElement;
+    menuLeft.insertBefore(partyCard, socialIconsCard);
+
+    // Remove locked name features from login menu, leaving only locked name code redemption
+    //document.getElementById("loginCustom").remove();
+
+    // Make room for the cell preview card
+    const serversCard = document.getElementById("servers").parentElement;
+    serversCard.style.height = "261px";
+    document.getElementById("connecting").style.height = "250px";
+    document.getElementById("serversTitle").style.marginBottom = "5px";
+
+    renderCellPreviewCard();
+}
+
+function renderCellPreviewCard() {
+    const skinsCard = document.getElementById("skins");
+    const skinsListUl = document.getElementsByClassName("skinList")[0];
+
+    const previewCard = document.createElement("div");
+    previewCard.classList.add("card", "nodrag");
+    previewCard.style.height = "250px";
+    previewCard.style.padding = "11px 13px";
+    previewCard.style.overflow = "none";
+    previewCard.style.flexDirection = "row";
+    
+    const cellPanel = document.createElement("div");
+    cellPanel.id = "cellPanel";
+
+    const cellContainer = document.createElement("div");
+    cellContainer.id = "cellContainer"
+
+    let ownedSkins = getOwnedSkins();
+
+    // Skin button
+    const cellSkinButton = document.createElement("button");
+    cellSkinButton.id = "cellSkinButton";
+    cellSkinButton.style.backgroundImage = `url("${settings.setSkin}")`;
+    
+    const cellSkinLabel = document.createElement("p");
+    cellSkinLabel.innerText = "Skin";
+    cellSkinButton.appendChild(cellSkinLabel);
+
+    function skinsListClicked(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        //console.debug("Skins list clicked");
+        //console.debug(event.target.className, event.target.tagName);
+        if (event.target.className === "cellColorBtn") {
+
+            console.debug("Clicked a cell color. Setting the color and your skin");
+            skinsCard.style.display = 'none';
+            skinsListUl.removeEventListener('click', skinsListClicked, true);
+            setSkin(settings.setSkin);
+            hasSpawned = false;
+            setSetting('setColor', event.target.nextElementSibling.textContent); // Adjacent p element has the key
+        } else if (event.target.tagName === "IMG") {
+            //console.debug("Preventing default click and setting a skin");
+            if (event.target.src.startsWith("data")) {
+                console.debug("Clicked a 'None' skin. Setting the skin setting");
+                setSetting("setSkin", "None");
+                cellSkin.style.display = "none";
+                cellSkinButton.style.removeProperty("background-image");
+                if (settings.setColor !== 'None' && hasSpawned) { // If you have a color and you have spawned
+                    console.debug("Since you have a color and have spawned, setting your skin to 'None'");
+                    skinsCard.style.display = 'none';
+                    skinsListUl.removeEventListener('click', skinsListClicked, true);
+                    setSkin("None");
+                }
+            } else {
+                console.debug("You clicked a regular skin. Setting the skin");
+                if (event.target.src.includes("imgur")) {
+                    cellSkin.src = event.target.src;
+                    skinsCard.style.display = 'none';
+                    skinsListUl.removeEventListener('click', skinsListClicked, true);
+                    
+                    // Would the skin you're about to equip have on override your cell color?
+                    const match = Object.entries(cellColorList).find(([_, val]) => val[0] === event.target.src.slice(18, -4));
+                    if (match) {
+                        // Set color to your skin
+                        cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                    } else {
+                        // If not, set color to your color
+                        console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                        cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+                    }
+
+                    setSkin(event.target.src);
+                    cellSkinButton.style.backgroundImage = `url('${event.target.src}')`;
+                    setSetting('setSkin', event.target.src);
+                } else { // Not a custom skin
+                    const completeSrc = `res/skins/${event.target.dataset.src.slice(10, -4)}.png`;
+                    cellSkin.src = completeSrc;
+                    
+                    // Would the skin you're about to equip have on override your cell color?
+                    const match = Object.entries(cellColorList).find(([_, val]) => val[0] === completeSrc.slice(18, -4));
+                    if (match) {
+                        // Set color to your skin
+                        cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                    } else {
+                        // If not, set color to your color
+                        console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                        cellColor.style.backgroundColor = cellColorList[key][1];
+                    }
+
+                    skinsCard.style.display = 'none';
+                    skinsListUl.removeEventListener('click', skinsListClicked, true);
+                    setSkin(completeSrc);
+                    cellSkinButton.style.backgroundImage = `url('${completeSrc}')`;
+                    setSetting('setSkin', completeSrc);
+                }
+                cellSkin.style.display = "block";
+            }
+            hasSpawned = false;
+            const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
+
+            if (match &&  parseFloat(match[1]) > 0) { // You're alive
+                initDebugAfterDeath();
+            } else {
+                initDebug();
+            }
+        }
+    }
+
+    cellSkinButton.onclick = () => {
+        document.getElementById("skin").click();
+
+        console.debug("Adding event listener");
+        skinsListUl.addEventListener('click', skinsListClicked, true); // If capture is not true, the card closes before the event listener triggers 
+
+        const skinsObserver = new MutationObserver(() => {
+            if (skinsCard.style.display === "none") {
+                console.debug("Removing event listener and skins observer");
+                skinsListUl.removeEventListener('click', skinsListClicked, true);
+                skinsObserver.disconnect();
+            }
+        });
+        skinsObserver.observe(skinsCard, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    // Color buttons
+    const buttonsContainer = renderColorButtons();
+
+    // Cell preview
+    const cellColor = document.createElement("div");
+    cellColor.id = "cellColor";
+
+    const cellSkin = document.createElement("img");
+    cellSkin.id = "cellSkin";
+    cellSkin.src = settings.setSkin;
+
+    const cellNameContainer = document.createElement("div");
+    cellNameContainer.id = "cellNameContainer";
+
+    const cellName = document.createElement("h4");
+    cellName.id = "cellName";
+    const nickname = document.getElementById("nick").value;
+    cellName.textContent = nickname;
+    cellName.dataset.nick = nickname;
+
+    // The size scaling at 0 and 25 chars is almost exact, but the curve between the two is not
+    const rem = 2.75 - 1.375 * (nickname.length / 25); 
+    cellName.style.fontSize = rem.toFixed(3) + "rem";
+
+    // locked buttons (up, down, color picker
+    const lockedButtons = document.createElement("div");
+    lockedButtons.id = "lockedButtons";
+
+    const lockedLabel = document.createElement("p");
+    lockedLabel.innerText = "Locked";
+
+    const lockedPosButtons = document.createElement("div");
+    lockedPosButtons.id = "lockedPosButtons";
+
+    const lockedUpButton = document.createElement("button");
+    const lockedUpIcon = document.createElement("i");
+    lockedUpIcon.classList.add("fas", "fa-arrow-up");
+    lockedUpButton.onclick = () => {
+        const lockedPosSelect = document.getElementById("lockedNamePositionSelect");
+        if (document.getElementById("lockedNamePositionSelect")) {
+            lockedPosSelect.selectedIndex = ((lockedPosSelect.selectedIndex - 1) + 3) % 3;
+            lockedPosSelect.dispatchEvent(new Event("change"));
+        }
+    };
+    lockedUpButton.appendChild(lockedUpIcon);
+
+    const lockedDownButton = document.createElement("button");
+    const lockedDownIcon = document.createElement("i");
+    lockedDownIcon.classList.add("fas", "fa-arrow-down");
+    lockedDownButton.onclick = () => {
+        const lockedPosSelect = document.getElementById("lockedNamePositionSelect");
+        if (lockedPosSelect) {
+            lockedPosSelect.selectedIndex = (lockedPosSelect.selectedIndex + 1) % 3;
+            lockedPosSelect.dispatchEvent(new Event("change"));
+        }
+    };
+    lockedDownButton.appendChild(lockedDownIcon);
+
+    lockedPosButtons.append(lockedUpButton, lockedDownButton);
+    lockedButtons.append(lockedLabel, lockedPosButtons);
+    
+    // When you change accounts, update the preview
+    const loginDiv = document.getElementById("login");
+    const loginObserver = new MutationObserver(() => updatePreview());
+    loginObserver.observe(loginDiv, { childList: true });
+
+    // Color picker might not exist. If it doesn't, this observer will be attached later.
+    let colorDiv = document.getElementById("lockedNameColorPicker");
+    const colorObserver = new MutationObserver(() => updateColor());
+    if (colorDiv) colorObserver.observe(colorDiv, { attributes: true, attributeFilter: ['style'] });
+
+    // Track whether event listener is bound to locked position select
+    let positionListenerAttached = false;
+
+    updatePreview();
+    previewCard.append(cellContainer, cellPanel);
+    cellPanel.append(cellSkinButton, buttonsContainer, lockedButtons);//TODO: skin select, locked color, locked position
+    cellNameContainer.appendChild(cellName);
+    cellContainer.append(cellColor, cellSkin, cellNameContainer, );
+
+    document.getElementById("menuRight").insertBefore(previewCard, document.getElementById("servers").parentElement);
+
+    function updateColor() { // Triggered on color picker background change
+        cellName.style.color = colorDiv.style.background;
+    }
+    function renderColorButtons() {
+        const buttonsContainer = document.createElement("div");
+        buttonsContainer.id = "cellButtons";
+
+        const buttonsLabel = document.createElement("p");
+        buttonsLabel.textContent = "Cell Color";
+        buttonsContainer.appendChild(buttonsLabel);
+
+        const randomColorButton = document.createElement("button");
+        randomColorButton.style.backgroundColor = "rgb(200, 200, 200)";
+        randomColorButton.style.display = "flex";
+        randomColorButton.style.justifyContent = "center";
+        randomColorButton.style.alignItems = "center";
+        randomColorButton.style.fontSize = "9pt";
+        randomColorButton.style.color = "rgba(0, 0, 0, 0.5)";
+        randomColorButton.onclick = () => {
+            console.debug("Set color to none");
+            setSkin(settings.setSkin); // perhaps heavy handed? what condition would prevent duplicate setSkin calls
+            // Would the skin you have on override your cell color?
+            const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
+            if (match) {
+                // Set color to your skin
+                cellColor.style.backgroundColor = cellColorList[match[0]][1];
+            } else {
+                // If not, set color to gray
+                console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                cellColor.style.backgroundColor = "rgb(200,200,200)";
+            }
+            setSetting('setColor', 'None');
+        };
+        const randomColorIcon = document.createElement("i");
+        randomColorIcon.classList.add("fas", "fa-random");
+        randomColorButton.appendChild(randomColorIcon);
+        buttonsContainer.appendChild(randomColorButton);
+
+        for (const key in cellColorList) {
+            // todo: disable owned skins
+
+            const colorButton = document.createElement("button");
+            colorButton.style.backgroundColor = cellColorList[key][1];
+            //const skinName = cellColorList[key][0];
+            colorButton.onclick = () => {
+                console.debug("Set color to " + key);
+                if (hasSpawned || settings.setSkin === "None") setSkin(key);
+
+                // Would the skin you have on override your cell color?
+                const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
+                if (match) {
+                    // Set color to your skin
+                    cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                } else {
+                    // If not, set color to your color
+                    console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                    cellColor.style.backgroundColor = cellColorList[key][1];
+                }
+                setSetting('setColor', key);
+            };
+            buttonsContainer.appendChild(colorButton);
+        }
+        return buttonsContainer;
+    }
+    function updatePreview() { // Triggered on login
+        if (document.getElementById("loginCustomLockedName")?.style.display === "block") { // Has locked
+            // Locked color
+            colorDiv = document.getElementById("lockedNameColorPicker");
+            colorObserver.disconnect();
+            colorObserver.observe(colorDiv, { attributes: true, attributeFilter: ['style'] });
+            // Locked color may not be updated yet. If so, colorObserver will update it later.
+            cellName.style.color = colorDiv.style.background;
+            cellName.className = "locked";
+            
+            // Position
+            const positionSelect = document.getElementById("lockedNamePositionSelect");
+            if (positionSelect && !positionListenerAttached) {
+                positionSelect.addEventListener("change", () => {
+                    cellNameContainer.className = positionSelect.value.toLowerCase();
+                });
+                positionListenerAttached = true;
+            }
+            cellNameContainer.className = positionSelect.value.toLowerCase();
+
+            // Hide relocated locked name settings from its dedicated menu
+            document.getElementById("lockedNameColor").style.display = "none";
+            document.getElementById("lockedNamePosition").style.display = "none";
+            document.getElementById("lockedNamePositionSelect").style.display = "none";
+            document.getElementById("loginCustomLockedName").style.height = "72px";
+
+            // Set your skin, in case it got unset by logging out
+            setSkin(settings.setSkin);
+        } else { // broke boy doesn't have locked
+            colorObserver.disconnect();
+            if (!document.getElementById("lockedNamePositionSelect")) positionListenerAttached = false;
+            cellName.style.color = "white";
+            cellName.className = "default";
+            cellNameContainer.className = "center";
+        }
+
+        // Re-enable shop buttons. Nitrozeus re-enabled the buttons and the purchase worked, so I assume disabling them was accidental?
+        const shopButtonList = document.getElementById("shopTabBucks").querySelector("ul");
+        if (shopButtonList) { // It's empty if you're logged out
+            [...shopButtonList.children].forEach(li => {
+                li.querySelector("button").disabled = false;
+            });
+        }
+
+        // Cell color
+        ownedSkins = getOwnedSkins(); // Refresh ownedSkins; you may have logged out since init
+        if (ownedSkins.includes(settings.setColor[0])) {
+            console.log("You own the skin respective to the color " + settings.setColor + ". Removing...");
+            settings.setColor = 'None'; // To avoid async. Wish I handled settings differently
+            setSetting('setColor', 'None');
+        }
+        
+        // TODO Please break this code out into its own function. It's referenced 4 or 5 times. I have to go to bed
+        // Would the skin you have on override your cell color?
+        const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
+        if (match) { //match[0] is the key, if it finds it within the colors constant
+            // Set color to your skin
+            cellColor.style.backgroundColor = cellColorList[match[0]][1];
+        } else if (settings.setColor !== "None") {
+            // If not, set color to your color
+            console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+            cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+        }
+        
+        // Color picker
+        let lockedColorPicker = document.getElementById("lockedNameColorPicker");
+        const fakeColorPicker = document.getElementById("fakeColorPicker");
+
+        if (!lockedColorPicker && !fakeColorPicker) {
+            // If neither exists, you've either just logged out or this is a first pass
+            // Make a fake picker that'll get replaced later when you log in
+            console.debug("Creating fake color picker");
+            lockedColorPicker = document.createElement("div");
+            lockedColorPicker.id = "fakeColorPicker";
+            lockedColorPicker.style.background = "rgb(253, 253, 253)";
+        } else if (lockedColorPicker && fakeColorPicker) {
+            // If both exist, that's because a real picker was created after the last preview refresh 
+            // We'll remove the fake one 
+            fakeColorPicker.remove();
+        }
+        // Moves the real picker if it exists, appends the fake picker if not
+        // Does nothing if the picker is already in position
+        lockedButtons.appendChild(lockedColorPicker);
+        // Germs creates duplicate pickers if you've already moved one and log back in
+        if (document.querySelectorAll("#lockedNameColorPicker").length > 1) {
+            lockedButtons.querySelector("#lockedNameColorPicker").remove(); // The first one is the 'dead' one
+        }
+        
+        // Preview skin
+        // Do you own the skin you have in storage? If so, display it in the preview
+        const isLoggedIn = (document.getElementById("customSkin").style.display === "block");
+        if (settings.setSkin === "None") {
+            cellSkin.style.display = "none";
+        } else if (
+            settings.setSkin.includes("free/") || // Free skin
+            (isLoggedIn && settings.setSkin.includes("https://i.imgur.com/")) || // Logged in with custom skin
+            ownedSkins.includes(settings.setSkin.slice(18, -4))) // Premium/veteran skin is owned
+            {
+            console.log("You own the skin with src " + settings.setSkin);
+            cellSkin.style.display = "block";
+        } else {
+            console.log("You do not own the skin with src " + settings.setSkins);
+            setSkin('None');
+            cellSkin.style.display = "none";
+        }
+
+        // Cell preview color buttons
+        renderCustomColorsMenu(); // Since it gets referenced to create new onclick functions
+        renderColorButtons();
+    };
+}
+
 function renderGermsfoxButton() {
     const settingsButton = document.getElementById("settingsButton");
     if (settingsButton) {
@@ -32,7 +443,6 @@ function renderGermsfoxButton() {
             renderGeneralTabPane();
             renderControlsTabPane();
             renderBlocklistTabPane();
-            renderSkinsTabPane();
             renderThemeTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
@@ -79,13 +489,6 @@ function renderGermsfoxSettings() {
     const tabsNav = document.createElement("ul");
     tabsNav.id = "germsfoxSettingsTabs";
     tabsNav.classList.add("nav", "nav-pills");
-    // Horizontal scroll by default
-    // (tries to scroll vertically by default and needs shift to be held down for horizontal scroll)
-    // feel free to remove this if you think shift scroll for horizontal is fine
-    tabsNav.addEventListener("wheel", (e) => {
-        e.preventDefault();
-        tabsNav.scrollLeft += e.deltaY;
-    });
 
     // ===== Tab Content div =====
 
@@ -93,7 +496,7 @@ function renderGermsfoxSettings() {
     tabContent.id = "germsfoxSettingsTabsContent";
     tabContent.classList.add("tab-content");
 
-    const tabNames = ["General", "Controls", "Theme", "Blocklist", "Skins"];
+    const tabNames = ["General", "Controls", "Theme", "Blocklist"];
 
     tabNames.forEach((name, index) => {
         const tabId = `germsfox-settings-${name.toLowerCase()}`;
@@ -153,14 +556,13 @@ function renderGermsfoxSettings() {
     renderGeneralTabPane();
     renderControlsTabPane();
     renderBlocklistTabPane();
-    renderSkinsTabPane();
     renderThemeTabPane();
 
     return overlay;
 }
 
 function renderControlsTabPane() {
-    console.debug("Rendering");
+    //console.debug("Rendering");
     const pane = document.getElementById("germsfox-settings-controls");
     pane.replaceChildren();
 
@@ -259,7 +661,7 @@ function createToggleDropdown(key, text) {
     label.textContent = text;
 
     const firstSelect = createDropdown(key + "First");
-    console.debug(settings[key]);
+    //console.debug(settings[key]);
     firstSelect.value = settings[key][0];
     firstSelect.onchange = function () {
         setSetting(key, [this.value, settings[key][1]]);
@@ -349,29 +751,6 @@ function createDangerousButton(onClick, labelText, buttonText) {
 
     return buttonRow;
 }
-
-function renderSkinsTabPane() {
-    const pane = document.getElementById("germsfox-settings-skins");
-    pane.replaceChildren();
-
-    const skinsPill = createPill("Custom Skins");
-    const skinsExportButton = createDownloadButton("Export to File", "Export");
-    const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
-    const skinsDeleteButton = createDangerousButton(deleteAllCustomSkins, "Delete All Skins", "Delete");
-    const skinsBlockerPill = createPill("Skin Blocker");
-    const skinsResetButton = createDangerousButton(resetBlockRules, "Unblock All Skins", "Reset");
-
-    pane.append(
-        skinsPill,
-        skinsExportButton,
-        skinsImportButton,
-        skinsDeleteButton,
-        skinsBlockerPill,
-        skinsResetButton
-    );
-    return pane;
-}
-
 
 function renderThemeTabPane() {
     const pane = document.getElementById("germsfox-settings-theme");
@@ -483,6 +862,13 @@ function renderGeneralTabPane() {
     const generalInvitesCheckbox = createCheckbox("ignoreInvites", "Ignore Party Invites");
     const generalWarningCheckbox = createCheckbox("autoLogout", "Skip Logout Warnings");
 
+    const skinsPill = createPill("Custom Skins");
+    const skinsExportButton = createDownloadButton("Export to File", "Export");
+    const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
+    const skinsDeleteButton = createDangerousButton(deleteAllCustomSkins, "Delete All Skins", "Delete");
+    const skinsBlockerPill = createPill("Skin Blocker");
+    const skinsResetButton = createDangerousButton(resetBlockRules, "Unblock All Skins", "Reset");
+
     pane.append(
         generalPill,
         generalInvitesCheckbox,
@@ -491,6 +877,13 @@ function renderGeneralTabPane() {
         multiboxPill,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
+
+        skinsPill,
+        skinsExportButton,
+        skinsImportButton,
+        skinsDeleteButton,
+        skinsBlockerPill,
+        skinsResetButton
     );
 
     return pane;
@@ -506,7 +899,7 @@ function renderBlocklistTabPane() {
     const chatters = getChatNames(10);
 
     if (chatters.length === 0) {
-        console.debug("Creating message");
+        //console.debug("Creating message");
         const ltgGif = document.createElement("img");
         ltgGif.src = "https://media1.tenor.com/m/pYh_Xp0IuloAAAAC/low-tier-god-ltg.gif";
 
@@ -640,7 +1033,7 @@ function createFileInputButton(onChange, labelText, buttonText) {
     fileInput.style.display = "none";
 
     fileInput.addEventListener("change", (event) => {
-        console.debug("Input clicked");
+        //console.debug("Input clicked");
         onChange(event.target.files);
     });
 
@@ -877,11 +1270,11 @@ function getOwnedSkins() {
             const filePath = ownedSkinLi.getElementsByTagName("img")[0].dataset.src;
             if (filePath.startsWith("res/skins/premium")) {
                 ownedSkins.push(filePath.slice(18, -4)); //filename minus extension
-                console.debug(filePath.slice(18, -4));
+                //console.debug(filePath.slice(18, -4));
             }
         }
     }
-    console.debug(`You have ${ownedSkins.length} owned skins.`);
+    //console.debug(`You have ${ownedSkins.length} owned skins.`);
     return ownedSkins;
 }
 
@@ -889,32 +1282,10 @@ function renderCustomColorsMenu() {
     console.debug("Rendering custom colors menu");
 
     const ownedSkins = getOwnedSkins();
-
-    // name of the cell picker - name of the skin - approximate color that the skin provides
-    const cellColorList = {
-        "Brown": ["Griffin", "#371f0f"],
-        "Dark Red": ["black comets", "#860410"],
-        "Orange": ["Trident", "#d37400"],
-        "Yellow": ["Xiphos", "#ddb920"],
-        "Lime": ["green dragon", "#75d600"],
-        "Green": ["germs gorilla", "#00dd00"],
-        "Dark green": ["jello alien", "#3fbb00"],
-        "Turquoise": ["robo cat", "#0aaada"],
-        "Blue": ["Omega", "#2389dd"],
-        "Dark Blue": ["scenery", "#406cc7"],
-        "Purple": ["boo", "#6936a6"],
-    }
-
     const skinListUl = document.getElementsByClassName("skinList")[0];
 
     const oldColorList = skinListUl.querySelector("#customCellColor");
     if (oldColorList) oldColorList.remove();
-
-    /*const colorPickerContainerHTML = `
-    <div id="customCellColor" style="display: block;">
-        <span class="badge badge-pill badge-primary" style="margin-bottom: 15px;width: 100%;font-size: 17px;">Cell Color Picker</span>
-        <div id="customColorList"></div>
-    </div>`;*/
 
     const customColorsContainer = document.createElement("div");
     customColorsContainer.id = "customCellColor";
@@ -936,15 +1307,12 @@ function renderCustomColorsMenu() {
         const skinName = cellColorList[key][0];
         const cellColor = cellColorList[key][1];
 
-        /*let imgHTML = `<li id="cellColorBtn"><img onclick="${items.autoLogout ? "logout();" : ""} setSkin('premium/${skinName}')" class="lazy loaded" style="border: 5px solid ${cellColor}; width="84" height="85"><p>${key}</p></li>`
-        customColorsContainer.innerHTML += imgHTML;*/
-
         const colorDiv = document.createElement("div");
         colorDiv.classList.add("cellColorBtn");
         colorDiv.style.backgroundColor = cellColor;
 
         if (ownedSkins.includes(skinName)) {
-            console.debug("Creating logout warning for " + cellColor);
+            //console.debug("Creating logout warning for " + cellColor);
 
             const colorTooltip = document.createElement("div");
             colorTooltip.classList.add("tooltip");
@@ -972,6 +1340,7 @@ function renderCustomColorsMenu() {
         } else {
             colorDiv.setAttribute("onclick", `setSkin('premium/${skinName}')`);
         }
+        colorDiv.setAttribute("onclick", `setSkin('premium/${skinName}')`);
 
         const colorLabel = document.createElement("p");
         colorLabel.textContent = key;
@@ -1080,7 +1449,7 @@ function renderPlayerMenu() {
     });
 
     muteButton.addEventListener('click', function () {
-        console.debug("Mute button clicked");
+        //console.debug("Mute button clicked");
         const playerNameElement = document.getElementById("userMenuPlayerName");
         const mutedTextElement = document.getElementById("userMenuBlockText");
         const playerName = playerNameElement.textContent;
@@ -1104,7 +1473,7 @@ function renderPlayerMenu() {
 
     // If the menu opens for an imgur skin, show related options. Else, hide them
     let userMenuObserver = new MutationObserver((mutations) => {
-        console.debug("Player menu mutated");
+        //console.debug("Player menu mutated");
         mutations.forEach((mutation) => {
             if (mutation.type === "attributes" && mutation.attributeName === "style" && userMenu.style.display === "block") {
                 const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
@@ -1124,7 +1493,7 @@ function renderPlayerMenu() {
 }
 
 function renderNick() {
-    console.debug("Rendering nickname");
+    //console.debug("Rendering nickname");
     let nickInput = document.getElementById("nick");
     if (nickInput) {
         const nickTextarea = document.createElement('textarea');
@@ -1136,14 +1505,28 @@ function renderNick() {
         nickTextarea.style.resize = "none";
         nickTextarea.spellcheck = false;
         nickTextarea.maxLength = 25;
+        nickTextarea.style.fontFamily = "Ubuntu";
 
         nickInput.parentNode.replaceChild(nickTextarea, nickInput);
         nickInput = document.getElementById("nick"); // set to the new element
+        // Prevent unintended tab switches
         nickInput.addEventListener('focus', () => {
             usingInput = true;
         });
         nickInput.addEventListener('blur', () => {
             usingInput = false;
+        });
+        // For cell preview
+        nickInput.addEventListener("input", (e) => {
+            const cellName = document.getElementById("cellName");
+            if (cellName) {
+                const nickname = e.target.value.trim();
+                
+                const rem = 2.75 - 1.375 * (nickname.length / 25);
+                cellName.style.fontSize = rem.toFixed(3) + "rem";
+                cellName.textContent = nickname;
+                cellName.dataset.nick = nickname;
+            }
         });
     }
 }
@@ -1172,7 +1555,7 @@ function renderCustomSkinsMenu() {
         return customSkinsTable;
     }
     // create a new element to be displayed for each skin in customSkins
-    console.debug("Creating elements for " + settings.customSkins.length + " skins");
+    //console.debug("Creating elements for " + settings.customSkins.length + " skins");
     for (i = 0; i < settings.customSkins.length; i++) {
         customSkinsTable.appendChild(createSkinLi(settings.customSkins[i]));
     }
@@ -1181,12 +1564,12 @@ function renderCustomSkinsMenu() {
 
     // right click to display a delete button
     customSkinsTable.addEventListener("contextmenu", function (event) {
-        console.debug("Context menu opened");
+        //console.debug("Context menu opened");
         tryRemoveDeleteButton();
 
         const imgSrc = event.target.src;
         if (imgSrc?.startsWith("https://i.imgur.com/")) {
-            console.debug("Context menu opened for skin " + event.target.src);
+            //console.debug("Context menu opened for skin " + event.target.src);
             event.preventDefault();
             // creates a delete button at the top right of the image 
             event.target.parentNode.appendChild(createDeleteButton(imgSrc));
@@ -1203,7 +1586,7 @@ function renderCustomSkinsMenu() {
     }
 
     function createDeleteButton(imgSrc) {
-        console.debug(`Rendering delete button for skin ${imgSrc}`);
+        console.debug(`Creating delete button for skin ${imgSrc}`);
 
         tryRemoveDeleteButton();
 

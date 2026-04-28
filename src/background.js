@@ -42,33 +42,70 @@ settings = structuredClone(DEFAULT_SETTINGS);
 const handlers = {
     switchTabs,
     switchWindows,
-    updateSettings,
+    //updateSettings, // vestigial system
     clearBlockRules,
     addBlockRule: ({ url }) => url && addBlockRule(url)
 };
 
-chrome.runtime.onMessage.addListener((request, sender) => {
+// Detects cloudflare network requests to disable and enable the play button
+chrome.webRequest.onCompleted.addListener(
+    (details) => {
+        console.debug("Captcha submitted");
+        try {
+            chrome.tabs.sendMessage(details.tabId, { action: "challengeSubmitted" });
+        } catch (error) {
+            console.debug("Tab no longer exists:", error.message);
+        }
+    },
+    { urls: ["https://challenges.cloudflare.com/cdn-cgi/challenge-platform/*/*/*/1"] }
+);
+chrome.webRequest.onCompleted.addListener(
+    (details) => {
+        console.debug("Captcha finished");
+        try {
+            chrome.tabs.sendMessage(details.tabId, { action: "challengeFinished" });
+        } catch (error) {
+            console.debug("Tab no longer exists:", error.message);
+        }
+    },
+    { urls: ["https://germs.io/cdn-cgi/challenge-platform/*/*/*/*"] } // The URL path identifiers seem to change, so I'm wildcard spamming 
+);
+
+// Detect server changes or restarts
+chrome.webRequest.onBeforeRequest.addListener(
+    (details) => {
+        console.debug("Changed servers");
+        try {
+            chrome.tabs.sendMessage(details.tabId, { action: "changedServers" });
+        } catch (error) {
+            console.debug("Tab no longer exists:", error.message);
+        }
+        chrome.tabs.sendMessage(details.tabId, { action: "changedServers" });
+    },
+    { urls: ["wss://us.germs.io:*/"] }
+);
+
+chrome.runtime.onMessage.addListener((request) => {
     console.debug(request.action);
     const handler = handlers[request.action];
     if (!handler) return;
-    handler(request, sender);
+    handler(request);
 });
 
 // Useful when multiboxing to prevent per-tab settings desync
-async function updateSettings() {
-    const tabs = await chrome.tabs.query({
-        url: "https://germs.io/*"
-    });
+//async function updateSettings() {
+//    const tabs = await chrome.tabs.query({
+//        url: "https://germs.io/*"
+//    });
+//
+//    for (const tab of tabs) {
+//        console.debug(`Sending getSettings message to tab ${tab.id}`);
+//        chrome.tabs.sendMessage(tab.id, { action: "getSettings" });
+//    }
+//}
 
-    for (const tab of tabs) {
-        console.debug(`Sending getSettings message to tab ${tab.id}`);
-        chrome.tabs.sendMessage(tab.id, { action: "getSettings" });
-    }
-
-}
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.status === "loading") {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === "loading" && tab.url?.includes("https://germs.io")) {
         chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
             for (item in DEFAULT_SETTINGS) {
                 if (storedSettings[item]) {

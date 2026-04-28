@@ -10,98 +10,94 @@ console.info("Running content.js");
 // TODO: Set global settings state in a background service worker rather than within content_scripts
 let settings = null;
 let usingInput = false;
+let hasSpawned = false;
+let playButtonObserver;
+let debugObserver;
 
 init();
 
 async function init() {
-    try {
-        settings = await getSettings();
-        germsSettings = await getGermsSettings();
+    settings = await getSettings();
+    germsSettings = await getGermsSettings();
 
-        let animationDelayRange = document.getElementById("animationDelay");
-        animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
+    let animationDelayRange = document.getElementById("animationDelay");
+    animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
 
-        initChat();
-        renderNick();
-        renderGermsfoxButton();
+    initChat();
+    initDebug();
+    renderGameMenu();
+    renderNick();
+    renderGermsfoxButton();
+    renderCustomColorsMenu();
+    renderCustomSkinsMenu();
+    renderPlayerMenu();
+
+    const showNamesSelect = document.getElementById("showNames");
+    const showSkinsSelect = document.getElementById("showSkins");
+    const showMassCheckbox = document.getElementById("showMass");
+    const hideFoodCheckbox = document.getElementById("hideFood");
+
+    document.addEventListener('keydown', (event) => {
+        if (usingInput) return;
+        switch (event.code) {
+            case settings.controls.multibox[0]:
+                event.preventDefault();
+                if (settings.switcherEnabled === false) break;
+                if (settings.switcherWindowed) {
+                    console.debug("Switching windows!");
+                    chrome.runtime.sendMessage({ action: "switchWindows"});
+                } else {
+                    console.debug("Switching tabs!");
+                    chrome.runtime.sendMessage({ action: "switchTabs"});
+                }
+                break;
+            case settings.controls.toggleNames[0]:
+                event.preventDefault();
+                if (!settings.toggleSettings) {
+                    console.debug("Cycling names");
+                    showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
+                    showNamesSelect.dispatchEvent(new Event("change"));
+                } else {
+                    console.debug("Toggling names");
+                    if (showNamesSelect.value === settings.toggleNames[0]) {
+                        showNamesSelect.value = settings.toggleNames[1];
+                    } else showNamesSelect.value = settings.toggleNames[0];
+                    showNamesSelect.dispatchEvent(new Event("change"));
+                }
+                break;
+            case settings.controls.toggleSkins[0]:
+                event.preventDefault();
+                if (!settings.toggleSettings) {
+                    console.debug("Cycling skins");
+                    showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
+                    showSkinsSelect.dispatchEvent(new Event("change"));
+                } else {
+                    console.debug("Toggling names");
+                    if (showSkinsSelect.value === settings.toggleSkins[0]) {
+                        showSkinsSelect.value = settings.toggleSkins[1];
+                    } else showSkinsSelect.value = settings.toggleSkins[0];
+                    showSkinsSelect.dispatchEvent(new Event("change"));
+                }
+                showSkinsSelect.dispatchEvent(new Event("change"));
+                break;
+            case settings.controls.toggleMass[0]:
+                event.preventDefault();
+                showMassCheckbox.checked = !showMassCheckbox.checked;
+                showMassCheckbox.dispatchEvent(new Event("change"));
+                break;
+            case settings.controls.toggleFood[0]:
+                event.preventDefault();
+                hideFoodCheckbox.checked = !hideFoodCheckbox.checked;
+                hideFoodCheckbox.dispatchEvent(new Event("change"));
+                break;
+        }
+    });
+
+    const skinButton = document.getElementById("skin");
+    skinButton.addEventListener('click', () => {
         renderCustomColorsMenu();
         renderCustomSkinsMenu();
-        renderPlayerMenu();
-
-        const showNamesSelect = document.getElementById("showNames");
-        const showSkinsSelect = document.getElementById("showSkins");
-        const showMassCheckbox = document.getElementById("showMass");
-        const hideFoodCheckbox = document.getElementById("hideFood");
-
-        document.addEventListener('keydown', (event) => {
-            if (usingInput) return;
-            switch (event.code) {
-
-                case settings.controls.multibox[0]:
-                    event.preventDefault();
-                    if (settings.switcherEnabled === false) break;
-                    if (settings.switcherWindowed) {
-                        console.debug("Switching windows!");
-                        chrome.runtime.sendMessage({ action: "switchWindows"});
-                    } else {
-                        console.debug("Switching tabs!");
-                        chrome.runtime.sendMessage({ action: "switchTabs"});
-                    }
-                    break;
-
-                case settings.controls.toggleNames[0]:
-                    event.preventDefault();
-                    if (!settings.toggleSettings) {
-                        console.debug("Cycling names");
-                        showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
-                        showNamesSelect.dispatchEvent(new Event("change"));
-                    } else {
-                        console.debug("Toggling names");
-                        if (showNamesSelect.value === settings.toggleNames[0]) {
-                            showNamesSelect.value = settings.toggleNames[1];
-                        } else showNamesSelect.value = settings.toggleNames[0];
-                        showNamesSelect.dispatchEvent(new Event("change"));
-                    }
-                    break;
-
-                case settings.controls.toggleSkins[0]:
-                    event.preventDefault();
-                    if (!settings.toggleSettings) {
-                        console.debug("Cycling skins");
-                        showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
-                        showSkinsSelect.dispatchEvent(new Event("change"));
-                    } else {
-                        console.debug("Toggling names");
-                        if (showSkinsSelect.value === settings.toggleSkins[0]) {
-                            showSkinsSelect.value = settings.toggleSkins[1];
-                        } else showSkinsSelect.value = settings.toggleSkins[0];
-                        showSkinsSelect.dispatchEvent(new Event("change"));
-                    }
-                    showSkinsSelect.dispatchEvent(new Event("change"));
-                    break;
-
-                case settings.controls.toggleMass[0]:
-                    event.preventDefault();
-                    showMassCheckbox.checked = !showMassCheckbox.checked;
-                    showMassCheckbox.dispatchEvent(new Event("change"));
-                    break;
-
-                case settings.controls.toggleFood[0]:
-                    event.preventDefault();
-                    hideFoodCheckbox.checked = !hideFoodCheckbox.checked;
-                    hideFoodCheckbox.dispatchEvent(new Event("change"));
-                    break;
-            }
-        });
-
-        const skinButton = document.getElementById("skin");
-        skinButton.addEventListener('click', () => {
-            renderCustomColorsMenu();
-            renderCustomSkinsMenu();
-        });
-    } catch (error) {
-        console.error("Could not initialize Germsfox: " + error);
-    }
+    });
 }
 
 function getChatNames(amount) {
@@ -150,6 +146,52 @@ function blockPlayerName(playerName) {
         if (!settings.playerBlocklist.includes(chatterName)) continue;
 
         chatMessage.style.display = "none";
+    }
+}
+
+function initDebug() { // Nothing to do with debug, rather we need to listen to the ingame debug menu to detect spawns
+    console.debug("Initializing debug mutation observer");
+    const debugText = document.getElementById('debugText');
+    if (debugObserver) debugObserver.disconnect();
+    debugObserver = new MutationObserver(() => updateHasSpawned());
+    debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
+
+    function updateHasSpawned() {
+        console.debug("Checking for life...");
+        const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
+        if (match) {
+            const isAlive = parseFloat(match[1]) > 0;
+            if (!hasSpawned && isAlive) {
+                console.log("First spawn");
+                hasSpawned = true;
+                if (settings.setColor !== "None") setSkin(settings.setColor);
+                console.debug("Disconnecting debug mutation observer");
+                debugObserver.disconnect();
+            }
+        }
+    }
+}
+
+// I'm so tired
+function initDebugAfterDeath() {
+    console.debug("Initializing debug mutation observer after death");
+    const debugText = document.getElementById('debugText');
+    if (debugObserver) debugObserver.disconnect();
+    debugObserver = new MutationObserver(() => updateHasSpawned());
+    debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
+
+    function updateHasSpawned() {
+        console.debug("Checking for death...");
+        const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
+        if (match) {
+            const isDead = parseFloat(match[1]) === 0;
+            if (isDead) {
+                console.log("You died noob idiot and now i'm gonna set your skin as punishment for your terrible decision of setting a new skin while you were alive and therefore necessitating me to create this stupid function that I basically just copy pasted from the work i did back when i had another several hours in my day and life in my eyes");
+                hasSpawned = false;
+                debugObserver.disconnect();
+                initDebug();
+            }
+        }
     }
 }
 
@@ -227,7 +269,6 @@ function initChat() {
                     break;
                 }
             }
-
             if (!matched) return;
 
             const fragment = document.createDocumentFragment();
@@ -240,20 +281,17 @@ function initChat() {
                 for (const emote of emotes) {
                     const filename = emote.slice(0, emote.lastIndexOf("."));
                     const index = text.indexOf(filename);
-
                     if (index !== -1 && (earliestIndex === -1 || index < earliestIndex)) {
                         earliestIndex = index;
                         matchedEmote = emote;
                         matchedFilename = filename;
                     }
                 }
-
                 if (earliestIndex === -1) {
-                    console.debug("No matches found");
+                    //console.debug("No matches found");
                     fragment.appendChild(document.createTextNode(text));
                     break;
                 }
-
                 console.debug("Matched emote " + matchedEmote);
 
                 if (earliestIndex > 0) {
@@ -261,22 +299,19 @@ function initChat() {
                         document.createTextNode(text.slice(0, earliestIndex))
                     );
                 }
-
                 const img = document.createElement("img");
                 img.src = chrome.runtime.getURL(`images/emotes/${matchedEmote}`);
                 img.classList.add("chatEmote");
 
-                console.debug("Appending image");
+                //console.debug("Appending image");
                 fragment.appendChild(img);
 
                 text = text.slice(earliestIndex + matchedFilename.length);
             }
-
-            console.debug("Replacing with complete text+emote fragment");
+            //console.debug("Replacing with complete text+emote fragment");
             node.replaceWith(fragment);
             return;
         }
-
         // Recursively process child nodes
         if (node.tagName === "B") return; // Username
 

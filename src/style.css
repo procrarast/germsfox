@@ -1,6 +1,3 @@
-ul.skinList li {
-    position: relative;
-}
 .chatEmote {
     margin-top: -2px !important;
 }
@@ -20,6 +17,271 @@ ul.skinList li {
 }
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
+}
+#cellName.default {
+    -webkit-text-stroke: 5px black;
+}
+#cellName.locked {
+    text-shadow: 0 0 0px rgba(0, 0, 0, 0.5);
+    -webkit-text-stroke: 4px rgba(0, 0, 0, 0.25);
+}
+#cellName.locked:hover {
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
+    transform: scale(1.1);
+    cursor: pointer;
+}
+#cellName.default::after, #cellName.locked::after {
+    content: attr(data-nick);
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 1.0;
+    width: 100%;
+    -webkit-text-stroke: 0;
+    color: inherit;
+}
+#cellButtons {
+    height: auto;
+    position: relative;
+    right: 0;
+    gap: 3px 4px;
+    padding-bottom: 3px;
+    margin-bottom: 3px;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 6px;
+    width: 62px;
+    display: flex;
+    flex-wrap: wrap;
+}
+#cellButtons p {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    width: 100%;
+    margin-bottom: 0px;
+    margin-top: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0.8;
+    font-size: 9pt;
+    font-weight: 700;
+    text-align: center;
+}
+#cellButtons button {
+    border: none;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px inset, rgba(0, 0, 0, 0.5) 0px 0px 4px;
+    height: 16px;
+    width: 16px;
+    border-radius: 6px;
+    transition: transform 0.2s ease-out;
+    border: 0px solid rgba(0, 0, 0, 0);
+    cursor: pointer;
+    
+}
+#cellButtons button:hover {
+    transform: scale(1.1);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+}
+#cellButtons button:focus {
+    outline: none;
+}
+@keyframes hexgrid {
+    from { background-position: 0 0; }
+    to { background-position: -150px 128px }
+}
+#cellContainer {
+    box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.3);
+    background-color: #2c2f31;
+    background-image: url(/res/assets/hex.png);
+    background-size: 150px 128px;
+    animation: hexgrid 12s linear infinite;
+    height: 228px;
+    width: 228px;
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 6px;
+    position: relative;
+}
+#cellPanel {
+    margin-left: 8px;
+}
+
+#cellColor {
+    background-color: rgb(160, 160, 160);
+    border-radius: 100px;
+    height: 175px;
+    width: 175px;
+    position: absolute;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 4px inset, rgba(0, 0, 0, 0.5) 0px 0px 12px;
+}
+#cellSkin {
+    height: 167px;
+    width: 167px;
+    position: absolute;
+    border-radius: 100px;
+}
+#cellNameContainer {
+    transition: transform 0.2s ease-out;
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+#cellName {
+    transition: top 0.2s ease-out, transform 0.2s ease-out, text-shadow 0.2s ease-out;
+    font-size: 2.75rem;
+    line-height: 1.0em;
+    white-space: pre;
+    margin: 0;
+    text-align: center;
+    font-family: Ubuntu;
+    font-weight: 700;
+    width: max-content;
+    position: relative;
+    transform-origin: center center;
+}
+#cellNameContainer.upper, #cellNameContainer.lower {
+    transform: scale(0.85);
+}
+#cellNameContainer.upper #cellName {
+    top: -30px;
+}
+#cellNameContainer.lower #cellName {
+    top: 30px;
+}
+#cellNameContainer.center #cellName {
+    top: 0px;
+}
+#lockedButtons {
+    height: auto;
+    position: relative;
+    right: 0px;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.1);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    width: 62px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-radius: 6px;
+}
+#lockedButtons p {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    width: 100%;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    opacity: 0.8;
+    font-size: 9pt;
+    font-weight: 700;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.5);
+}
+#lockedButtons button {
+    font-size: 9pt;
+    line-height: 1em;
+    margin: 0;
+    background-color: rgba(255, 255, 255, 0.2);
+    width: 16px;
+    height: 16px;
+    text-align: center;
+    align-content: center;
+    box-shadow: rgba(0, 0, 0, 0.5) 0px 0px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.7);
+    padding: 0px;
+    border: none;
+    transition: transform 0.2s ease-out;
+}
+#lockedButtons button:focus {
+    outline: none;
+}
+#lockedButtons button:hover, #lockedNameColorPicker:hover {
+    transform: scale(1.1);
+    border-width: 1px;
+    border-style: solid;
+    border-color: rgba(255, 255, 255, 0.7);
+}
+#lockedNameColorPicker, #fakeColorPicker {
+    cursor: pointer;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px inset, rgba(0, 0, 0, 0.5) 0px 0px 4px;
+    border-radius: 6px;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 36px !important;
+    height: 36px !important;
+    position: relative !important;
+    transition: transform 0.2s ease-out;
+}
+#lockedNameColorPicker:hover, #fakeColorPicker:hover {
+    transform: scale(1.1);
+}
+#lockedPosButtons {
+    display: flex;
+    gap: 4px;
+    flex-direction: column;
+}
+#cellSkinButton {
+    background-size: 100% 100%;
+    height: 62px;
+    width: 62px;
+    border: none;
+    padding: 0;
+    display: flex;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease-out;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+#cellSkinButton:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+#cellSkinButton:hover p {
+    height: 0px; 
+}
+#cellSkinButton:focus {
+    outline: none;
+}
+#cellSkinButton p {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    width: 100%;
+    height: 17px;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    opacity: 0.8;
+    font-size: 9pt;
+    font-weight: 700;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    transition: all 0.3s ease-out;
+}
+
+#play {
+    transition: 
+    color .15s ease-in-out,
+    background-color .15s ease-in-out,
+    border-color .15s ease-in-out,
+    box-shadow .15s ease-in-out, 
+    opacity 0.3s ease-in-out;
+}
+#version {
+    margin: 0;
+    padding: 0 5px 0 5px;
+    list-style: none;
 }
 #germsfoxIcon {
     width: 19px;
@@ -109,6 +371,9 @@ ul.skinList li {
 }
 #germsfoxEmotes::-webkit-scrollbar {
     width: 6px;
+}
+ul.skinList li {
+    position: relative;
 }
 #skinDeleteButton {
     position: absolute;
@@ -231,6 +496,40 @@ ul.skinList li {
 }
 #germsfoxSettingsClose:hover {
     background: #4a82ff;
+}
+#germsfox-settings-general input.btn:hover {
+    cursor: pointer;
+    background-color: #095cb5;
+}
+#germsfox-settings-general input.btn {
+    padding-block: 8px;
+    text-align: center;
+    width: 100px;
+    height: 35px;
+    color: #FFF;
+    line-height: 1;
+    background-color: #007bff;
+}
+#germsfox-settings-general input.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+#germsfox-settings-general input.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+#germsfox-settings-general label.btn {
+    padding-block: 8px;
+    text-align: center;
+    width: 100px;
+    height: 35px;
+    color: #FFF;
+    line-height: 1;
+    background-color: #007bff;
+}
+#germsfox-settings-general label.btn:hover {
+    cursor: pointer;
+    background-color: #095cb5;
 }
 #germsfox-settings-general input[type="text"], textarea {
     background-color: rgba(0, 0, 0, 0.2);
@@ -356,61 +655,6 @@ ul.skinList li {
 }
 #germsfox-settings-theme .badge {
     margin-bottom: 15px;
-}
-#germsfox-settings-skins {
-    overflow-y: scroll;
-    overflow-x: hidden;
-    text-align: center;
-    height: 100%;
-}
-#germsfox-settings-skins input.btn {
-    color: #FFF;
-    background-color: #007bff;
-}
-#germsfox-settings-skins input.btn:hover {
-    cursor: pointer;
-    background-color: #095cb5;
-}
-#germsfox-settings-skins input.btn-danger {
-    background-color: #dc3545;
-    border-color: #dc3545;
-}
-#germsfox-settings-skins input.btn-danger:hover {
-    background-color: #c82333;
-    border-color: #bd2130;
-}
-#germsfox-settings-skins label {
-    padding-block: 8px;
-    text-align: center;
-    width: 100px;
-    height: 35px;
-    color: #FFF;
-    line-height: 1;
-    background-color: #007bff;
-}
-#germsfox-settings-skins label:hover {
-    cursor: pointer;
-    background-color: #095cb5;
-}
-#germsfox-settings-skins .row {
-    width: 443px;
-    margin-bottom: 2px;
-}
-#germsfox-settings-skins .badge {
-    margin-bottom: 15px;
-}
-#germsfox-settings-skins::-webkit-scrollbar {
-    width: 5px;
-    background-color: transparent;
-    border-radius: 6px;
-}
-#germsfox-settings-skins::-webkit-scrollbar-thumb {
-    background-color: #2dfa83;
-    border-radius: 6px;
-}
-#germsfox-settings-skins::-webkit-scrollbar-track {
-    background-color: transparent;
-    border-bottom-right-radius: 6px;
 }
 #germsfox-settings-controls {
     overflow-y: scroll;

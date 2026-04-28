@@ -286,7 +286,8 @@ function renderCellPreviewCard() {
             //const skinName = cellColorList[key][0];
             colorButton.onclick = () => {
                 console.debug("Set color to " + key);
-                if (hasSpawned || settings.setSkin === "None") setSkin(key);
+                // Either spawned, has no skin, or isn't logged in
+                if (hasSpawned || settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5")) setSkin(key);
 
                 // Would the skin you have on override your cell color?
                 const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));

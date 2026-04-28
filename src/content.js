@@ -24,12 +24,11 @@ async function init() {
     animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
 
     initChat();
+    renderCustomSkinsMenu();
     initDebug();
     renderGameMenu();
     renderNick();
     renderGermsfoxButton();
-    renderCustomColorsMenu();
-    renderCustomSkinsMenu();
     renderPlayerMenu();
 
     const showNamesSelect = document.getElementById("showNames");
@@ -157,7 +156,7 @@ function initDebug() { // Nothing to do with debug, rather we need to listen to 
     debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
 
     function updateHasSpawned() {
-        console.debug("Checking for life...");
+        //console.debug("Checking for life...");
         const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
         if (match) {
             const isAlive = parseFloat(match[1]) > 0;
@@ -181,7 +180,7 @@ function initDebugAfterDeath() {
     debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
 
     function updateHasSpawned() {
-        console.debug("Checking for death...");
+        //console.debug("Checking for death...");
         const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
         if (match) {
             const isDead = parseFloat(match[1]) === 0;

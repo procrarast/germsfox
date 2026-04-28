@@ -133,7 +133,9 @@ chrome.runtime.onMessage.addListener((request, sender) => {
 function changedServers() {
     console.debug("Changed servers");
     hasSpawned = false;
-    if (settings.setColor !== "None" && settings.setSkin === "None") { // If you have a color and no skin
+    if (settings.setColor !== "None" && ( // You have a color
+        settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) // You have no skin or aren't logged in
+        ) { 
         console.debug("Setting skin to color because you don't have a skin");
         setSkin(settings.setColor)
     } else {

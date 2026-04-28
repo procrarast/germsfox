@@ -79,7 +79,7 @@ const DEFAULT_SETTINGS = {
     switcherWindowed: false,
     ignoreInvites: false,
     toggleSettings: true,
-    autoLogout: false,
+    autoLogout: false, 
     backgroundColorEnabled: false,
     backgroundColor: [0.0, 0.0, 0.0],
     cellColorEnabled: false,
@@ -141,8 +141,18 @@ function changedServers() {
     } else {
         setSkin(settings.setSkin);
     }
-    initDebug(); // re-init the listener
+    // Your mass might still be >0 if you changed servers while you were alive
+    const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
+    if (match) {
+        const massDesynced = parseFloat(match[1]) > 0;
+        if (massDesynced) {
+            initDebugAfterDeath();
+            return;
+        }
+    }
+    initDebug();
 }
+
 function challengeSubmitted() {
     console.debug("Captcha submitted");
     const playButton = document.getElementById("play");
@@ -172,7 +182,6 @@ function challengeFinished() {
     playButton.classList.remove("disabled");
     playButtonObserver.disconnect();
 }
-
 
 // germs.io settings
 // We don't need this for any reason except for the toy 'robloxification' censorship
@@ -317,7 +326,6 @@ function resetBlockRules() {
 // Queries for a skinURL's respective button and clicks it
 // skinURL can also be a key in cellColorList
 function setSkin(skinURL) {
-    console.log("Setting skin " + skinURL);
     let selector; // to be queried
 
     if (skinURL in cellColorList) skinURL = "premium/" + cellColorList[skinURL][0];
@@ -333,13 +341,13 @@ function setSkin(skinURL) {
     } else {
         selector = `[onclick="setSkin('${skinURL}')"]`
     }
-    // TODO: A player may have a skin set that they don't have saved. I suppose you could save it then click its button in that case, but that's too much work for me right now.
+    // A player may have a skin set that they don't have saved. I suppose you could save it then click its button in that case, but that's too much work for me right now.
 
     const skinContainer = document.getElementById("skinContainer");
     const skinButton = skinContainer.querySelector(selector);
     if (skinButton) {
         skinButton.click();
-        console.log("Success!");
+        console.log("Changed skin to " + skinURL);
         return true;
     } else {
         console.warn("Failed to find button for URL " + skinURL + " with selector " + selector);

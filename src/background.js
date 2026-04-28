@@ -80,7 +80,6 @@ chrome.webRequest.onBeforeRequest.addListener(
         } catch (error) {
             console.debug("Tab no longer exists:", error.message);
         }
-        chrome.tabs.sendMessage(details.tabId, { action: "changedServers" });
     },
     { urls: ["wss://us.germs.io:*/"] }
 );

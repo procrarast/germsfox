@@ -13,6 +13,7 @@ function renderGameMenu() {
     // Version href doesn't even work, so adding our own shouldn't be too invasive
     const versionAnchor = document.getElementById("version");
     versionAnchor.removeAttribute("href");
+    
     //TODO add germsfox info
 
     const menuLeft = document.getElementById("menuLeft");
@@ -34,6 +35,11 @@ function renderGameMenu() {
 }
 
 function renderCellPreviewCard() {
+    if (settings.setSkin.includes("free/")) {
+        setSkin('None'); // Free skins buttons don't exist on load, so just set to none and let the user set it again themself
+        setSetting("setSkin", "None");
+    }
+    console.debug("Rendering cell preview card");
     const skinsCard = document.getElementById("skins");
     const skinsListUl = document.getElementsByClassName("skinList")[0];
 
@@ -87,7 +93,7 @@ function renderCellPreviewCard() {
                     skinsListUl.removeEventListener('click', skinsListClicked, true);
                     setSkin("None");
                 }
-            } else {
+            } else { // Normal skin
                 console.debug("You clicked a regular skin. Setting the skin");
                 if (event.target.src.includes("imgur")) {
                     cellSkin.src = event.target.src;
@@ -101,7 +107,7 @@ function renderCellPreviewCard() {
                         cellColor.style.backgroundColor = cellColorList[match[0]][1];
                     } else {
                         // If not, set color to your color
-                        console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                        //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
                         cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
                     }
 
@@ -119,8 +125,8 @@ function renderCellPreviewCard() {
                         cellColor.style.backgroundColor = cellColorList[match[0]][1];
                     } else {
                         // If not, set color to your color
-                        console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                        cellColor.style.backgroundColor = cellColorList[key][1];
+                        //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                        cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
                     }
 
                     skinsCard.style.display = 'none';
@@ -268,7 +274,7 @@ function renderCellPreviewCard() {
                 cellColor.style.backgroundColor = cellColorList[match[0]][1];
             } else {
                 // If not, set color to gray
-                console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
                 cellColor.style.backgroundColor = "rgb(200,200,200)";
             }
             setSetting('setColor', 'None');
@@ -296,7 +302,7 @@ function renderCellPreviewCard() {
                     cellColor.style.backgroundColor = cellColorList[match[0]][1];
                 } else {
                     // If not, set color to your color
-                    console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                    //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
                     cellColor.style.backgroundColor = cellColorList[key][1];
                 }
                 setSetting('setColor', key);
@@ -365,7 +371,7 @@ function renderCellPreviewCard() {
             cellColor.style.backgroundColor = cellColorList[match[0]][1];
         } else if (settings.setColor !== "None") {
             // If not, set color to your color
-            console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+            //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
             cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
         }
         
@@ -396,18 +402,22 @@ function renderCellPreviewCard() {
         // Preview skin
         // Do you own the skin you have in storage? If so, display it in the preview
         const isLoggedIn = (document.getElementById("customSkin").style.display === "block");
+        const skinsList = document.getElementsByClassName("skinList")[0];
+        console.debug(`[onclick="setSkin('${settings.setSkin.slice(10, -4)}');"]`);
         if (settings.setSkin === "None") {
             cellSkin.style.display = "none";
         } else if (
             settings.setSkin.includes("free/") || // Free skin
             (isLoggedIn && settings.setSkin.includes("https://i.imgur.com/")) || // Logged in with custom skin
-            ownedSkins.includes(settings.setSkin.slice(18, -4))) // Premium/veteran skin is owned
-            {
+            skinsList.querySelector(`[onclick="setSkin('${settings.setSkin.slice(10, -4)}');"]`) // Premium/veteran skin is owned
+        )
+        {
+            console.debug(settings.setSkin.slice(18, -4));
             console.log("You own the skin with src " + settings.setSkin);
             cellSkin.style.display = "block";
         } else {
-            console.log("You do not own the skin with src " + settings.setSkins);
-            setSkin('None');
+            console.log("You do not own the skin with src " + settings.setSkin);
+            setSkin(settings.setColor);
             cellSkin.style.display = "none";
         }
 

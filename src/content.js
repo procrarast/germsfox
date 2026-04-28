@@ -25,6 +25,7 @@ async function init() {
 
     initChat();
     renderCustomSkinsMenu();
+    renderCustomColorsMenu();
     initDebug();
     renderGameMenu();
     renderNick();
@@ -152,6 +153,7 @@ function initDebug() { // Nothing to do with debug, rather we need to listen to 
     console.debug("Initializing debug mutation observer");
     const debugText = document.getElementById('debugText');
     if (debugObserver) debugObserver.disconnect();
+
     debugObserver = new MutationObserver(() => updateHasSpawned());
     debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
 
@@ -171,7 +173,6 @@ function initDebug() { // Nothing to do with debug, rather we need to listen to 
     }
 }
 
-// I'm so tired
 function initDebugAfterDeath() {
     console.debug("Initializing debug mutation observer after death");
     const debugText = document.getElementById('debugText');
@@ -185,7 +186,7 @@ function initDebugAfterDeath() {
         if (match) {
             const isDead = parseFloat(match[1]) === 0;
             if (isDead) {
-                console.log("You died noob idiot and now i'm gonna set your skin as punishment for your terrible decision of setting a new skin while you were alive and therefore necessitating me to create this stupid function that I basically just copy pasted from the work i did back when i had another several hours in my day and life in my eyes");
+                console.log("You died");
                 hasSpawned = false;
                 debugObserver.disconnect();
                 initDebug();

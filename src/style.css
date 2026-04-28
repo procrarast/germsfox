@@ -115,16 +115,17 @@
     width: 175px;
     position: absolute;
     box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 4px inset, rgba(0, 0, 0, 0.5) 0px 0px 12px;
-    transition: all 0.3s ease-out;
+    transition: all 0.2s ease-out;
 }
 #cellSkin {
     height: 167px;
     width: 167px;
     position: absolute;
     border-radius: 100px;
+    transition: all 0.2s ease-out;
 }
 #cellNameContainer {
-    transition: transform 0.2s ease-out;
+    transition: all 0.2s ease-out;
     position: absolute;
     display: flex;
     justify-content: center;

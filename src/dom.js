@@ -287,7 +287,7 @@ function renderCellPreviewCard() {
             colorButton.onclick = () => {
                 console.debug("Set color to " + key);
                 // Either spawned, has no skin, or isn't logged in
-                if (hasSpawned || settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5")) setSkin(key);
+                if (hasSpawned || settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) setSkin(key);
 
                 // Would the skin you have on override your cell color?
                 const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
@@ -1350,7 +1350,7 @@ function renderCustomColorsMenu() {
         customColorsTable.appendChild(colorLi);
     }
     customColorsContainer.append(customColorsPill, customColorsTable);
-    skinListUl.prepend(customColorsContainer);
+    skinListUl.append(customColorsContainer); // Pushed way down 'cause you should be using the color buttons in the preview menu now
 }
 
 function renderPlayerMenu() {

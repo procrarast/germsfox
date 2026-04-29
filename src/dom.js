@@ -66,6 +66,8 @@ function renderCellPreviewCard() {
     cellSkinLabel.innerText = "Skin";
     cellSkinButton.appendChild(cellSkinLabel);
 
+    const debugText = document.getElementById("debugText");
+
     function skinsListClicked(event) {
         if (event.target.innerText === "Apply") {
             let inputValue = document.getElementById("loginCustomSkinText").value;
@@ -344,11 +346,25 @@ function renderCellPreviewCard() {
                 isLoggedIn &&
                 ownedSkins.includes(cellColorList[key][0])
             ) {
-                console.debug("You apparently own the " + key + " skin");
+                //console.debug("You apparently own the " + key + " skin");
                 const disabledColorButton = document.createElement("div");
                 disabledColorButton.style.backgroundColor = cellColorList[key][1];
                 buttonsContainer.appendChild(disabledColorButton);
-                if (settings.setColor === key) setSetting("setColor", "None");
+                console.debug(settings.setColor, key);
+                if (settings.setColor === key) {
+                    setSkin(settings.setSkin); // perhaps heavy handed? what condition would prevent duplicate setSkin calls
+                    // Would the skin you have on override your cell color?
+                    const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
+                    if (match) {
+                        // Set color to your skin
+                        cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                    } else {
+                        // If not, set color to gray
+                        //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                        cellColor.style.backgroundColor = "rgb(200,200,200)";
+                    }
+                    setSetting('setColor', 'None');
+                }
                 continue;
             } //console.debug(settings.enableAllColorButtons, ownedSkins, cellColorList[key][0]);
 
@@ -489,7 +505,7 @@ function renderCellPreviewCard() {
         } else {
             console.log("You do not own the skin with src " + settings.setSkin);
             setSkin(settings.setColor);
-            cellSkin.style.display = "none";
+            if (!hasSpawned) cellSkin.style.display = "none"; // Don't update if you log out since the basegame doesn't do so either
         }
 
         // Cell preview color buttons

@@ -8,6 +8,7 @@ console.debug("Running storage.js");
 
 const emotes = [
     "flafDuh.png",
+    "gsTroll.png",
     "gsFlooshed.png",
     "gsPls.png",
     "gsHollow.png",
@@ -182,7 +183,7 @@ function challengeFinished() {
     playButtonIcon.classList = "fas fa-play";
     playButton.disabled = false;
     playButton.classList.remove("disabled");
-    playButtonObserver.disconnect();
+    if (playButtonObserver) playButtonObserver.disconnect();
 }
 
 // germs.io settings

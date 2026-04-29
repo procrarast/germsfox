@@ -39,7 +39,7 @@
     ],
     "host_permissions": [
         "*://*.germs.io/*",
-        "wss://*.germs.io:*/",
+        "wss://*/*",
         "https://challenges.cloudflare.com/*"
     ],
     "web_accessible_resources": [

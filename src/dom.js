@@ -348,6 +348,7 @@ function renderCellPreviewCard() {
                 const disabledColorButton = document.createElement("div");
                 disabledColorButton.style.backgroundColor = cellColorList[key][1];
                 buttonsContainer.appendChild(disabledColorButton);
+                if (settings.setColor === key) setSetting("setColor", "None");
                 continue;
             } //console.debug(settings.enableAllColorButtons, ownedSkins, cellColorList[key][0]);
 
@@ -954,7 +955,7 @@ function renderGeneralTabPane() {
     dangerLabel.innerText = "These settings enable features which may have unintended effects and should only be used for experimental purposes.";
     const dangerColorsEnabledCheckbox = createCheckbox("enableAllColorButtons", "Enable all cell colors");
     dangerColorsEnabledCheckbox.getElementsByTagName("span")[0].classList.add("danger");
-    const dangerColorAlertsCheckbox = createCheckbox("enableColorLogoutAlerts", "Enable Color Alerts");
+    const dangerColorAlertsCheckbox = createCheckbox("enableColorLogoutAlerts", "Enable color logout alerts");
     dangerColorAlertsCheckbox.getElementsByTagName("span")[0].classList.add("danger");
     const dangerSkinsEnabledCheckbox = createCheckbox("enableOldSkinsButton", "Enable old skins button");
     dangerSkinsEnabledCheckbox.getElementsByTagName("span")[0].classList.add("danger");
@@ -962,7 +963,6 @@ function renderGeneralTabPane() {
     pane.append(
         generalPill,
         generalInvitesCheckbox,
-        generalWarningCheckbox,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
 

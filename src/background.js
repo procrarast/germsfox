@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS = {
     switcherWindowed: false,
     ignoreInvites: false,
     toggleSettings: true,
-    autoLogout: false,
+    enableColorLogoutAlerts: false,
     backgroundColorEnabled: false,
     backgroundColor: [0.0, 0.0, 0.0],
     cellColorEnabled: false,
@@ -104,7 +104,7 @@ chrome.runtime.onMessage.addListener((request) => {
 //}
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === "loading" && tab.url?.includes("https://germs.io")) {
+    if (changeInfo.status === "loading" && tab.url?.startsWith("https://germs.io")) {
         chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
             for (item in DEFAULT_SETTINGS) {
                 if (storedSettings[item]) {
@@ -113,11 +113,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     DEFAULT_SETTINGS[item] = settings[item];
                 }
             }
-
             chrome.scripting.executeScript({
                 target: { tabId }, world: "MAIN",
                 func: inject,
                 args: [DEFAULT_SETTINGS]
+            }).catch(_ => {
+                console.debug("Tab removed before shader injection, but it was probably just a Discord login.");
             });
         });
     };

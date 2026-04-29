@@ -80,6 +80,8 @@ const DEFAULT_SETTINGS = {
     ignoreInvites: false,
     toggleSettings: true,
     autoLogout: false, 
+    enableAllColorButtons: false,
+    enableOldSkinsButton: false,
     backgroundColorEnabled: false,
     backgroundColor: [0.0, 0.0, 0.0],
     cellColorEnabled: false,
@@ -261,18 +263,37 @@ function deleteAllCustomSkins() {
     const message = "Are you sure you want to delete all saved custom skins? This cannot be undone!";
     if (confirm(message)) {
         setSetting("customSkins", []);
+        console.debug(settings.setSkin);
+        if (settings.setSkin.startsWith("https://i.imgur.com/")) {
+            console.debug("You're wearing an imgur skin");
+            setSkin(settings.setColor);
+            setSetting("setSkin", "None");
+            document.getElementById("cellSkinButton").style.removeProperty("background-image");
+            document.getElementById("cellSkin").style.display = "none";
+            const cellColor = document.getElementById("cellColor");
+            if (settings.setColor !== "None") { // You have a color
+                cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+            } else { // You have no color
+                cellColor.style.backgroundColor = "rgb(200,200,200)";
+            }
+        } else {
+            console.debug("You're not wearing an imgur skin, doing nothing");
+        }
     }
 }
 
 function tryAddingSkin(skin) {
     skin = skin.replace(/\s/g, ''); // remove whitespace
-    if (skin.includes("https://i.imgur.com/") && !settings.customSkins.includes(skin)) { // if it's not a duplicate imgur link
+    // I just passed my entire storage.js source to my custom skins array and it broke the delete button 
+    // and it's impossible to delete without manual intervention
+    // Therefore I will be replacing the previous skin.includes("https://i.imgur.com/") condition  
+    if (/^https:\/\/i\.imgur\.com\/.*\.png$/.test(skin) && !settings.customSkins.includes(skin)) { // if it's not a duplicate imgur link
         settings.customSkins.unshift(skin);
         chrome.storage.local.set({ "customSkins": settings.customSkins });
         console.debug("Added skin", skin);
         return true;
     } else {
-        console.info("Invalid or duplicate skin input, ignoring");
+        console.debug("Invalid or duplicate skin input: " + skin);
         return false;
     }
 }

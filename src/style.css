@@ -55,6 +55,13 @@
     display: flex;
     flex-wrap: wrap;
 }
+#cellButtons div {
+    border: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 6px;
+    opacity: 0.2;
+}
 #cellButtons p {
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
@@ -68,7 +75,6 @@
     text-align: center;
 }
 #cellButtons button {
-    border: none;
     box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px inset, rgba(0, 0, 0, 0.5) 0px 0px 4px;
     height: 16px;
     width: 16px;
@@ -172,6 +178,15 @@
     flex-wrap: wrap;
     gap: 4px;
     border-radius: 6px;
+    overflow: clip;
+}
+#lockedButtons div.colorBlocker {
+    z-index: 1;
+    position: absolute;
+    margin-top: 3px;
+    height: 100%;
+    width: 100%;
+    background-color: rgba(31, 35, 36, 0.8);
 }
 #lockedButtons p {
     border-top-left-radius: 6px;
@@ -499,6 +514,12 @@ ul.skinList li {
 #germsfoxSettingsClose:hover {
     background: #4a82ff;
 }
+input:checked + .slider.danger {
+    background-color: rgb(220, 53, 69);
+}
+input:focus + .slider.danger {
+    box-shadow: 0 0 1px rgb(210, 43, 59);
+}
 #germsfox-settings-general input.btn:hover {
     cursor: pointer;
     background-color: #095cb5;
@@ -540,6 +561,13 @@ ul.skinList li {
     font-size: 20px;
     font-family: Ubuntu;
     font-weight: 700;
+}
+#germsfox-settings-general p {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 8px 16px;
+    margin: 0 16px 1rem 16px;
+    font-size: 8pt;
 }
 #germsfox-settings-general {
     overflow-y: scroll;

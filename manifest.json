@@ -1,6 +1,6 @@
 {
     "name": "Germsfox",
-    "version": "0.4",
+    "version": "1.0",
     "description": "Emotes, skins, themes, gameplay and moderation tools for Germs.io!",
     "manifest_version": 3,
     "icons": {
@@ -35,6 +35,7 @@
         "tabs",
         "declarativeNetRequest",
         "webRequest",
+        "webRequestBlocking",
         "scripting"
     ],
     "host_permissions": [

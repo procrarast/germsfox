@@ -11,9 +11,26 @@ function renderGameMenu() {
     const spectateIcon = document.getElementById("spectate").querySelector("i");
     spectateIcon.classList.replace("fa-eye", "fa-search"); // The eye has always creeped me out
 
-    // Version href doesn't even work, so adding our own shouldn't be too invasive
+    // Version href doesn't even work, so removing it shouldn't be too invasive
     const versionAnchor = document.getElementById("version");
     versionAnchor.removeAttribute("href");
+
+    // Germsfox information
+    const germsfoxInfo = document.createElement("span");
+    germsfoxInfo.innerText =  " | ";
+    const germsfoxInfoAnchor = document.createElement("a");
+    germsfoxInfoAnchor.id = "germsfoxInfo";
+    germsfoxInfoAnchor.classList.add("nodrag");
+    germsfoxInfoAnchor.innerText = "Germsfox: ";
+    germsfoxInfoAnchor.href = "https://pishi.dev/germsfox";
+    germsfoxInfoAnchor.target = "_blank";
+    germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
+    const germsfoxInfoVersion = document.createElement("b");
+    germsfoxInfoVersion.innerText = chrome.runtime.getManifest().version;
+    germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
+    germsfoxInfo.appendChild(germsfoxInfoAnchor);
+    versionAnchor.appendChild(germsfoxInfo);
+
     
     //TODO add germsfox info
 
@@ -350,7 +367,7 @@ function renderCellPreviewCard() {
                 const disabledColorButton = document.createElement("div");
                 disabledColorButton.style.backgroundColor = cellColorList[key][1];
                 buttonsContainer.appendChild(disabledColorButton);
-                console.debug(settings.setColor, key);
+                //console.debug(settings.setColor, key);
                 if (settings.setColor === key) {
                     setSkin(settings.setSkin); // perhaps heavy handed? what condition would prevent duplicate setSkin calls
                     // Would the skin you have on override your cell color?
@@ -500,10 +517,10 @@ function renderCellPreviewCard() {
         )
         {
             //console.debug(settings.setSkin.slice(18, -4));
-            console.log("You own the skin with src " + settings.setSkin);
+            //console.log("You can set the skin with src " + settings.setSkin);
             cellSkin.style.display = "block";
         } else {
-            console.log("You do not own the skin with src " + settings.setSkin);
+            console.log("You do not own the skin: " + settings.setSkin);
             setSkin(settings.setColor);
             if (!hasSpawned) cellSkin.style.display = "none"; // Don't update if you log out since the basegame doesn't do so either
         }

@@ -25,11 +25,6 @@
     text-shadow: 0 0 0px rgba(0, 0, 0, 0.5);
     -webkit-text-stroke: 4px rgba(0, 0, 0, 0.25);
 }
-#cellName.locked:hover {
-    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
-    transform: scale(1.1);
-    cursor: pointer;
-}
 #cellName.default::after, #cellName.locked::after {
     content: attr(data-nick);
     position: absolute;
@@ -299,6 +294,12 @@
     margin: 0;
     padding: 0 5px 0 5px;
     list-style: none;
+}
+#germsfoxInfo {
+    color: rgba(255, 255, 255, 0.4);
+}
+#germsfoxInfo:hover {
+    color: rgba(255, 255, 255, 0.4);
 }
 #germsfoxIcon {
     width: 19px;

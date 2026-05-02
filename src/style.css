@@ -18,6 +18,9 @@
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
 }
+#cellName {
+    line-height: 1.5em;
+}
 #cellName.default {
     -webkit-text-stroke: 5px black;
 }

@@ -13,7 +13,7 @@ Germsfox is a necessary extension for https://germs.io/, adding settings and fea
 - Set keybinds to toggle names, skins, etc.
 - Ignore invites, mute certain players, and block rude custom skins
 ## Installation
-You can find installation links at https://germsfox.pishi.dev.
+You can find installation links at https://pishi.dev/germsfox
 If you would like to, you can also locally install this program on your computer to run it.
 1. Download the source code. You can download it as `.zip` from the green "<> Code" button above, or you may clone the repository.
 2. Extract the contents of `germsfox-main.zip` to its own folder.

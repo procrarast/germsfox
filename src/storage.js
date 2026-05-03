@@ -288,7 +288,7 @@ function tryAddingSkin(skin) {
     // I just passed my entire storage.js source to my custom skins array and it broke the delete button 
     // and it's impossible to delete without manual intervention
     // Therefore I will be replacing the previous skin.includes("https://i.imgur.com/") condition  
-    if (/^https:\/\/i\.imgur\.com\/.*\.png$/.test(skin) && !settings.customSkins.includes(skin)) { // if it's not a duplicate imgur link
+    if (/^https:\/\/i\.imgur\.com\/[^/]+$/.test(skin) && !settings.customSkins.includes(skin)) {
         settings.customSkins.unshift(skin);
         chrome.storage.local.set({ "customSkins": settings.customSkins });
         console.debug("Added skin", skin);

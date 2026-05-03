@@ -18,26 +18,6 @@
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
 }
-#cellName {
-    line-height: 1.5em;
-}
-#cellName.default {
-    -webkit-text-stroke: 5px black;
-}
-#cellName.locked {
-    text-shadow: 0 0 0px rgba(0, 0, 0, 0.5);
-    -webkit-text-stroke: 4px rgba(0, 0, 0, 0.25);
-}
-#cellName.default::after, #cellName.locked::after {
-    content: attr(data-nick);
-    position: absolute;
-    left: 0;
-    top: 0;
-    opacity: 1.0;
-    width: 100%;
-    -webkit-text-stroke: 0;
-    color: inherit;
-}
 #cellButtons {
     height: auto;
     position: relative;
@@ -140,7 +120,7 @@
 #cellName {
     transition: top 0.2s ease-out, transform 0.2s ease-out, text-shadow 0.2s ease-out;
     font-size: 2.75rem;
-    line-height: 1.0em;
+    line-height: 1.5em;
     white-space: pre;
     margin: 0;
     text-align: center;
@@ -149,6 +129,23 @@
     width: max-content;
     position: relative;
     transform-origin: center center;
+}
+#cellName.default {
+    -webkit-text-stroke: 5px black;
+}
+#cellName.locked {
+    text-shadow: 0 0 0px rgba(0, 0, 0, 0.5);
+    -webkit-text-stroke: 4px rgba(0, 0, 0, 0.25);
+}
+#cellName.default::after, #cellName.locked::after {
+    content: attr(data-nick);
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 1.0;
+    width: 100%;
+    -webkit-text-stroke: 0;
+    color: inherit;
 }
 #cellNameContainer.upper, #cellNameContainer.lower {
     transform: scale(0.85);

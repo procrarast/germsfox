@@ -35,7 +35,6 @@
         "tabs",
         "declarativeNetRequest",
         "webRequest",
-        "webRequestBlocking",
         "scripting"
     ],
     "host_permissions": [
@@ -46,7 +45,7 @@
     "web_accessible_resources": [
         {
             "resources": ["fonts/*", "images/*"],
-            "matches": ["<all_urls>"]
+            "matches": ["https://germs.io/*"]
         }
     ],
     "browser_specific_settings": {

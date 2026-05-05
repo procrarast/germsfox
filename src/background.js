@@ -101,7 +101,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         // WebGL2 shader injection
         chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
             for (let item in DEFAULT_SETTINGS) {
-                if (storedSettings[item]) {
+                if (storedSettings[item] != null) {
                     DEFAULT_SETTINGS[item] = storedSettings[item];
                 } else {
                     DEFAULT_SETTINGS[item] = settings[item];
@@ -147,11 +147,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 //TODO: refine settings to just a few keys and, if they're changed elsewhere, send them here with a window message
 function injectPixi(settings) {
     console.debug("Injecting PIXI script after page 'loading' status");
+    console.debug(settings.shortenMass);
 
     if (settings.enableDebug) {
         // debug information
         const debugContainer = document.getElementById("debug");
-        console.debug(debugContainer);
         const germsfoxDebug = document.createElement("div");
         germsfoxDebug.id = "germsfoxDebugText";
 

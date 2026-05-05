@@ -123,31 +123,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             });
         });
     } 
-    /*else if (changeInfo.status === "complete" && tab.url?.startsWith("https://germs.io")) {
-        // Script injection for PIXI
-        chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
-            for (let item in DEFAULT_SETTINGS) {
-                if (storedSettings[item]) {
-                    DEFAULT_SETTINGS[item] = storedSettings[item];
-                } else {
-                    DEFAULT_SETTINGS[item] = settings[item];
-                }
-            }
-            chrome.scripting.executeScript({
-                target: { tabId }, world: "MAIN",
-                func: injectPixi,
-                args: [DEFAULT_SETTINGS]
-            }).catch(_ => {
-                console.debug("Tab removed before PIXI script injection, but it was probably just a login modal.");
-            });
-        });
-    };*/
 });
 
 //TODO: refine settings to just a few keys and, if they're changed elsewhere, send them here with a window message
 function injectPixi(settings) {
     console.debug("Injecting PIXI script after page 'loading' status");
-    console.debug(settings.shortenMass);
 
     if (settings.enableDebug) {
         // debug information
@@ -163,6 +143,12 @@ function injectPixi(settings) {
         germsfoxDebug.append(debugPixiTextBefore, debugPixiTextAfter);
         debugContainer.appendChild(germsfoxDebug);
     }
+
+    // Listen for settings chances, such as shortenMass and whatever
+    window.addEventListener("message", (event) => {
+        if (event.source !== window || event.data?.action !== "updateSettings") return;
+        Object.assign(settings, event.data.settings);
+    });
 
     const _Text = PIXI.Text;
     const _set = Object.getOwnPropertyDescriptor(_Text.prototype, 'text').set;
@@ -216,7 +202,7 @@ function injectPixi(settings) {
     };
 
     PIXI.Text.prototype = _Text.prototype;
-    
+    /*
     // Sprite
     const _Sprite = PIXI.Sprite;
 
@@ -232,7 +218,8 @@ function injectPixi(settings) {
     };
     PIXI.Sprite.prototype = _Sprite.prototype;
     Object.assign(PIXI.Sprite, _Sprite);
-    
+    */
+
     function shortenMass(mass) { // Passed a string representing mass
         mass = parseInt(mass); 
         if (mass > 1000000) return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;

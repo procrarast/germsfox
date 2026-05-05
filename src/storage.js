@@ -247,7 +247,7 @@ async function setSetting(key, value) {
     if (chrome.runtime.lastError) {
         console.error(`Failed to save ${key}: ${chrome.runtime.lastError}`);
     }
-    chrome.runtime.sendMessage({ action: "updateSettings" });
+    window.postMessage({ action: "updateSettings", settings: settings });
 }
 
 // Same as above, except it sets settings.controls[key] since the original settings API design was flat

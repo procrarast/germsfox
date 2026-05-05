@@ -7,7 +7,6 @@ console.debug("Running dom.js");
 
 function renderGameMenu() {
 
-    // Move socials to the right side of the menu to make room for cell preview+customizations
     const spectateIcon = document.getElementById("spectate").querySelector("i");
     spectateIcon.classList.replace("fa-eye", "fa-search"); // The eye has always creeped me out
 
@@ -30,9 +29,6 @@ function renderGameMenu() {
     germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
     germsfoxInfo.appendChild(germsfoxInfoAnchor);
     versionAnchor.appendChild(germsfoxInfo);
-
-    
-    //TODO add germsfox info
 
     const menuLeft = document.getElementById("menuLeft");
 
@@ -113,28 +109,29 @@ function renderCellPreviewCard() {
             return; // Let the game handle default behavior
         } 
         
-        // If you're deleting the skin you're wearing, you have to set it to 'None' due to the 
-        // limitations of the setSkin() function which requires a button to set skins
-        if (event.target.id === "deleteButton" && 
-            event.target.previousElementSibling.src === settings.setSkin) {
-            //console.debug("You're wearing the skin you deleted! Setting your skin to 'None'...");
-            setSetting("setSkin", "None");
-            setSkin("None");
-            cellSkin.style.display = "none";
-            cellSkinButton.style.removeProperty("background-image");
-            setSkin(settings.setColor); // If you have a color, set it
+        if (event.target.id === "deleteButton") {
+            // If you're deleting the skin you're wearing, you have to set it to 'None' due to the 
+            // limitations of the setSkin() function which requires a button to set skins
+            if (event.target.previousElementSibling.src === settings.setSkin) {
+                //console.debug("You're wearing the skin you deleted! Setting your skin to 'None'...");
+                setSetting("setSkin", "None");
+                setSkin("None");
+                cellSkin.style.display = "none";
+                cellSkinButton.style.removeProperty("background-image");
+                setSkin(settings.setColor); // If you have a color, set it
 
-            // Would the skin you're equipping override your cell color?
-            const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setColor);
-            if (cellColor && match) {
-                // Set preview color to your skin
-                cellColor.style.backgroundColor = cellColorList[match[0]][1];
-            } else {
-                // If not, set preview color to your set color
-                //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+                // Would the skin you're equipping override your cell color?
+                const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setColor);
+                if (cellColor && match) {
+                    // Set preview color to your skin
+                    cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                } else {
+                    // If not, set preview color to your set color
+                    //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
+                    cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+                }
             }
-
+            return; // Continue with default deleteButton behavior
         }
 
         event.preventDefault();

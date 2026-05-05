@@ -117,7 +117,7 @@ function renderCellPreviewCard() {
         // limitations of the setSkin() function which requires a button to set skins
         if (event.target.id === "deleteButton" && 
             event.target.previousElementSibling.src === settings.setSkin) {
-            console.debug("You're wearing the skin you deleted! Setting your skin to 'None'...");
+            //console.debug("You're wearing the skin you deleted! Setting your skin to 'None'...");
             setSetting("setSkin", "None");
             setSkin("None");
             cellSkin.style.display = "none";
@@ -971,6 +971,7 @@ function renderGeneralTabPane() {
     pane.replaceChildren();
 
     const generalPill = createPill("General");
+    const shortenMassCheckbox = createCheckbox("shortenMass", "Shorten Mass");
     const generalInvitesCheckbox = createCheckbox("ignoreInvites", "Ignore Party Invites");
 
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
@@ -986,6 +987,8 @@ function renderGeneralTabPane() {
     dangerPill.style.backgroundColor = "rgb(220, 53, 69)";
     const dangerLabel = document.createElement('p');
     dangerLabel.innerText = "These settings enable features which may have unintended effects and should only be used for experimental purposes.";
+    const debugCheckbox = createCheckbox("enableDebug", "Enable debug information");
+    debugCheckbox.getElementsByTagName("span")[0].classList.add("danger");
     const dangerColorsEnabledCheckbox = createCheckbox("enableAllColorButtons", "Enable all cell colors");
     dangerColorsEnabledCheckbox.getElementsByTagName("span")[0].classList.add("danger");
     const dangerColorAlertsCheckbox = createCheckbox("enableColorLogoutAlerts", "Enable color logout alerts");
@@ -995,6 +998,7 @@ function renderGeneralTabPane() {
 
     pane.append(
         generalPill,
+        shortenMassCheckbox,
         generalInvitesCheckbox,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
@@ -1007,6 +1011,7 @@ function renderGeneralTabPane() {
 
         dangerPill,
         dangerLabel,
+        debugCheckbox,
         dangerColorsEnabledCheckbox,
         dangerColorAlertsCheckbox,
         dangerSkinsEnabledCheckbox

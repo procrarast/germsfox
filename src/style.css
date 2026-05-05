@@ -18,6 +18,14 @@
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
 }
+#germsfoxDebugText {
+    font-family: Roboto;
+    padding: 10px;
+    font-size: 15px;
+}
+#germsfoxDebugText p {
+    margin: 0;
+}
 #cellButtons {
     height: auto;
     position: relative;

@@ -149,13 +149,14 @@ function blockPlayerName(playerName) {
     }
 }
 
-function initDebug() { // Nothing to do with debug, rather we need to listen to the ingame debug menu to detect spawns
+function initDebug() { // We need to listen to the ingame debug menu to detect spawns
     console.debug("Initializing debug mutation observer");
     const debugText = document.getElementById('debugText');
+    
     if (debugObserver) debugObserver.disconnect();
 
     debugObserver = new MutationObserver(() => updateHasSpawned());
-    debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
+    debugObserver.observe(debugText, { childList: true }); // Might not need subtree
 
     function updateHasSpawned() {
         //console.debug("Checking for life...");
@@ -178,7 +179,7 @@ function initDebugAfterDeath() {
     const debugText = document.getElementById('debugText');
     if (debugObserver) debugObserver.disconnect();
     debugObserver = new MutationObserver(() => updateHasSpawned());
-    debugObserver.observe(debugText, { childList: true, subtree: true }); // Might not need subtree
+    debugObserver.observe(debugText, { childList: true }); // Might not need subtree
 
     function updateHasSpawned() {
         //console.debug("Checking for death...");

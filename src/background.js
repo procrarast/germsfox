@@ -15,6 +15,8 @@ const DEFAULT_CONTROLS = {
 
 const DEFAULT_SETTINGS = {
     controls: DEFAULT_CONTROLS,
+    setSkin: "None", //document.getElementById("skin").style.backgroundImage.slice(5, -2)
+    setColor: "None",
     customSkins: [],
     skinBlocklist: [],
     playerBlocklist: [],
@@ -24,7 +26,11 @@ const DEFAULT_SETTINGS = {
     switcherWindowed: false,
     ignoreInvites: false,
     toggleSettings: true,
-    enableColorLogoutAlerts: false,
+    autoLogout: false, 
+    shortenMass: true,
+    enableDebug: false,
+    enableAllColorButtons: false,
+    enableOldSkinsButton: false,
     backgroundColorEnabled: false,
     backgroundColor: [0.0, 0.0, 0.0],
     cellColorEnabled: false,
@@ -42,7 +48,6 @@ settings = structuredClone(DEFAULT_SETTINGS);
 const handlers = {
     switchTabs,
     switchWindows,
-    //updateSettings, // vestigial system
     clearBlockRules,
     addBlockRule: ({ url }) => url && addBlockRule(url)
 };
@@ -91,22 +96,11 @@ chrome.runtime.onMessage.addListener((request) => {
     handler(request);
 });
 
-// Useful when multiboxing to prevent per-tab settings desync
-//async function updateSettings() {
-//    const tabs = await chrome.tabs.query({
-//        url: "https://germs.io/*"
-//    });
-//
-//    for (const tab of tabs) {
-//        console.debug(`Sending getSettings message to tab ${tab.id}`);
-//        chrome.tabs.sendMessage(tab.id, { action: "getSettings" });
-//    }
-//}
-
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === "loading" && tab.url?.startsWith("https://germs.io")) {
+        // WebGL2 shader injection
         chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
-            for (item in DEFAULT_SETTINGS) {
+            for (let item in DEFAULT_SETTINGS) {
                 if (storedSettings[item]) {
                     DEFAULT_SETTINGS[item] = storedSettings[item];
                 } else {
@@ -115,16 +109,139 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             }
             chrome.scripting.executeScript({
                 target: { tabId }, world: "MAIN",
-                func: inject,
+                func: injectShaders,
                 args: [DEFAULT_SETTINGS]
             }).catch(_ => {
-                console.debug("Tab removed before shader injection, but it was probably just a Discord login.");
+                console.debug("Tab removed before shader injection, but it was probably just a login modal.");
+            });
+            chrome.scripting.executeScript({
+                target: { tabId }, world: "MAIN",
+                func: injectPixi,
+                args: [DEFAULT_SETTINGS]
+            }).catch(_ => {
+                console.debug("Tab removed before PIXI script injection, but it was probably just a login modal.");
             });
         });
-    };
+    } 
+    /*else if (changeInfo.status === "complete" && tab.url?.startsWith("https://germs.io")) {
+        // Script injection for PIXI
+        chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
+            for (let item in DEFAULT_SETTINGS) {
+                if (storedSettings[item]) {
+                    DEFAULT_SETTINGS[item] = storedSettings[item];
+                } else {
+                    DEFAULT_SETTINGS[item] = settings[item];
+                }
+            }
+            chrome.scripting.executeScript({
+                target: { tabId }, world: "MAIN",
+                func: injectPixi,
+                args: [DEFAULT_SETTINGS]
+            }).catch(_ => {
+                console.debug("Tab removed before PIXI script injection, but it was probably just a login modal.");
+            });
+        });
+    };*/
 });
 
-function inject(settings) {
+//TODO: refine settings to just a few keys and, if they're changed elsewhere, send them here with a window message
+function injectPixi(settings) {
+    console.debug("Injecting PIXI script after page 'loading' status");
+
+    if (settings.enableDebug) {
+        // debug information
+        const debugContainer = document.getElementById("debug");
+        console.debug(debugContainer);
+        const germsfoxDebug = document.createElement("div");
+        germsfoxDebug.id = "germsfoxDebugText";
+
+        const debugPixiTextBefore = document.createElement("p");
+        debugPixiTextBefore.id = "debugPixiTextBefore";
+        const debugPixiTextAfter = document.createElement("p");
+        debugPixiTextAfter.id = "debugPixiTextAfter";
+
+        germsfoxDebug.append(debugPixiTextBefore, debugPixiTextAfter);
+        debugContainer.appendChild(germsfoxDebug);
+    }
+
+    const _Text = PIXI.Text;
+    const _set = Object.getOwnPropertyDescriptor(_Text.prototype, 'text').set;
+    let rasterizations = 0;
+    let attemptedRasterizations = 0;
+
+    if (settings.enableDebug) {
+        const debugPixiTextBefore = document.getElementById("debugPixiTextBefore");
+        const debugPixiTextAfter = document.getElementById("debugPixiTextAfter");
+        //console.debug(debugPixiTextBefore, debugPixiTextAfter);
+
+        // debug benchmarking
+        setInterval(() => {
+            debugPixiTextBefore.innerHTML = `<b>R/S (after):</b> ${rasterizations}`;
+            debugPixiTextAfter.innerHTML = `<b>R/S (before):</b> ${rasterizations + attemptedRasterizations}`;
+            rasterizations = 0;
+            attemptedRasterizations = 0;
+        }, 1000);
+
+    }
+
+    PIXI.Text = function(text, style, canvas) {
+        if (settings.shortenMass && style.fontSize === 60) { // Show mass text
+            style.fontSize = 75;
+            style.strokeThickness = 13;
+            text = shortenMass(text);
+            //console.debug("Shortened new PIXI.Text: ", text, style);
+        }// else console.debug("New PIXI.Text: ", text, style);
+
+        const instance = new _Text(text, style, canvas);
+        instance._rawMass = parseFloat(text);
+
+        Object.defineProperty(instance, 'text', {
+            set(value) {
+                const now = performance.now();
+                const raw = parseFloat(value);
+                if (now - this._lastMutationTime < 250 && raw < 1.25 * instance._rawMass) {
+                    if (settings.enableDebug) attemptedRasterizations++;
+                    return;
+                }
+                instance._rawMass = raw;
+                if (settings.enableDebug) rasterizations++;
+                this._lastMutationTime = now;
+                _set.call(this, settings.shortenMass ? shortenMass(value) : value);
+            },
+            get() {
+                return instance._text;
+            }
+        });
+        return instance;
+    };
+
+    PIXI.Text.prototype = _Text.prototype;
+    
+    // Sprite
+    const _Sprite = PIXI.Sprite;
+
+    PIXI.Sprite = function(...args) {
+        //console.debug("New PIXI.Sprite:", args[0]);
+        const instance = new _Sprite(...args);
+        //console.debug("Sprite tint:", instance.tint);
+        //const tex = instance.texture;
+        //console.debug("Sprite source:", tex?.baseTexture?.resource?.url);
+        //console.debug("Sprite frame:", tex?.frame);
+        //console.debug("New sprite name:", instance.name);
+        return instance;
+    };
+    PIXI.Sprite.prototype = _Sprite.prototype;
+    Object.assign(PIXI.Sprite, _Sprite);
+    
+    function shortenMass(mass) { // Passed a string representing mass
+        mass = parseInt(mass); 
+        if (mass > 1000000) return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
+        if (mass >= 1000) return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
+        else return mass.toString();
+    }
+}
+
+function injectShaders(settings) {
     if (!WebGL2RenderingContext.prototype?.shaderSource) return;
 
     const original = WebGL2RenderingContext.prototype.shaderSource;

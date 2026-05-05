@@ -81,6 +81,8 @@ const DEFAULT_SETTINGS = {
     ignoreInvites: false,
     toggleSettings: true,
     autoLogout: false, 
+    shortenMass: true,
+    enableDebug: false,
     enableAllColorButtons: false,
     enableOldSkinsButton: false,
     backgroundColorEnabled: false,
@@ -213,7 +215,7 @@ async function getSettings() {
 
         // Merge stored settings with defaults
         settings = { ...DEFAULT_SETTINGS };
-        for (item in settings) {
+        for (let item in settings) {
             if (storedSettings[item] != null) {
                 settings[item] = storedSettings[item];
                 //console.debug("Stored array has item: " + item + " with value " + storedSettings[item]);
@@ -229,6 +231,7 @@ async function getSettings() {
         console.warn("Could not get stored settings: " + error);
     }
     console.debug("Retrieved settings");
+    //console.debug(settings);
     return settings;
 }
 

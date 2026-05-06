@@ -96,8 +96,11 @@ chrome.runtime.onMessage.addListener((request) => {
     handler(request);
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+// Prevent party invites (and possibly other things) from somehow triggering multiple script injections by causing tab 'loading' status
+chrome.tabs.onUpdated.addListener(onLoad);
+function onLoad(tabId, changeInfo, tab) {
     if (changeInfo.status === "loading" && tab.url?.startsWith("https://germs.io")) {
+        chrome.tabs.onUpdated.removeListener(onLoad);
         // WebGL2 shader injection
         chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
             for (let item in DEFAULT_SETTINGS) {
@@ -122,29 +125,28 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 console.debug("Tab removed before PIXI script injection, but it was probably just a login modal.");
             });
         });
-    } 
-});
+    }
+}
 
 //TODO: refine settings to just a few keys and, if they're changed elsewhere, send them here with a window message
 function injectPixi(settings) {
     console.debug("Injecting PIXI script after page 'loading' status");
 
-    if (settings.enableDebug) {
-        // debug information
-        const debugContainer = document.getElementById("debug");
-        const germsfoxDebug = document.createElement("div");
-        germsfoxDebug.id = "germsfoxDebugText";
+    // debug information
+    const debugContainer = document.getElementById("debug");
+    const germsfoxDebug = document.createElement("div");
+    germsfoxDebug.id = "germsfoxDebugText";
+    germsfoxDebug.style.display = settings.enableDebug ? "block" : "none";
 
-        const debugPixiTextBefore = document.createElement("p");
-        debugPixiTextBefore.id = "debugPixiTextBefore";
-        const debugPixiTextAfter = document.createElement("p");
-        debugPixiTextAfter.id = "debugPixiTextAfter";
+    const debugPixiTextBefore = document.createElement("p");
+    debugPixiTextBefore.id = "debugPixiTextBefore";
+    const debugPixiTextAfter = document.createElement("p");
+    debugPixiTextAfter.id = "debugPixiTextAfter";
 
-        germsfoxDebug.append(debugPixiTextBefore, debugPixiTextAfter);
-        debugContainer.appendChild(germsfoxDebug);
-    }
+    germsfoxDebug.append(debugPixiTextBefore, debugPixiTextAfter);
+    debugContainer.appendChild(germsfoxDebug);
 
-    // Listen for settings chances, such as shortenMass and whatever
+    // Listen for settings changes
     window.addEventListener("message", (event) => {
         if (event.source !== window || event.data?.action !== "updateSettings") return;
         Object.assign(settings, event.data.settings);
@@ -154,24 +156,24 @@ function injectPixi(settings) {
     const _set = Object.getOwnPropertyDescriptor(_Text.prototype, 'text').set;
     let rasterizations = 0;
     let attemptedRasterizations = 0;
+    let throttling = false; // Set to true when attempted text mutations/s > 1,000
 
-    if (settings.enableDebug) {
-        const debugPixiTextBefore = document.getElementById("debugPixiTextBefore");
-        const debugPixiTextAfter = document.getElementById("debugPixiTextAfter");
-        //console.debug(debugPixiTextBefore, debugPixiTextAfter);
-
-        // debug benchmarking
-        setInterval(() => {
+    setInterval(() => {
+        // Show mass text benchmarking
+        if (settings.enableDebug) {
+            germsfoxDebug.style.display = "block";
             debugPixiTextBefore.innerHTML = `<b>R/S (after):</b> ${rasterizations}`;
             debugPixiTextAfter.innerHTML = `<b>R/S (before):</b> ${rasterizations + attemptedRasterizations}`;
-            rasterizations = 0;
-            attemptedRasterizations = 0;
-        }, 1000);
-
-    }
+        } else {
+            germsfoxDebug.style.display = "none";
+        }
+        throttling = (attemptedRasterizations + rasterizations) > 250;
+        rasterizations = 0;
+        attemptedRasterizations = 0;
+    }, 1000);
 
     PIXI.Text = function(text, style, canvas) {
-        if (settings.shortenMass && style.fontSize === 60) { // Show mass text
+        if (settings.shortenMass && style.fontSize === 60) { // Only show mass text has a fontSize of 60
             style.fontSize = 75;
             style.strokeThickness = 13;
             text = shortenMass(text);
@@ -185,12 +187,12 @@ function injectPixi(settings) {
             set(value) {
                 const now = performance.now();
                 const raw = parseFloat(value);
-                if (now - this._lastMutationTime < 250 && raw < 1.25 * instance._rawMass) {
-                    if (settings.enableDebug) attemptedRasterizations++;
+                if (now - this._lastMutationTime < (throttling ? 250 : 100) && raw < 1.25 * instance._rawMass) {
+                    attemptedRasterizations++;
                     return;
                 }
                 instance._rawMass = raw;
-                if (settings.enableDebug) rasterizations++;
+                rasterizations++;
                 this._lastMutationTime = now;
                 _set.call(this, settings.shortenMass ? shortenMass(value) : value);
             },
@@ -319,7 +321,7 @@ function injectShaders(settings) {
         return original.call(this, shader, source);
     };
 
-    console.log("Injecting into tab");
+    console.log("Injecting shaders after page 'loading' status");
 }
 
 async function getTabsState() {

@@ -142,7 +142,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
-//TODO: refine settings to just a few keys and, if they're changed elsewhere, send them here with a window message
+//TODO: refine settings to just a few keys
 function injectPixi(settings) {
     window.__pixiInjected = true;
 
@@ -183,7 +183,7 @@ function injectPixi(settings) {
         } else {
             germsfoxDebug.style.display = "none";
         }
-        throttling = (attemptedRasterizations + rasterizations) > 250; // Around 500 is when the game starts having severe perf degradation
+        throttling = (attemptedRasterizations + rasterizations) > 250; // Around 500 is when the game starts having severe perf issues
         rasterizations = 0;
         attemptedRasterizations = 0;
     }, 1000);

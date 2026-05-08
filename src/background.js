@@ -96,40 +96,56 @@ chrome.runtime.onMessage.addListener((request) => {
     handler(request);
 });
 
-// Prevent party invites (and possibly other things) from somehow triggering multiple script injections by causing tab 'loading' status
-chrome.tabs.onUpdated.addListener(onLoad);
-function onLoad(tabId, changeInfo, tab) {
-    if (changeInfo.status === "loading" && tab.url?.startsWith("https://germs.io")) {
-        chrome.tabs.onUpdated.removeListener(onLoad);
+// Prevent parties (and other url changes?) from triggering multiple script injections by causing tab 'loading' status
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (!tab.url?.startsWith("https://germs.io")) return;
+
+    if (changeInfo.status === "loading") {
         // WebGL2 shader injection
         chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS)).then((storedSettings) => {
-            for (let item in DEFAULT_SETTINGS) {
+            for (let item in DEFAULT_SETTINGS) { // Pass settings to injected scripts
                 if (storedSettings[item] != null) {
                     DEFAULT_SETTINGS[item] = storedSettings[item];
                 } else {
                     DEFAULT_SETTINGS[item] = settings[item];
                 }
             }
-            chrome.scripting.executeScript({
-                target: { tabId }, world: "MAIN",
-                func: injectShaders,
-                args: [DEFAULT_SETTINGS]
-            }).catch(_ => {
-                console.debug("Tab removed before shader injection, but it was probably just a login modal.");
-            });
-            chrome.scripting.executeScript({
-                target: { tabId }, world: "MAIN",
-                func: injectPixi,
-                args: [DEFAULT_SETTINGS]
-            }).catch(_ => {
-                console.debug("Tab removed before PIXI script injection, but it was probably just a login modal.");
-            });
+            chrome.scripting.executeScript({ // Shader injection
+                target: { tabId },
+                world: "MAIN",
+                func: () => window.__shadersInjected 
+            }).then(([result]) => {
+                if (result.result) return; // Already injected
+                chrome.scripting.executeScript({
+                    target: { tabId },
+                    world: "MAIN",
+                    func: injectShaders,
+                    args: [DEFAULT_SETTINGS]
+                });
+            }).catch(_ => console.debug("Tab removed before shader injection, but it was probably just a login modal."));
+
+            chrome.scripting.executeScript({ // Pixi patch injection
+                target: { tabId }, 
+                world: "MAIN",
+                args: [DEFAULT_SETTINGS],
+                func: () => window.__pixiInjected
+            }).then(([result]) => {
+                if (result.result) return; // Already injected
+                chrome.scripting.executeScript({
+                    target: { tabId },
+                    world: "MAIN",
+                    func: injectPixi,
+                    args: [DEFAULT_SETTINGS]
+                });
+            }).catch(_ => console.debug("Tab removed before PIXI script injection, but it was probably just a login modal."));
         });
     }
-}
+});
 
 //TODO: refine settings to just a few keys and, if they're changed elsewhere, send them here with a window message
 function injectPixi(settings) {
+    window.__pixiInjected = true;
+
     console.debug("Injecting PIXI script after page 'loading' status");
 
     // debug information
@@ -156,7 +172,7 @@ function injectPixi(settings) {
     const _set = Object.getOwnPropertyDescriptor(_Text.prototype, 'text').set;
     let rasterizations = 0;
     let attemptedRasterizations = 0;
-    let throttling = false; // Set to true when attempted text mutations/s > 1,000
+    let throttling = false; // Set to true when attempted text mutations/s > 250
 
     setInterval(() => {
         // Show mass text benchmarking
@@ -167,39 +183,41 @@ function injectPixi(settings) {
         } else {
             germsfoxDebug.style.display = "none";
         }
-        throttling = (attemptedRasterizations + rasterizations) > 250;
+        throttling = (attemptedRasterizations + rasterizations) > 250; // Around 500 is when the game starts having severe perf degradation
         rasterizations = 0;
         attemptedRasterizations = 0;
     }, 1000);
 
     PIXI.Text = function(text, style, canvas) {
-        if (settings.shortenMass && style.fontSize === 60) { // Only show mass text has a fontSize of 60
+        const isMass = style.fontSize === 60;
+        if (settings.shortenMass && isMass) {
             style.fontSize = 75;
             style.strokeThickness = 13;
             text = shortenMass(text);
-            //console.debug("Shortened new PIXI.Text: ", text, style);
-        }// else console.debug("New PIXI.Text: ", text, style);
-
+        }
         const instance = new _Text(text, style, canvas);
-        instance._rawMass = parseFloat(text);
 
-        Object.defineProperty(instance, 'text', {
-            set(value) {
-                const now = performance.now();
-                const raw = parseFloat(value);
-                if (now - this._lastMutationTime < (throttling ? 250 : 100) && raw < 1.25 * instance._rawMass) {
-                    attemptedRasterizations++;
-                    return;
+        if (isMass) {
+            instance._rawMass = parseFloat(text);
+            Object.defineProperty(instance, 'text', {
+                set(value) {
+                    const now = performance.now();
+                    const raw = parseFloat(value);
+                    if (now - this._lastMutationTime < (throttling ? 250 : 100) && raw < 1.25 * instance._rawMass) {
+                        attemptedRasterizations++;
+                        return;
+                    }
+                    instance._rawMass = raw;
+                    rasterizations++;
+                    this._lastMutationTime = now;
+                    _set.call(this, settings.shortenMass ? shortenMass(value) : value);
+                },
+                get() {
+                    return instance._text;
                 }
-                instance._rawMass = raw;
-                rasterizations++;
-                this._lastMutationTime = now;
-                _set.call(this, settings.shortenMass ? shortenMass(value) : value);
-            },
-            get() {
-                return instance._text;
-            }
-        });
+            });
+        }
+
         return instance;
     };
 
@@ -222,7 +240,7 @@ function injectPixi(settings) {
     Object.assign(PIXI.Sprite, _Sprite);
     */
 
-    function shortenMass(mass) { // Passed a string representing mass
+    function shortenMass(mass) { // Passed a string representing mass, returns a shortened string
         mass = parseInt(mass); 
         if (mass > 1000000) return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
         if (mass >= 1000) return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
@@ -231,6 +249,8 @@ function injectPixi(settings) {
 }
 
 function injectShaders(settings) {
+    window.__shadersInjected = true;
+
     if (!WebGL2RenderingContext.prototype?.shaderSource) return;
 
     const original = WebGL2RenderingContext.prototype.shaderSource;

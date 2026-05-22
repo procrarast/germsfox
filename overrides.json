@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": { "extensionPath": "/src/overrides/bundle.js" }
+    },
+    "condition": {
+      "urlFilter": "https://germs.io/js/bundle.js?v=add385cb",
+      "resourceTypes": ["script"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": { "extensionPath": "/src/overrides/lib/pixi.js" }
+    },
+    "condition": {
+      "urlFilter": "https://germs.io/js/lib/pixi-legacy.min.js?v=7.2.2",
+      "resourceTypes": ["script"]
+    }
+  }
+]

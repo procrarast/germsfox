@@ -42,9 +42,23 @@
         "wss://*/*",
         "https://challenges.cloudflare.com/*"
     ],
+    "declarative_net_request": {
+        "rule_resources": [
+            {
+                "id": "overrides",
+                "enabled": true,
+                "path": "overrides.json"
+            }
+        ]
+    },
     "web_accessible_resources": [
         {
-            "resources": ["fonts/*", "images/*"],
+            "resources": [
+                "fonts/*",
+                "images/*",
+                "/src/overrides/bundle.js",
+                "/src/overrides/lib/pixi.js"
+            ],
             "matches": ["https://germs.io/*"]
         }
     ],

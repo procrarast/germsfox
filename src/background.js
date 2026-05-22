@@ -119,16 +119,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 chrome.scripting.executeScript({
                     target: { tabId },
                     world: "MAIN",
-                    func: injectShaders,
+                    func: injectSettings,
                     args: [DEFAULT_SETTINGS]
                 });
             }).catch(_ => console.debug("Tab removed before shader injection, but it was probably just a login modal."));
 
-            chrome.scripting.executeScript({ // Pixi patch injection
+            chrome.scripting.executeScript({ // Settings injection
                 target: { tabId }, 
                 world: "MAIN",
                 args: [DEFAULT_SETTINGS],
-                func: () => window.__pixiInjected
+                func: () => window.__settingsInjected
             }).then(([result]) => {
                 if (result.result) return; // Already injected
                 chrome.scripting.executeScript({
@@ -142,110 +142,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
-//TODO: refine settings to just a few keys
-function injectPixi(settings) {
-    window.__pixiInjected = true;
-
-    console.debug("Injecting PIXI script after page 'loading' status");
-
-    // debug information
-    const debugContainer = document.getElementById("debug");
-    const germsfoxDebug = document.createElement("div");
-    germsfoxDebug.id = "germsfoxDebugText";
-    germsfoxDebug.style.display = settings.enableDebug ? "block" : "none";
-
-    const debugPixiTextBefore = document.createElement("p");
-    debugPixiTextBefore.id = "debugPixiTextBefore";
-    const debugPixiTextAfter = document.createElement("p");
-    debugPixiTextAfter.id = "debugPixiTextAfter";
-
-    germsfoxDebug.append(debugPixiTextBefore, debugPixiTextAfter);
-    debugContainer.appendChild(germsfoxDebug);
+// Injected to receive extension-related settings
+function injectSettings(settings) {
+    window.__settingsInjected = true;
 
     // Listen for settings changes
     window.addEventListener("message", (event) => {
         if (event.source !== window || event.data?.action !== "updateSettings") return;
         Object.assign(settings, event.data.settings);
     });
-
-    const _Text = PIXI.Text;
-    const _set = Object.getOwnPropertyDescriptor(_Text.prototype, 'text').set;
-    let rasterizations = 0;
-    let attemptedRasterizations = 0;
-    let throttling = false; // Set to true when attempted text mutations/s > 250
-
-    setInterval(() => {
-        // Show mass text benchmarking
-        if (settings.enableDebug) {
-            germsfoxDebug.style.display = "block";
-            debugPixiTextBefore.innerHTML = `<b>R/S (after):</b> ${rasterizations}`;
-            debugPixiTextAfter.innerHTML = `<b>R/S (before):</b> ${rasterizations + attemptedRasterizations}`;
-        } else {
-            germsfoxDebug.style.display = "none";
-        }
-        throttling = (attemptedRasterizations + rasterizations) > 250; // Around 500 is when the game starts having severe perf issues
-        rasterizations = 0;
-        attemptedRasterizations = 0;
-    }, 1000);
-
-    PIXI.Text = function(text, style, canvas) {
-        const isMass = style.fontSize === 60;
-        if (settings.shortenMass && isMass) {
-            style.fontSize = 75;
-            style.strokeThickness = 13;
-            text = shortenMass(text);
-        }
-        const instance = new _Text(text, style, canvas);
-
-        if (isMass) {
-            instance._rawMass = parseFloat(text);
-            Object.defineProperty(instance, 'text', {
-                set(value) {
-                    const now = performance.now();
-                    const raw = parseFloat(value);
-                    if (now - this._lastMutationTime < (throttling ? 250 : 100) && raw < 1.25 * instance._rawMass) {
-                        attemptedRasterizations++;
-                        return;
-                    }
-                    instance._rawMass = raw;
-                    rasterizations++;
-                    this._lastMutationTime = now;
-                    _set.call(this, settings.shortenMass ? shortenMass(value) : value);
-                },
-                get() {
-                    return instance._text;
-                }
-            });
-        }
-
-        return instance;
-    };
-
-    PIXI.Text.prototype = _Text.prototype;
-    /*
-    // Sprite
-    const _Sprite = PIXI.Sprite;
-
-    PIXI.Sprite = function(...args) {
-        //console.debug("New PIXI.Sprite:", args[0]);
-        const instance = new _Sprite(...args);
-        //console.debug("Sprite tint:", instance.tint);
-        //const tex = instance.texture;
-        //console.debug("Sprite source:", tex?.baseTexture?.resource?.url);
-        //console.debug("Sprite frame:", tex?.frame);
-        //console.debug("New sprite name:", instance.name);
-        return instance;
-    };
-    PIXI.Sprite.prototype = _Sprite.prototype;
-    Object.assign(PIXI.Sprite, _Sprite);
-    */
-
-    function shortenMass(mass) { // Passed a string representing mass, returns a shortened string
-        mass = parseInt(mass); 
-        if (mass > 1000000) return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
-        if (mass >= 1000) return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
-        else return mass.toString();
-    }
 }
 
 function injectShaders(settings) {

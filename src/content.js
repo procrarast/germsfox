@@ -117,38 +117,6 @@ function getChatNames(amount) {
     return chatNamesList;
 }
 
-//TODO: reference in blocker tab menu
-function unblockPlayerName(playerName) {
-    settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1); 
-
-    // restore chat of sin
-    let chatBox = document.getElementById("worldTab");
-    for (const chatMessage of chatBox.children) {
-        const messageName = chatMessage.querySelector("b");
-        if (!messageName) continue;
-
-        const chatterName = messageName.textContent;
-        if (!(playerName === chatterName)) continue;
-        chatMessage.style.display = "block";
-    }
-}
-
-function blockPlayerName(playerName) {
-    settings.playerBlocklist.push(playerName);
-
-    let chatBox = document.getElementById("worldTab");
-    // cleanse chat of sin
-    for (const chatMessage of chatBox.children) {
-        const messageName = chatMessage.querySelector("b");
-        if (!messageName) continue;
-
-        const chatterName = messageName.textContent;
-        if (!settings.playerBlocklist.includes(chatterName)) continue;
-
-        chatMessage.style.display = "none";
-    }
-}
-
 function initDebug() { // We need to listen to the ingame debug menu to detect spawns
     console.debug("Initializing debug mutation observer");
     const debugText = document.getElementById('debugText');
@@ -293,7 +261,7 @@ function initChat() {
                     fragment.appendChild(document.createTextNode(text));
                     break;
                 }
-                console.debug("Matched emote " + matchedEmote);
+                //console.debug("Matched emote " + matchedEmote);
 
                 if (earliestIndex > 0) {
                     fragment.appendChild(

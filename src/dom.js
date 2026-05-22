@@ -53,7 +53,7 @@ function renderCellPreviewCard() {
         setSkin('None'); // Free skins buttons don't exist on load, so just set to none and let the user set it again themself
         setSetting("setSkin", "None");
     }
-    console.debug("Rendering cell preview card");
+    //console.debug("Rendering cell preview card");
     const skinsCard = document.getElementById("skins");
     const skinsListUl = document.getElementsByClassName("skinList")[0];
 
@@ -313,7 +313,7 @@ function renderCellPreviewCard() {
         cellName.style.color = colorDiv.style.background;
     }
     function renderColorButtons() {
-        console.debug("Rendering color buttons");
+        //console.debug("Rendering color buttons");
 
         const buttonsContainer = document.createElement("div");
         buttonsContainer.id = "cellButtons";
@@ -1409,7 +1409,7 @@ function getOwnedSkins() {
 }
 
 function renderCustomColorsMenu() {
-    console.debug("Rendering custom colors menu");
+    //console.debug("Rendering custom colors menu");
 
     const ownedSkins = getOwnedSkins();
     const skinListUl = document.getElementsByClassName("skinList")[0];
@@ -1483,7 +1483,7 @@ function renderCustomColorsMenu() {
 }
 
 function renderPlayerMenu() {
-    console.debug("Rendering player menu");
+    //console.debug("Rendering player menu");
 
     const chatBox = document.getElementById("worldTab");
     const playerMenu = document.getElementById("userMenuPlayer");
@@ -1670,7 +1670,7 @@ function renderNick() {
 }
 
 function renderCustomSkinsMenu() {
-    console.debug("Rendering custom skins menu");
+    //console.debug("Rendering custom skins menu");
 
     let customSkinsContainer = document.getElementById("customSkin");
 
@@ -1809,7 +1809,9 @@ function renderEmotesPanel() {
 
     document.addEventListener("click", (event) => {
         // Would rather this not be so hacky, but trying to adhere to outdated germs style+convention makes this difficult
-        if (emotesPanel.style.display === "block" && event.target != emotesButton && !emotesPanel.contains(event.target)) {
+        if (emotesPanel.style.display === "block"
+            && event.target != emotesButton 
+            && !emotesPanel.contains(event.target)) {
             //console.debug("Closing emotes tab");
             emotesPanel.style.display = 'none';
         }
@@ -1836,16 +1838,21 @@ function createSkinLi(url) {
 }
 
 function unblockPlayerName(playerName) {
-    settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
+    if (settings.playerBlockList.includes(playerName)) 
+        settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
 
     const chatBox = document.getElementById("worldTab");
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    chrome.storage.local.set({ "playerBlocklist": settings.playerBlocklist });
+    setSetting("playerBlocklist", settings.playerBlocklist);
 }
 
 function blockPlayerName(playerName) {
-    settings.playerBlocklist.push(playerName);
+    if (!settings.playerBlocklist.includes(playerName)) {
+        console.debug("Blocklist extended to length " + settings.playerBlocklist.length);
+
+        settings.playerBlocklist.push(playerName);
+    }
 
     const chatBox = document.getElementById("worldTab");
     // cleanse chat of sin
@@ -1859,5 +1866,6 @@ function blockPlayerName(playerName) {
         chatMessage.remove();
         chatBox.scrollTop = chatBox.scrollHeight;
     }
+    setSetting("playerBlocklist", settings.playerBlocklist);
 }
 

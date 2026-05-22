@@ -195,7 +195,7 @@ function getGermsSettings() {
     try {
         const rawSettings = localStorage.getItem('settings');
         if (rawSettings) {
-            console.info("Settings key retrieved");
+            //console.info("Settings key retrieved");
             const parsedSettings = JSON.parse(rawSettings);
             // always exists
             germsSettings.disableProfanityFilter = parsedSettings.disableProfanityFilter;
@@ -230,7 +230,7 @@ async function getSettings() {
     } catch (error) {
         console.warn("Could not get stored settings: " + error);
     }
-    console.debug("Retrieved settings");
+    //console.debug("Retrieved settings");
     //console.debug(settings);
     return settings;
 }

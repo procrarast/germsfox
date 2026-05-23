@@ -2641,9 +2641,13 @@ function modules(ks) {
                         } else {
                             sender = sender.replace(/<(?:.|\n)*?>/gm, '').trim();
                             var lu = document.createElement('div');
-                            lu.textContent = sender.replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                            function stripWideChars(str) {
+                                return ['\ufdfd', '\u1242b', '\u12219', '\u2e3b', '\ua9c5', '\u102a', '\u0bf5', '\u0bf8', '\u2031']
+                                    .reduce((s, c) => s.replaceAllPoly(c, ''), str);
+                            }
+                            lu.textContent = stripWideChars(sender);
                             sender = lu.innerHTML;
-                            lu.textContent = message.replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                            lu.textContent = stripWideChars(message);
                             message = lu.innerHTML;
                             if (this.game.settings.getItem('disableProfanityFilter') != true) {
                                 message = this.filter.clean(message);

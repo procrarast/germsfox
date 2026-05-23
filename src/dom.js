@@ -10,26 +10,6 @@ function renderGameMenu() {
     const spectateIcon = document.getElementById("spectate").querySelector("i");
     spectateIcon.classList.replace("fa-eye", "fa-search"); // The eye has always creeped me out
 
-    // Version href doesn't even work, so removing it shouldn't be too invasive
-    const versionAnchor = document.getElementById("version");
-    versionAnchor.removeAttribute("href");
-
-    // Germsfox information
-    const germsfoxInfo = document.createElement("span");
-    germsfoxInfo.innerText =  " | ";
-    const germsfoxInfoAnchor = document.createElement("a");
-    germsfoxInfoAnchor.id = "germsfoxInfo";
-    germsfoxInfoAnchor.classList.add("nodrag");
-    germsfoxInfoAnchor.innerText = "Germsfox: ";
-    germsfoxInfoAnchor.href = "https://pishi.dev/germsfox";
-    germsfoxInfoAnchor.target = "_blank";
-    germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
-    const germsfoxInfoVersion = document.createElement("b");
-    germsfoxInfoVersion.innerText = chrome.runtime.getManifest().version;
-    germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
-    germsfoxInfo.appendChild(germsfoxInfoAnchor);
-    versionAnchor.appendChild(germsfoxInfo);
-
     const menuLeft = document.getElementById("menuLeft");
 
     const partyCard = document.getElementsByClassName("partyCard")[0];
@@ -869,95 +849,9 @@ function renderThemeTabPane() {
     const pane = document.getElementById("germsfox-settings-theme");
     pane.replaceChildren();
 
-    const customThemePill = createPill("Custom Theme");
-    const customThemeBackgroundColorCheckbox = createCheckbox("backgroundColorEnabled", "Background Color Enabled");
-    const backgroundColorInput = customThemeBackgroundColorCheckbox.querySelector("#backgroundColorEnabled");
-    const customThemeBackgroundColorPicker = createColorPicker("backgroundColor", "Background Color");
-    const customThemeCellColorCheckbox = createCheckbox("cellColorEnabled", "Cell Color Enabled");
-    const cellColorInput = customThemeCellColorCheckbox.querySelector("#cellColorEnabled");
-    const customThemeCellColorPicker = createColorPicker("cellColor", "Cell Color");
-    const customThemeFoodColorCheckbox = createCheckbox("foodColorEnabled", "Food Color Enabled");
-    const foodColorInput = customThemeFoodColorCheckbox.querySelector("#foodColorEnabled");
-    const customThemeFoodColorPicker = createColorPicker("foodColor", "Food Color");
-    const customThemeVirusColorCheckbox = createCheckbox("virusColorEnabled", "Virus Color Enabled");
-    const virusColorInput = customThemeVirusColorCheckbox.querySelector("#virusColorEnabled");
-    const customThemeVirusColorPicker = createColorPicker("virusColor", "Virus Color");
-    const customThemeBorderColorCheckbox = createCheckbox("borderColorEnabled", "Border Color Enabled");
-    const borderColorInput = customThemeBorderColorCheckbox.querySelector("#borderColorEnabled");
-    const customThemeBorderColorPicker = createColorPicker("borderColor", "Border Color");
-
-    pane.append(
-        customThemePill,
-        customThemeBackgroundColorCheckbox,
-        customThemeBackgroundColorPicker,
-        customThemeCellColorCheckbox,
-        customThemeCellColorPicker,
-        customThemeFoodColorCheckbox,
-        customThemeFoodColorPicker,
-        customThemeVirusColorCheckbox,
-        customThemeVirusColorPicker,
-        customThemeBorderColorCheckbox,
-        customThemeBorderColorPicker
-    )
-
-    updateThemeTabPane();
-
-    function updateThemeTabPane() {
-        if (settings.backgroundColorEnabled) {
-            customThemeBackgroundColorPicker.style.display = "flex";
-        } else {
-            customThemeBackgroundColorPicker.style.display = "none";
-        }
-
-        if (settings.cellColorEnabled) {
-            customThemeCellColorPicker.style.display = "flex";
-        } else {
-            customThemeCellColorPicker.style.display = "none";
-        }
-
-        if (settings.foodColorEnabled) {
-            customThemeFoodColorPicker.style.display = "flex";
-        } else {
-            customThemeFoodColorPicker.style.display = "none";
-        }
-
-        if (settings.virusColorEnabled) {
-            customThemeVirusColorPicker.style.display = "flex";
-        } else {
-            customThemeVirusColorPicker.style.display = "none";
-        }
-
-        if (settings.borderColorEnabled) {
-            customThemeBorderColorPicker.style.display = "flex";
-        } else {
-            customThemeBorderColorPicker.style.display = "none";
-        }
-    }
-
-    backgroundColorInput.onchange = async function () {
-        await setSetting("backgroundColorEnabled", backgroundColorInput.checked);
-        updateThemeTabPane();
-    };
-
-    cellColorInput.onchange = async function () {
-        await setSetting("cellColorEnabled", cellColorInput.checked);
-        updateThemeTabPane();
-    };
-
-    foodColorInput.onchange = async function () {
-        await setSetting("foodColorEnabled", foodColorInput.checked);
-        updateThemeTabPane();
-    };
-
-    virusColorInput.onchange = async function () {
-        await setSetting("virusColorEnabled", virusColorInput.checked);
-        updateThemeTabPane();
-    };
-
-    borderColorInput.onchange = async function () {
-        await setSetting("borderColorEnabled", borderColorInput.checked);
-        updateThemeTabPane();
-    };
+    const constructionLabel = document.createElement("p");
+    constructionLabel.innerText = "Theme stuff is being re-done. Please be patient!";
+    pane.appendChild(constructionLabel);
 
     return pane;
 }

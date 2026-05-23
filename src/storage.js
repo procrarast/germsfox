@@ -56,7 +56,6 @@ const emotes = [
     "gsPuddle.png",
 ];
 
-
 // [event.code, 'pretty' key label]
 // An unset keybind is an empty string ""
 const DEFAULT_CONTROLS = {
@@ -85,16 +84,6 @@ const DEFAULT_SETTINGS = {
     enableDebug: false,
     enableAllColorButtons: false,
     enableOldSkinsButton: false,
-    backgroundColorEnabled: false,
-    backgroundColor: [0.0, 0.0, 0.0],
-    cellColorEnabled: false,
-    cellColor: [1.0, 1.0, 1.0],
-    foodColorEnabled: false,
-    foodColor: [1.0, 1.0, 1.0],
-    virusColorEnabled: false,
-    virusColor: [1.0, 1.0, 1.0],
-    borderColorEnabled: false,
-    borderColor: [1.0, 1.0, 1.0]
 };
 
 const DEFAULT_GERMS_SETTINGS = {

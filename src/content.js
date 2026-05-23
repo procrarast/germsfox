@@ -20,9 +20,6 @@ async function init() {
     settings = await getSettings();
     germsSettings = await getGermsSettings();
 
-    let animationDelayRange = document.getElementById("animationDelay");
-    animationDelayRange.setAttribute('min', '10'); // Lower minimum animation delay to 10
-
     initChat();
     renderCustomSkinsMenu();
     renderCustomColorsMenu();

@@ -2960,6 +2960,12 @@ function modules(ks) {
                 this.delta = 0;
             }
             update() {
+                const speed = (this.game.freeSpec ? 150 : this.game.settings.settings.cameraDelay || 1) / 10;
+                const t = this.game.delta / speed;
+                this.x = mm()(this.x, this.nx, t);
+                this.y = mm()(this.y, this.ny, t);
+            }
+            update() {
                 const speed = this.game.freeSpec ? 15 : this.game.settings.settings.cameraDelay / 10;
                 this.x = mm()(this.x, this.nx, this.game.delta / speed);
                 this.y = mm()(this.y, this.ny, this.game.delta / speed);
@@ -3102,7 +3108,7 @@ function modules(ks) {
                 this.root.zIndex = this.size + this.id * 0.00001;
             }
             updatePos() {
-                this.delta = (this.game.updateTime - this.updateTime) / this.game.settings.getItem('animationDelay');
+                this.delta = (this.game.updateTime - this.updateTime) / this.game.settings.settings.animationDelay;
                 if (this.delta > 1)
                     this.delta = 1;
                 if (this.delta < 0)
@@ -3178,7 +3184,7 @@ function modules(ks) {
             getSkinSize() {
                 if (!this.skinSize) {
                     const baseSize = this.game.settings.settings.highQualitySkins ? 512 : 256;
-                    this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessSkins ? 1 : 0.96) : 0.88) * (this.cellSize / (this.game.settings.settings.highQualitySkins ? 512 : 256));
+                    this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessSkins ? 1 : 0.96) : 0.88) * (this.cellSize / baseSize);
                 }
                 return this.skinSize;
             }
@@ -4431,7 +4437,6 @@ function modules(ks) {
             constructor(qA) {
                 this.game = qA;
                 this.settings = JSON.parse(window.localStorage.getItem('settings') || '{}');
-                this.settingsGF = {};
                 this.default = {
                     'nick': '',
                     'skin': '',
@@ -4451,7 +4456,7 @@ function modules(ks) {
                     'autoZoom': false,
                     'showSkins': 'all',
                     'showNames': 'all',
-                    'animationDelay': 140,
+                    'animationDelay': 120,
                     'showMass': false,
                     'skipDeathScreen': false,
                     'hideXP': false,
@@ -4464,23 +4469,15 @@ function modules(ks) {
                     'mouseArrow': false,
                     'deathCount': 0,
                     'lastMode': 'FFA',
-                };
-                this.defaultGF = {
                     'highQualitySkins': true,
                     'borderlessSkins': true,
                     'cameraDelay': 45,
                     'shortenMass': true,
-                }
+                };
                 for (var key in this.default) {
                     if (this.settings.hasOwnProperty(key) == false) {
                         this.settings[key] = this.default[key];
                         this.save();
-                    }
-                }
-                for (var key in this.defaultGF) {
-                    if (this.settingsGF.hasOwnProperty(key) == false) {
-                        this.settingsGF[key] = this.default[key];
-                        //this.save(); ?
                     }
                 }
                 for (var key in this.default.controls) {
@@ -4517,7 +4514,7 @@ function modules(ks) {
                 $('#keyHide').val(this.settings.controls.Hide[1]);
             }
             getItem(key) {
-                return this.settings[key] ?? this.settingsGF[key] ?? null;
+                return this.settings[key];
             }
             setItem(key, value) {
                 this.settings[key] = value;
@@ -5679,7 +5676,7 @@ function modules(ks) {
                         delete this.arrowContainer;
                     }
                 }
-                this.viewZoom = Math.max(0, mm()(this.viewZoom, this.calcViewZoom(), this.delta / 5));
+                this.viewZoom = Math.max(0, mm()(this.viewZoom, this.calcViewZoom(), 10 * this.delta / this.settings.settings.cameraDelay));
                 for (var i = 0; i < this.cells.length; i++) {
                     const cell = this.cells[i];
                     if (this.playerCells.indexOf(cell) > -1 && !cell.destroyed)
@@ -6634,6 +6631,7 @@ function modules(ks) {
             instance.spectate();
             return false;
         });
+        window.__game = instance;
         self.hideDeath = instance.hideDeath.bind(instance);
         self.setSkin = instance.setSkin.bind(instance);
         self.setTheme = instance.setTheme.bind(instance);
@@ -6802,9 +6800,65 @@ function modules(ks) {
         $(document).ready(async function() {
             await instance.start();
             instance.settings.ready();
-            document.getElementById('version').innerHTML = 'Version: <b>' + '5.2.2-live-2179' + '</b>';
+
+            const versionAnchor = document.getElementById('version');
+            versionAnchor.innerHTML = 'Version: <b>' + '5.2.2-live-2179' + '</b>';
+            versionAnchor.removeAttribute("href");
+            
+            // Germsfox information
+            const germsfoxInfo = document.createElement("span");
+            germsfoxInfo.innerText =  " | ";
+            const germsfoxInfoAnchor = document.createElement("a");
+            germsfoxInfoAnchor.id = "germsfoxInfo";
+            germsfoxInfoAnchor.classList.add("nodrag");
+            germsfoxInfoAnchor.innerText = "Germsfox: ";
+            germsfoxInfoAnchor.href = "https://pishi.dev/germsfox";
+            germsfoxInfoAnchor.target = "_blank";
+            germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
+            const germsfoxInfoVersion = document.createElement("b");
+            germsfoxInfoVersion.innerText = "1.1";
+            germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
+            germsfoxInfo.appendChild(germsfoxInfoAnchor);
+            versionAnchor.appendChild(germsfoxInfo);
+
+            // Render new settings buttons
+            const animationDelayLabel = document.getElementById("animationDelayLabel");
+            animationDelayLabel.innerText = "Animation Delay";
+            const animationDelayClearfix = animationDelayLabel.parentElement;
+
+            const newSettings = {
+                shortenMass: "Shorten Mass",
+                highQualitySkins: "Enable Hi-Res Skins",
+                borderlessSkins: "Enable Borderless Skins"
+            };
+
+            for (const key in newSettings) {
+                const clearfix = document.createElement('div');
+                clearfix.className = 'clearfix';
+                clearfix.innerHTML = `
+                    <h5 class="optionLabel">${newSettings[key]}</h5>
+                    <label class="switch">
+                        <input type="checkbox" id="${key}" onchange="changeSetting('${key}', this.checked);">
+                        <span class="slider round"></span>
+                    </label>
+                `;
+                clearfix.querySelector(`#${key}`).checked = instance.settings.settings[key];
+                animationDelayClearfix.after(clearfix);
+
+                animationDelayClearfix.after(clearfix);
+            }
+
+            const delayClearfix = document.createElement('div');
+            delayClearfix.className = 'clearfix';
+            delayClearfix.innerHTML = `
+                <h5 id="cameraDelayLabel" class="optionLabel">Camera Delay</h5>
+                <input data-placement="top" title="" type="range" min="10" max="200" value="${instance.settings.settings.cameraDelay}" class="range" id="cameraDelay"
+                    oninput="changeSetting('cameraDelay', this.value); $('#cameraDelayTooltip').text(this.value);"
+                    data-original-title="<div id='cameraDelayTooltip'>45</div>" data-toggle="tooltip">
+            `;
+            animationDelayClearfix.before(delayClearfix);
             setInterval(instance.network.refresh.bind(instance.network), 30000);
-            window['onbeforeunload'] = function() {
+            window.onbeforeunload = function() {
                 if (instance.playerCells.length > 0) {
                     return 'You will lose all your mass!';
                 }

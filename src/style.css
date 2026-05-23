@@ -1,6 +1,15 @@
+
+/* New client stuff */
+#animationDelay {
+    direction: ltr !important;
+}
+#cameraDelayText {
+    float: right;
+}
 .chatEmote {
     margin-top: -2px !important;
 }
+/* Extension stuff */
 .germsfox-btn {
     cursor: pointer;
     color: white;
@@ -700,6 +709,13 @@ input:focus + .slider.danger {
     overflow-x: hidden;
     text-align: center;
     height: 100%;
+}
+#germsfox-settings-theme p {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 8px 16px;
+    margin: 0 16px 1rem 16px;
+    font-size: 8pt;
 }
 #germsfox-settings-controls input[type="text"], textarea {
     background-color: rgba(0, 0, 0, 0.2);

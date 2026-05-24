@@ -114,8 +114,6 @@ const handlers = {
     exportSkins,
     storeSkins,
     getSettings,
-    challengeSubmitted,
-    challengeFinished,
     changedServers
 };
 
@@ -147,35 +145,6 @@ function changedServers() {
     initDebug();
 }
 
-function challengeSubmitted() {
-    console.debug("Captcha submitted");
-    const playButton = document.getElementById("play");
-    const playButtonIcon = playButton.querySelector("i");
-    playButton.disabled = true;
-    playButtonIcon.classList = "fas fa-spinner fa-spin";
-    playButton.classList.add("disabled");
-
-    // When connecting to a new server, the button gets enabled way before the captcha finishes. This playButtonObserver prevents that 
-
-    if (playButtonObserver) playButtonObserver.disconnect();
-    playButtonObserver = new MutationObserver(() => {
-        if (!playButton.disabled) playButton.disabled = true;
-    });
-    playButtonObserver.observe(playButton, {
-        attributes: true, attributeFilter: ['disabled'] 
-    });
-}
-
-// Regardless of whether it succeeds or fails, re-enable the button.
-function challengeFinished() {
-    console.debug("Captcha completed");
-    const playButton = document.getElementById("play");
-    const playButtonIcon = playButton.querySelector("i");
-    playButtonIcon.classList = "fas fa-play";
-    playButton.disabled = false;
-    playButton.classList.remove("disabled");
-    if (playButtonObserver) playButtonObserver.disconnect();
-}
 
 // germs.io settings
 // We don't need this for any reason except for the toy 'robloxification' censorship

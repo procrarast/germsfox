@@ -41,21 +41,21 @@ async function init() {
                 event.preventDefault();
                 if (settings.switcherEnabled === false) break;
                 if (settings.switcherWindowed) {
-                    console.debug("Switching windows!");
+                    //console.debug("Switching windows!");
                     chrome.runtime.sendMessage({ action: "switchWindows"});
                 } else {
-                    console.debug("Switching tabs!");
+                    //console.debug("Switching tabs!");
                     chrome.runtime.sendMessage({ action: "switchTabs"});
                 }
                 break;
             case settings.controls.toggleNames[0]:
                 event.preventDefault();
                 if (!settings.toggleSettings) {
-                    console.debug("Cycling names");
+                    //console.debug("Cycling names");
                     showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
                     showNamesSelect.dispatchEvent(new Event("change"));
                 } else {
-                    console.debug("Toggling names");
+                    //console.debug("Toggling names");
                     if (showNamesSelect.value === settings.toggleNames[0]) {
                         showNamesSelect.value = settings.toggleNames[1];
                     } else showNamesSelect.value = settings.toggleNames[0];
@@ -65,11 +65,11 @@ async function init() {
             case settings.controls.toggleSkins[0]:
                 event.preventDefault();
                 if (!settings.toggleSettings) {
-                    console.debug("Cycling skins");
+                    //console.debug("Cycling skins");
                     showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
                     showSkinsSelect.dispatchEvent(new Event("change"));
                 } else {
-                    console.debug("Toggling names");
+                    //console.debug("Toggling names");
                     if (showSkinsSelect.value === settings.toggleSkins[0]) {
                         showSkinsSelect.value = settings.toggleSkins[1];
                     } else showSkinsSelect.value = settings.toggleSkins[0];
@@ -115,7 +115,7 @@ function getChatNames(amount) {
 }
 
 function initDebug() { // We need to listen to the ingame debug menu to detect spawns
-    console.debug("Initializing debug mutation observer");
+    //console.debug("Initializing debug mutation observer");
     const debugText = document.getElementById('debugText');
     
     if (debugObserver) debugObserver.disconnect();
@@ -132,7 +132,7 @@ function initDebug() { // We need to listen to the ingame debug menu to detect s
                 console.log("First spawn");
                 hasSpawned = true;
                 if (settings.setColor !== "None") setSkin(settings.setColor);
-                console.debug("Disconnecting debug mutation observer");
+                //console.debug("Disconnecting debug mutation observer");
                 debugObserver.disconnect();
             }
         }
@@ -140,7 +140,7 @@ function initDebug() { // We need to listen to the ingame debug menu to detect s
 }
 
 function initDebugAfterDeath() {
-    console.debug("Initializing debug mutation observer after death");
+    //console.debug("Initializing debug mutation observer after death");
     const debugText = document.getElementById('debugText');
     if (debugObserver) debugObserver.disconnect();
     debugObserver = new MutationObserver(() => updateHasSpawned());
@@ -195,7 +195,7 @@ function initChat() {
 
                 if (settings.playerBlocklist.includes(chatterName)) {
                     lastMessage.style.display = "none";
-                    console.debug(`Hid message from ${chatterName}`);
+                    //console.debug(`Hid message from ${chatterName}`);
                     return;
                 }
                 // funny roblock censorship (kinda sucks though)
@@ -213,7 +213,7 @@ function initChat() {
 
             if (settings.ignoreInvites && inviteButton && (inviteButton.id === "acceptInvite" || inviteButton.id === "declineInvite")) {
                 inviteButton.parentElement.remove();
-                console.debug("Removed invite");
+                //console.debug("Removed invite");
             }
         });
     });

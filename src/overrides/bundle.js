@@ -3916,6 +3916,8 @@ function modules(ks) {
                 }
             }
             tryVerifyCf() {
+                console.debug("TRYVERIFYCF");
+
                 if (!this.cfToken) {
                     if (!this.turnstileReady) {
                         if (this.cdTimeout) {
@@ -3930,6 +3932,14 @@ function modules(ks) {
                     if (this.game.playerCells.length > 0) {
                         return;
                     }
+
+                    // enable play button
+                    const playButton = document.getElementById("play");
+                    const playButtonIcon = playButton.querySelector("i");
+                    playButton.disabled = true;
+                    playButtonIcon.classList = "fas fa-spinner fa-spin";
+                    playButton.classList.add("disabled");
+
                     this.turnstileId = turnstile.render('.turnstile', {
                         'sitekey': '0x4AAAAAAADbCnxCCnFv3yIA',
                         'theme': 'dark',
@@ -3940,6 +3950,13 @@ function modules(ks) {
                             $('.turnstile-container').hide();
                             turnstile.remove(this.turnstileId);
                             this.turnstileId = null;
+                            
+                            // Disable play button
+                            const playButton = document.getElementById("play");
+                            const playButtonIcon = playButton.querySelector("i");
+                            playButton.disabled = false;
+                            playButtonIcon.classList = "fas fa-play";
+                            playButton.classList.remove("disabled");
                         }
                         ,
                         'error-callback': () => {
@@ -3947,6 +3964,7 @@ function modules(ks) {
                         }
                         ,
                         'before-interactive-callback': () => {
+                            console.debug("BEFORE");
                             $('.turnstile-container').css('display', 'flex');
                         }
                         ,
@@ -5741,7 +5759,7 @@ function modules(ks) {
                     var skin = this.skins[key];
                     if (this.updateTime - skin.lastAccess > this.maxCacheTime) {
                         if (this.skins[key].texture) {
-                            this.skins[key].texture.destroy(true);
+                            this.skins[key].texture.destroy(); // Underlying GPU texture still lives in memory but its whatever
                         }
                         delete this.skins[key];
                         destroyed++;
@@ -6005,23 +6023,23 @@ function modules(ks) {
                 this.cells = [];
                 this.camera.setPosition(0, 0);
                 this.ui.update();
-                for (var ti in this.names) {
+                for (var key in this.names) {
                     //console.debug("Destroyed stale texture");
-                    this.names[ti].texture.destroy(true);
+                    this.names[key].texture.destroy(true);
                 }
                 this.names = {};
 
-                for (var ti in this.skins) {
-                    if (this.skins[ti].texture) {
+                for (var key in this.skins) {
+                    if (this.skins[key].texture) {
                         //console.debug("Destroyed stale texture");
-                        this.skins[ti].texture.destroy(true);
+                        this.skins[key].texture.destroy();
                     }
                 }
                 this.skins = {};
 
-                for (var ti in this.masses) {
+                for (var key in this.masses) {
                     //console.debug("Destroyed stale texture");
-                    this.masses[ti].texture.destroy(true);
+                    this.masses[key].texture.destroy(true);
                 }
                 this.masses = {};
 

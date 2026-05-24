@@ -39,8 +39,7 @@
     ],
     "host_permissions": [
         "*://*.germs.io/*",
-        "wss://*/*",
-        "https://challenges.cloudflare.com/*"
+        "wss://*/*"
     ],
     "declarative_net_request": {
         "rule_resources": [

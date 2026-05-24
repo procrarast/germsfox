@@ -42,30 +42,6 @@ const handlers = {
     addBlockRule: ({ url }) => url && addBlockRule(url)
 };
 
-// Detects cloudflare network requests to disable and enable the play button
-chrome.webRequest.onCompleted.addListener(
-    (details) => {
-        console.debug("Captcha submitted");
-        try {
-            chrome.tabs.sendMessage(details.tabId, { action: "challengeSubmitted" });
-        } catch (error) {
-            console.debug("Tab no longer exists:", error.message);
-        }
-    },
-    { urls: ["https://challenges.cloudflare.com/cdn-cgi/challenge-platform/*/*/*/1"] }
-);
-chrome.webRequest.onCompleted.addListener(
-    (details) => {
-        console.debug("Captcha finished");
-        try {
-            chrome.tabs.sendMessage(details.tabId, { action: "challengeFinished" });
-        } catch (error) {
-            console.debug("Tab no longer exists:", error.message);
-        }
-    },
-    { urls: ["https://germs.io/cdn-cgi/challenge-platform/*/*/*/*"] } // The URL path identifiers seem to change, so I'm wildcard spamming 
-);
-
 // Detect server changes or restarts
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {

@@ -3023,6 +3023,8 @@ function modules(ks) {
                 this.type = mG;
                 this.updateTime = this.game.updateTime;
                 this.created = this.game.updateTime;
+                this.lastMassUpdate = this.game.updateTime - 250 // -250 just to let first mass update to pass
+                this.lastMassValue = 0; // Mass value on last update
                 this.destroyed = false;
                 this.opacity = 1;
                 this.x = mH;
@@ -3297,7 +3299,14 @@ function modules(ks) {
             setSize(size) {
                 if (this.nSize == size) return;
                 this.nSize = size;
-                if (this.destroyed == true || this.type != nodeType.Player || Math.abs((this.oSize + this.nSize) / 2) < 100 || this.game.settings.getItem('showMass') == false)
+                if (this.destroyed == true
+                    || this.type != nodeType.Player
+                    || Math.abs((this.oSize + this.nSize) / 2) < 100
+                    || this.game.settings.getItem('showMass') == false
+                    || (this.game.updateTime - this.lastMassUpdate < 200
+                        // Urgently update when mass changes significantly
+                        && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25 )
+                        )
                     return;
                 if (!this.sizeText) {
                     this.sizeText = new PIXI.Sprite();
@@ -3344,6 +3353,8 @@ function modules(ks) {
                 }
 
                 this.game.masses[cacheKey].lastAccess = this.game.updateTime;
+                this.lastMassUpdate = this.game.updateTime;
+                this.lastMassValue = size;
                 // Refresh timer
                 this.sizeText.texture = this.game.masses[cacheKey].texture;
             }
@@ -5361,20 +5372,15 @@ function modules(ks) {
                 this.canvas = document.getElementById('gameCanvas');
 
                 this.renderer = await PIXI.autoDetectRenderer({
+                    GCSystem: false,
                     preference: 'webgpu',
+                    canvas: this.canvas,
+                    antialias: true,
+                    powerPreference: 'high-performance',
+                    background: 0x333439,
 
                     webgpu: {
-                        canvas: this.canvas,
-                        antialias: true,
-                        powerPreference: 'high-performance',
-                        background: 0x333439,
-                    },
-
-                    webgl: {
-                        canvas: this.canvas,
-                        antialias: true,
-                        powerPreference: 'high-performance',
-                        background: 0x333439,
+                        textureFormat: navigator.gpu.getPreferredCanvasFormat(),
                     },
                 });
 
@@ -5388,7 +5394,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -5407,10 +5413,6 @@ function modules(ks) {
                 this.cellSize = this.cellTexture.frame.width / 2;
                 this.virusSize = this.virusTexture.frame.width / 2;
                 this.foodSize = this.foodTextures[0].frame.width / 2;
-
-                // Debug stats
-                this.destroyedCount = 0;
-                this.createdCount = 0;
 
                 this.pool.populate( () => {
 
@@ -5714,7 +5716,6 @@ function modules(ks) {
                     var tk = this.names[key];
                     if (this.updateTime - tk.lastAccess > this.maxCacheTime) {
                         tk.texture.destroy();
-                        this.destroyedCount++;
                         delete this.names[key];
                     }
                 }
@@ -5723,7 +5724,7 @@ function modules(ks) {
                     var skin = this.skins[key];
                     if (this.updateTime - skin.lastAccess > this.maxCacheTime) {
                         if (this.skins[key].texture) {
-                            this.skins[key].texture.destroy(true);
+                            this.skins[key].texture.destroy();
                         }
                         delete this.skins[key];
                     }
@@ -5731,7 +5732,7 @@ function modules(ks) {
 
                 for (var key in this.masses) {
                     var mass = this.masses[key];
-                    if (this.updateTime - mass.lastAccess > this.maxCacheTime / 2) {
+                    if (this.updateTime - mass.lastAccess > this.maxCacheTime) {
                         for (var i = 0; i < this.cells.length; i++) {
                             const cell = this.cells[i];
                             if (cell.sizeText && cell.sizeText.texture === mass.texture) {
@@ -6000,7 +6001,7 @@ function modules(ks) {
                 for (var ti in this.skins) {
                     if (this.skins[ti].texture) {
                         //console.debug("Destroyed stale texture");
-                        this.skins[ti].texture.destroy(true);
+                        this.skins[ti].texture.destroy();
                     }
                 }
                 this.skins = {};

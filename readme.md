@@ -1,15 +1,17 @@
 # Germsfox 
 ## Description
-Germsfox is a necessary extension for https://germs.io/, adding settings and features to improve the baller experience.
+Germsfox is a browser extension for https://germs.io/ which vastly improves the baller experience.
 ## Features
-- Customize your cell in the main menu!
+- Performance improvements
+    - WebGPU support via Pixi.js v8.18.1
+    - Show Mass no longer nukes your CPU
+- Customize your cell in the main menu
     - Use custom cell colors
     - Custom skins menu + storage
     - Locked name support
 - Exclusive emotes
-- Export all of your skins to archive or share them with your friends!
-- Multiboxing support
-- Set lower animation delay, input multiple-lined names, send longer chat messages
+- Multiboxing keybinds
+- Set camera delay, input multiple-lined names, send longer chat messages
 - Set keybinds to toggle names, skins, etc.
 - Ignore invites, mute certain players, and block rude custom skins
 ## Installation

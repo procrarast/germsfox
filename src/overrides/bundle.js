@@ -2964,12 +2964,6 @@ function modules(ks) {
                 this.delta = 0;
             }
             update() {
-                const speed = (this.game.freeSpec ? 150 : this.game.settings.settings.cameraDelay || 1) / 10;
-                const t = this.game.delta / speed;
-                this.x = mm()(this.x, this.nx, t);
-                this.y = mm()(this.y, this.ny, t);
-            }
-            update() {
                 const speed = this.game.freeSpec ? 15 : this.game.settings.settings.cameraDelay / 10;
                 this.x = mm()(this.x, this.nx, this.game.delta / speed);
                 this.y = mm()(this.y, this.ny, this.game.delta / speed);
@@ -3123,11 +3117,14 @@ function modules(ks) {
                 this.y = mm()(this.oy, this.ny, this.delta);
                 this.size = mm()(this.oSize, this.nSize, this.delta);
                 //if (this.destroyed) this.opacity -= this.delta / 10;
-                if (this.nameCache) {
-                    this.nameCache.lastAccess = this.game.updateTime;
-                }
                 if (this.skinCache) {
                     this.skinCache.lastAccess = this.game.updateTime;
+                }
+                if (this.currentNameKey && this.game.names[this.currentNameKey]) {
+                    this.game.names[this.currentNameKey].lastAccess = this.game.updateTime;
+                }
+                if (this.currentMassKey && this.game.masses[this.currentMassKey]) {
+                    this.game.masses[this.currentMassKey].lastAccess = this.game.updateTime;
                 }
                 this.moveRoot();
             }
@@ -3200,8 +3197,8 @@ function modules(ks) {
             getMassSize() {
                 return this.game.settings.settings.shortenMass ? 75 : 60;
             }
-            setName(name, remove) {
-                if (this.name === name && !remove)
+            setName(name, dontShow) {
+                if (this.name === name && !dontShow)
                     return;
                 this.name = name;
 
@@ -3215,7 +3212,7 @@ function modules(ks) {
                     if (this.game.myCells.includes(this.id))
                         break;
                 default:
-                    if (remove && this.nameSprite) {
+                    if (dontShow && this.nameSprite) {
                         this.root.removeChild(this.nameSprite);
                         this.nameSprite.destroy();
                         this.nameSprite = null;
@@ -3234,6 +3231,7 @@ function modules(ks) {
                     return;
 
                 const cacheKey = name + (this.lockedColor ?? '');
+                this.currentNameKey = cacheKey;
 
                 if (!this.game.names[cacheKey]) {
                     const stroke = this.lockedColor ? {
@@ -3295,32 +3293,31 @@ function modules(ks) {
                 this.root.addChild(this.nameSprite);
                 this.sort();
             }
-            sort() {}
+            sort() {} // Useless, but referenced a lot
             setSize(size) {
                 if (this.nSize == size) return;
                 this.nSize = size;
                 if (this.destroyed == true
                     || this.type != nodeType.Player
-                    || Math.abs((this.oSize + this.nSize) / 2) < 100
                     || this.game.settings.getItem('showMass') == false
-                    || (this.game.updateTime - this.lastMassUpdate < 200
-                        // Urgently update when mass changes significantly
-                        && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25 )
-                        )
+                    || (this.game.updateTime - this.lastMassUpdate < 250
+                        // Urgently update mass if it changes significantly
+                        && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25))
                     return;
-                if (!this.sizeText) {
-                    this.sizeText = new PIXI.Sprite();
-                    this.sizeText.anchor.set(0.5);
-                    this.sizeText.position.y = this.cellSize / 2;
-                    this.sizeText.zIndex = 1;
-                    this.root.addChild(this.sizeText);
-                    this.sort();
+
+                // Remove existing sprite
+                if (this.sizeText) {
+                    this.root.removeChild(this.sizeText);
+                    this.sizeText.destroy();
+                    this.sizeText = null;
                 }
 
-                const massStr = this.game.settings.settings.shortenMass ? this.getShortMass() : String(this.getMass());
-                const cacheKey = massStr;
+                if (this.size * this.game.viewZoom < 50) return; // Might be too aggressive?
 
-                if (!this.game.masses[cacheKey]) {
+                const massStr = this.game.settings.settings.shortenMass ? this.getShortMass() : String(this.getMass()); // Also serves as a cache key
+                this.currentMassKey = massStr;
+
+                if (!this.game.masses[massStr]) {
                     const text = new PIXI.Text({
                         text: massStr,
                         style: {
@@ -3329,7 +3326,7 @@ function modules(ks) {
                             fill: 0xffffff,
                             stroke: {
                                 color: 0x000000,
-                                width: 13,
+                                width: (this.game.settings.settings.shortenMass ? 13 : 10),
                                 join: 'round'
                             },
                             align: 'center',
@@ -3346,17 +3343,21 @@ function modules(ks) {
                         target: texture
                     });
                     text.destroy();
-                    this.game.masses[cacheKey] = {
+                    this.game.masses[massStr] = {
                         texture,
                         lastAccess: this.game.updateTime
                     };
                 }
 
-                this.game.masses[cacheKey].lastAccess = this.game.updateTime;
+                this.game.masses[massStr].lastAccess = this.game.updateTime;
                 this.lastMassUpdate = this.game.updateTime;
                 this.lastMassValue = size;
-                // Refresh timer
-                this.sizeText.texture = this.game.masses[cacheKey].texture;
+
+                this.sizeText = new PIXI.Sprite(this.game.masses[massStr].texture);
+                this.sizeText.anchor.set(0.5);
+                this.sizeText.position.y = this.cellSize / 2;
+                this.sizeText.zIndex = 1;
+                this.root.addChild(this.sizeText);
             }
             getRadius() {
                 return this.size;
@@ -5281,6 +5282,7 @@ function modules(ks) {
         }
         ;class sW {
             constructor() {
+                this.skipNextCleanup = false;
                 this.viewZoom = 0;
                 this.newViewZoom = 0;
                 this.zoom = 0.25;
@@ -5441,7 +5443,7 @@ function modules(ks) {
                     setInterval(this.counter.bind(this), 1000);
                     setInterval(this.sendMouse.bind(this), 40);
                     setInterval(this.refreshMenuAds.bind(this), 120 * 1000);
-                    setInterval(this.cleanUpCache.bind(this), 1000);
+                    setInterval(this.cleanUpCache.bind(this), 500);
 
                     this.ticker = new PIXI.Ticker();
 
@@ -5711,40 +5713,51 @@ function modules(ks) {
                 this.ui.loop();
                 this.renderer.render(this.stage);
             }
-            cleanUpCache() {
+            cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it.
+                if (document.hidden) {
+                    this.skipNextCleanup = true;
+                    //console.debug("Document hidden, not cleaning up anything");
+                    return;
+                }               
+                if (this.skipNextCleanup) {
+                    this.skipNextCleanup = false;
+                    //console.debug("Unhidden, skipping this cleanup cycle");
+                    return;
+                }
+                let maxDestroys = 10; // Max per cycle 
+                let destroyed = 0;
                 for (var key in this.names) {
-                    var tk = this.names[key];
-                    if (this.updateTime - tk.lastAccess > this.maxCacheTime) {
-                        tk.texture.destroy();
+                    if (destroyed >= maxDestroys) break;
+                    var name = this.names[key];
+                    if (this.updateTime - name.lastAccess > this.maxCacheTime) {
+                        name.texture.destroy(true);
                         delete this.names[key];
+                        destroyed++;
                     }
                 }
 
                 for (var key in this.skins) {
+                    if (destroyed >= maxDestroys) break;
                     var skin = this.skins[key];
                     if (this.updateTime - skin.lastAccess > this.maxCacheTime) {
                         if (this.skins[key].texture) {
-                            this.skins[key].texture.destroy();
+                            this.skins[key].texture.destroy(true);
                         }
                         delete this.skins[key];
+                        destroyed++;
                     }
                 }
 
                 for (var key in this.masses) {
+                    if (destroyed >= maxDestroys) break;
                     var mass = this.masses[key];
                     if (this.updateTime - mass.lastAccess > this.maxCacheTime) {
-                        for (var i = 0; i < this.cells.length; i++) {
-                            const cell = this.cells[i];
-                            if (cell.sizeText && cell.sizeText.texture === mass.texture) {
-                                cell.root.removeChild(cell.sizeText);
-                                delete cell.sizeText;
-                            }
-                        }
-                        mass.texture.destroy();
+                        mass.texture.destroy(true);
                         delete this.masses[key];
+                        destroyed++;
                     }
                 }
-                //console.debug(Object.keys(this.names).length, Object.keys(this.skins).length, Object.keys(this.masses).length, this.cells.length, Object.keys(this.nodes).length);
+                //console.debug("Destroyed: " + destroyed + "\nCached amount: " + (Object.keys(this.names).length + Object.keys(this.skins).length + Object.keys(this.masses).length));
             }
             changeSetting(tn, to) {
                 this.settings.setItem(tn, to);
@@ -5994,21 +6007,21 @@ function modules(ks) {
                 this.ui.update();
                 for (var ti in this.names) {
                     //console.debug("Destroyed stale texture");
-                    this.names[ti].texture.destroy();
+                    this.names[ti].texture.destroy(true);
                 }
                 this.names = {};
 
                 for (var ti in this.skins) {
                     if (this.skins[ti].texture) {
                         //console.debug("Destroyed stale texture");
-                        this.skins[ti].texture.destroy();
+                        this.skins[ti].texture.destroy(true);
                     }
                 }
                 this.skins = {};
 
                 for (var ti in this.masses) {
                     //console.debug("Destroyed stale texture");
-                    this.masses[ti].texture.destroy();
+                    this.masses[ti].texture.destroy(true);
                 }
                 this.masses = {};
 

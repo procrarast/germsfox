@@ -145,7 +145,6 @@ function changedServers() {
     initDebug();
 }
 
-
 // germs.io settings
 // We don't need this for any reason except for the toy 'robloxification' censorship
 // when Disable Profanity Filter isn't on, but maybe it'll be useful later

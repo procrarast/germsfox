@@ -3136,8 +3136,8 @@ function modules(ks) {
                 if (this.rgb != rgb)
                     this.rgb = rgb;
             }
-            setSkin(key, removeSkin) {
-                if (this.skin != key || removeSkin) {
+            setSkin(key, hideSkin) {
+                if (this.skin != key || hideSkin) {
                     this.skin = key;
                     switch (this.game.settings.getItem('showSkins')) {
                     case 'all':
@@ -3153,7 +3153,7 @@ function modules(ks) {
                             break;
                         }
                     default:
-                        if (removeSkin && this.skinSprite) {
+                        if (hideSkin && this.skinSprite) {
                             this.root.removeChild(this.skinSprite);
                             this.skinSprite.destroy();
                             delete this.skinSprite;
@@ -3933,7 +3933,7 @@ function modules(ks) {
                         return;
                     }
 
-                    // enable play button
+                    // disable play button
                     const playButton = document.getElementById("play");
                     const playButtonIcon = playButton.querySelector("i");
                     playButton.disabled = true;
@@ -3951,7 +3951,7 @@ function modules(ks) {
                             turnstile.remove(this.turnstileId);
                             this.turnstileId = null;
                             
-                            // Disable play button
+                            // enable play button
                             const playButton = document.getElementById("play");
                             const playButtonIcon = playButton.querySelector("i");
                             playButton.disabled = false;
@@ -5759,8 +5759,9 @@ function modules(ks) {
                     var skin = this.skins[key];
                     if (this.updateTime - skin.lastAccess > this.maxCacheTime) {
                         if (this.skins[key].texture) {
-                            this.skins[key].texture.destroy(); // Underlying GPU texture still lives in memory but its whatever
+                            this.skins[key].texture.destroy(true); // Underlying GPU texture still lives in memory but its whatever
                         }
+                        console.debug("Deleting skin " + key);
                         delete this.skins[key];
                         destroyed++;
                     }
@@ -6026,20 +6027,23 @@ function modules(ks) {
                 for (var key in this.names) {
                     //console.debug("Destroyed stale texture");
                     this.names[key].texture.destroy(true);
+                    delete this.names[key];
                 }
                 this.names = {};
 
                 for (var key in this.skins) {
                     if (this.skins[key].texture) {
                         //console.debug("Destroyed stale texture");
-                        this.skins[key].texture.destroy();
+                        this.skins[key].texture.destroy(true);
                     }
+                    delete this.skins[key];
                 }
                 this.skins = {};
 
                 for (var key in this.masses) {
                     //console.debug("Destroyed stale texture");
                     this.masses[key].texture.destroy(true);
+                    delete this.masses[key];
                 }
                 this.masses = {};
 

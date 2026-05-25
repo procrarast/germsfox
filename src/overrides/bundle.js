@@ -3234,13 +3234,14 @@ function modules(ks) {
                 this.currentNameKey = cacheKey;
 
                 if (!this.game.names[cacheKey]) {
-                    const stroke = this.lockedColor ? {
-                        color: 'rgba(0,0,0,0.25)',
-                        width: 10,
+                    const stroke = this.lockedColor === null ? {
+                        color: 0x000000,
+                        width: 15,
                         join: 'round'
                     } : {
                         color: 0x000000,
-                        width: 15,
+                        alpha: 0.25,
+                        width: 10,
                         join: 'round'
                     };
 
@@ -5759,7 +5760,7 @@ function modules(ks) {
                     var skin = this.skins[key];
                     if (this.updateTime - skin.lastAccess > this.maxCacheTime) {
                         if (this.skins[key].texture) {
-                            this.skins[key].texture.destroy(true); // Underlying GPU texture still lives in memory but its whatever
+                            this.skins[key].texture.destroy(true);
                         }
                         console.debug("Deleting skin " + key);
                         delete this.skins[key];
@@ -6031,6 +6032,7 @@ function modules(ks) {
                 }
                 this.names = {};
 
+                console.debug("Deleting stale skins");
                 for (var key in this.skins) {
                     if (this.skins[key].texture) {
                         //console.debug("Destroyed stale texture");

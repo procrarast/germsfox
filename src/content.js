@@ -9,6 +9,7 @@ console.info("Running content.js");
 
 // TODO: Set global settings state in a background service worker rather than within content_scripts
 let settings = null;
+let germsSettings = null;
 let usingInput = false;
 let hasSpawned = false;
 let playButtonObserver;
@@ -19,13 +20,14 @@ init();
 async function init() {
     settings = await getSettings();
     germsSettings = await getGermsSettings();
+    console.debug(germsSettings, settings);
 
     initChat();
     renderCustomSkinsMenu();
     renderCustomColorsMenu();
     initDebug();
     renderGameMenu();
-    renderNick();
+    renderNick(); // Hate this stupid program's settings states so I'm just passing this as an arg
     renderGermsfoxButton();
     renderPlayerMenu();
 

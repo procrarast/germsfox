@@ -3818,7 +3818,7 @@ function modules(ks) {
                 this.game.showMenu();
                 var ow = this.findMode(mode);
                 this.game.settings.setItem('lastMode', mode);
-                console.debug("Settings: " + this.game.settings.getItem('lastMode'));
+                //console.debug("Settings: " + this.game.settings.getItem('lastMode'));
                 var oz = ow[1];
                 this.mode = ow[0];
                 this.server = oz.name;
@@ -3917,7 +3917,6 @@ function modules(ks) {
                 }
             }
             tryVerifyCf() {
-                console.debug("TRYVERIFYCF");
 
                 if (!this.cfToken) {
                     if (!this.turnstileReady) {
@@ -3965,7 +3964,6 @@ function modules(ks) {
                         }
                         ,
                         'before-interactive-callback': () => {
-                            console.debug("BEFORE");
                             $('.turnstile-container').css('display', 'flex');
                         }
                         ,
@@ -4452,13 +4450,13 @@ function modules(ks) {
                     this.game.setRegion(this.region);
                     this.game.setModes(this.modes);
                     if (this.mode) {
-                        console.debug("Connecting to " + this.mode);
+                        //console.debug("Connecting to " + this.mode);
                         this.connect(this.mode, true);
                     } else {
                         for (var qx in this.modes) {
                             var qy = this.modes[qx];
                             if (qy.default == true) {
-                                console.debug("Connecting to default mode " + qx);
+                                //console.debug("Connecting to default mode " + qx);
                                 this.connect(qx, true);
                             }
                         }
@@ -4898,7 +4896,7 @@ function modules(ks) {
                         var rE = this.skins[rD];
                         if (rE.trim() != '') {
                             var rF = rE.indexOf('/') > -1 ? this.toTitleCase(rE.split('/')[1]) : rE;
-                            $('#paidSkinList').append(`<li id='skinSkin'><img onclick="setSkin('` + rE + `');" loading="lazy" width='85' height='85' data-src="res/skins/` + rE + '.png"> <p>' + rF.capitalize() + '</p></li>');
+                            $('#paidSkinList').append(`<li id='skinSkin'><img onclick="setSkin('` + rE + `');" loading="lazy" width='85' height='85' src="res/skins/${rE}.png" data-src="res/skins/` + rE + '.png"> <p>' + rF.capitalize() + '</p></li>');
                         }
                     }
                     this.game.network.send(new packet.Login(this.uuid));
@@ -5762,7 +5760,7 @@ function modules(ks) {
                         if (this.skins[key].texture) {
                             this.skins[key].texture.destroy(true);
                         }
-                        console.debug("Deleting skin " + key);
+                        //console.debug("Deleting skin " + key);
                         delete this.skins[key];
                         destroyed++;
                     }
@@ -6032,7 +6030,7 @@ function modules(ks) {
                 }
                 this.names = {};
 
-                console.debug("Deleting stale skins");
+                //console.debug("Deleting stale skins");
                 for (var key in this.skins) {
                     if (this.skins[key].texture) {
                         //console.debug("Destroyed stale texture");
@@ -6742,7 +6740,7 @@ function modules(ks) {
                     self.freeSkins = ve;
                     for (var vf = 0; vf < ve.length; vf++) {
                         var vg = ve[vf];
-                        $('#freeSkinList').append(`<li id='skinSkin'><img onclick="setSkin('free/` + vg + `');" loading="lazy" width='85' height='85' data-src="res/skins/free/` + vg + '.png"> <p>' + vg.capitalize() + '</p></li>');
+                        $('#freeSkinList').append(`<li id='skinSkin'><img onclick="setSkin('free/` + vg + `');" loading="lazy" width='85' height='85' src="res/skins/free/${vg}.png" data-src="res/skins/free/` + vg + '.png"> <p>' + vg.capitalize() + '</p></li>');
                     }
                 });
             }

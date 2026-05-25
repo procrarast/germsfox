@@ -218,7 +218,7 @@ function renderCellPreviewCard() {
 
     const cellName = document.createElement("h4");
     cellName.id = "cellName";
-    const nickname = document.getElementById("nick").value;
+    const nickname = germsSettings.nick;
     cellName.textContent = nickname;
     cellName.dataset.nick = nickname;
 

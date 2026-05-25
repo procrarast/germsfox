@@ -87,7 +87,8 @@ const DEFAULT_SETTINGS = {
 };
 
 const DEFAULT_GERMS_SETTINGS = {
-    disableProfanityFilter: false
+    disableProfanityFilter: false,
+    nick: '',
 };
 
 // name of the cell picker - name of the skin - approximate color that the skin provides
@@ -146,16 +147,19 @@ function changedServers() {
 }
 
 // germs.io settings
-// We don't need this for any reason except for the toy 'robloxification' censorship
-// when Disable Profanity Filter isn't on, but maybe it'll be useful later
-function getGermsSettings() {
+async function getGermsSettings() {
     try {
         const rawSettings = localStorage.getItem('settings');
         if (rawSettings) {
-            //console.info("Settings key retrieved");
             const parsedSettings = JSON.parse(rawSettings);
-            // always exists
-            germsSettings.disableProfanityFilter = parsedSettings.disableProfanityFilter;
+            germsSettings = { ...DEFAULT_GERMS_SETTINGS };
+            for (let item in germsSettings) {
+                if (parsedSettings[item] != null) {
+                    germsSettings[item] = parsedSettings[item];
+                } else {
+                    germsSettings[item] = DEFAULT_GERMS_SETTINGS[item];
+                }
+            }
         } else {
             console.warn("Settings key value is either empty or not found");
         }

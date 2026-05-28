@@ -11,37 +11,37 @@
     padding: 0.1rem 1rem;
 }
 #chat_input {
-    font-size: 12px !important;
+    font-size: 13px !important;
 }
 .tag {
     margin-top: -2px !important;
-    height: 12px !important;
+    height: 14px !important;
 }
 .chatMessage {
-    line-height: 14px !important;
-    font-size: 12px !important;
+    line-height: 15px !important;
+    font-size: 13px !important;
 }
 .adminMessage {
-    font-size: 13px !important;
+    font-size: 15px !important;
 }
 .chatEmote, .germsfoxEmote {
     vertical-align: top;
 }
 .chatEmote {
     margin-top: 0px !important;
-    height: 14px !important;
+    height: 15px !important;
     width: auto;
 }
 .germsfoxEmote {
     margin-top: 0px;
-    height: 14px;
+    height: 15px;
     width: auto;
 }
 .germsfoxEmote.big {
     height: 24px;
 }
 .chatEmote.big {
-    height: 20px !important;
+    height: 24px !important;
 }
 /* Extension stuff */
 .germsfox-btn {

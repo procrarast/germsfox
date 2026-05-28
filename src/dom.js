@@ -878,7 +878,6 @@ function renderGeneralTabPane() {
     const skinsExportButton = createDownloadButton("Export to File", "Export");
     const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
     const skinsDeleteButton = createDangerousButton(deleteAllCustomSkins, "Delete All Skins", "Delete");
-    const skinsResetButton = createDangerousButton(resetBlockRules, "Unblock All Skins", "Reset");
 
     const dangerPill = createPill("! DANGER ZONE !");
     dangerPill.style.backgroundColor = "rgb(220, 53, 69)";
@@ -902,7 +901,6 @@ function renderGeneralTabPane() {
         skinsExportButton,
         skinsImportButton,
         skinsDeleteButton,
-        skinsResetButton,
 
         dangerPill,
         dangerLabel,
@@ -1445,18 +1443,12 @@ function renderPlayerMenu() {
 
         if (mutedText === "Mute Player" && !settings.playerBlocklist.includes(playerName)) {
             blockPlayerName(playerName);
-            //let muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been muted!</font></p></div>`;
-            //chatBox.innerHTML += muteMessage;
         }
 
         else if (mutedText === "Unmute Player") {
             unblockPlayerName(playerName);
-            //settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
-            //let muteMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">${playerName} has been unmuted.</font></p></div>`;
-            //chatBox.innerHTML += muteMessage;
         }
         setSetting("playerBlocklist", settings.playerBlocklist);
-        //chatBox.scrollTop = chatBox.scrollHeight;
     });
 
     // If the menu opens for an imgur skin, show related options. Else, hide them

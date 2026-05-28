@@ -6545,7 +6545,7 @@ function modules(ks) {
                     const blockSkinText = document.getElementById("userMenuBlockSkinText");
 
                     if (uk?.skin) {
-                        console.debug(uk.skin);
+                        //console.debug(uk.skin);
                         blockSkinItem.style.display = "";
 
                         if (this.settings.settings.blockedSkins.has(uk.skin)) {
@@ -6596,15 +6596,15 @@ function modules(ks) {
                 const player = this.lastSelectedPlayer;
 
                 if (!player?.skin) {
-                    console.debug("Player does not have a skin somehow");
+                    //console.debug("Player does not have a skin somehow");
                     $('#userMenu').hide();
                     return;
                 }
 
                 const blockedSkins = this.settings.getItem('blockedSkins');
 
-                console.debug(blockedSkins.has(player.skin));
-                console.debug(player.skin);
+                c//onsole.debug(blockedSkins.has(player.skin));
+                //console.debug(player.skin);
                 blockedSkins.has(player.skin)
                     ? blockedSkins.delete(player.skin)
                     : blockedSkins.add(player.skin);
@@ -6615,7 +6615,7 @@ function modules(ks) {
                 $('#userMenu').hide();
             }
             updateBlockedSkins() {
-                console.debug("Updating blocked skins");
+                //console.debug("Updating blocked skins");
                 for (const cell of this.cells) {
                     if (cell.skinSprite) {
                         cell.skinSprite.visible =
@@ -7214,7 +7214,7 @@ function modules(ks) {
             for (const id of appearanceSettings) {
                 let row = document.getElementById(id).parentElement;
                 if (row.className === "switch") row = row.parentElement;
-                console.debug(row);
+                //console.debug(row);
                 appearanceBadge.after(row);
             }
 

@@ -39,8 +39,6 @@ settings = structuredClone(DEFAULT_SETTINGS);
 const handlers = {
     switchTabs,
     switchWindows,
-    clearBlockRules,
-    addBlockRule: ({ url }) => url && addBlockRule(url)
 };
 
 // Detect server changes or restarts
@@ -156,51 +154,5 @@ function duplicateGermsWindow(windowObj) {
     }
 
     chrome.windows.create({ url: germsTab.url });
-}
-
-async function clearBlockRules() {
-    console.debug("Received message");
-    try {
-        const rules = await chrome.declarativeNetRequest.getDynamicRules();
-
-        const ids = rules.map(rule => rule.id);
-
-        if (ids.length === 0) {
-            console.log("No dynamic rules to remove.");
-            return;
-        }
-
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: ids
-        });
-
-        console.log("Removed rule IDs:", ids);
-
-    } catch (error) {
-        console.error("Could not clear dynamic rules:", error);
-    }
-}
-
-function addBlockRule(url) {
-    console.debug("Adding blocking rule for skin " + url);
-    const ruleId = Math.round(Math.random() * 2.147e9);
-
-    const rule = {
-        id: ruleId,
-        priority: 1,
-        action: { type: "block" },
-        condition: { urlFilter: url, resourceTypes: ["image", "main_frame"] }
-    };
-
-    chrome.declarativeNetRequest.updateDynamicRules(
-        { addRules: [rule], removeRuleIds: [] },
-        () => {
-            if (chrome.runtime.lastError) {
-                console.error(`Error adding rule: ${chrome.runtime.lastError.message}`);
-            } else {
-                console.log(`Added blocking rule for ${url} with ID ${ruleId})`);
-            }
-        }
-    );
 }
 

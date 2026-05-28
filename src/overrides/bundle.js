@@ -5509,7 +5509,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.1 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.2 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -7135,7 +7135,7 @@ function modules(ks) {
             germsfoxInfoAnchor.target = "_blank";
             germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
             const germsfoxInfoVersion = document.createElement("b");
-            germsfoxInfoVersion.innerText = "1.1";
+            germsfoxInfoVersion.innerText = "1.1.2";
             germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
             germsfoxInfo.appendChild(germsfoxInfoAnchor);
             versionAnchor.appendChild(germsfoxInfo);

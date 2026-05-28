@@ -3233,7 +3233,6 @@ function modules(ks) {
                     const tex = this.skinCache.texture;
 
                     tex.source.autoGenerateMipmaps = true;
-                    tex.source.update();
 
                     this.skinSprite = new PIXI.Sprite(this.skinCache.texture);
                     this.skinSprite.visible =

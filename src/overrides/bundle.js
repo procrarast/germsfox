@@ -6603,7 +6603,7 @@ function modules(ks) {
 
                 const blockedSkins = this.settings.getItem('blockedSkins');
 
-                c//onsole.debug(blockedSkins.has(player.skin));
+                //console.debug(blockedSkins.has(player.skin));
                 //console.debug(player.skin);
                 blockedSkins.has(player.skin)
                     ? blockedSkins.delete(player.skin)

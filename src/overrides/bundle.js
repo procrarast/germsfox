@@ -3230,6 +3230,11 @@ function modules(ks) {
             }
             skinCheck() {
                 if (!this.skinSprite && this.skinCache && this.skinCache.texture != null) {
+                    const tex = this.skinCache.texture;
+
+                    tex.source.autoGenerateMipmaps = true;
+                    tex.source.update();
+
                     this.skinSprite = new PIXI.Sprite(this.skinCache.texture);
                     this.skinSprite.visible =
                         !this.game.settings.settings.blockedSkins.has(this.skin);
@@ -5484,8 +5489,15 @@ function modules(ks) {
                     preference: (this.settings.settings.webGPU ? 'webgpu' : "webgl"),
                     canvas: this.canvas,
                     antialias: true,
+                    resolution: window.devicePixelRatio,
                     powerPreference: 'high-performance',
                     backgroundColor: 0x333439,
+                    eventFeatures: {
+                        move: false,
+                        click: false,
+                        wheel: false,
+                        globalMove: false
+                    }
                 });
 
                 this.stage = new PIXI.Container();
@@ -5513,6 +5525,20 @@ function modules(ks) {
                 this.cellTexture = this.spriteSheet.textures.cell;
                 this.virusTexture = this.spriteSheet.textures.virus;
                 this.foodTextures = [this.spriteSheet.textures.food1, this.spriteSheet.textures.food2, this.spriteSheet.textures.food3];
+
+                const textures = [
+                    this.gridTexture,
+                    this.hexTexture,
+                    this.arrowTexture,
+                    this.cellTexture,
+                    this.virusTexture,
+                    ...this.foodTextures
+                ];
+
+                for (const tex of textures) {
+                    tex.source.autoGenerateMipmaps = true;
+                    tex.source.update();
+                }              
 
                 this.cellSize = this.cellTexture.frame.width / 2;
                 this.virusSize = this.virusTexture.frame.width / 2;

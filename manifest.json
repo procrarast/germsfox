@@ -35,8 +35,7 @@
         "storage",
         "tabs",
         "declarativeNetRequest",
-        "webRequest",
-        "scripting"
+        "webRequest"
     ],
     "host_permissions": [
         "*://*.germs.io/*",

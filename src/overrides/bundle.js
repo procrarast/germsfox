@@ -4679,8 +4679,10 @@ function modules(ks) {
             }
             save() {
                 const saveSettings = { ...this.settings };
-                saveSettings.blockedSkins = [...this.settings.blockedSkins];
-
+                saveSettings.blockedSkins = [...(this.settings.blockedSkins instanceof Set
+                    ? this.settings.blockedSkins
+                    : this.settings.blockedSkins || [])];
+            
                 window.localStorage.setItem('settings', JSON.stringify(saveSettings));
             }
         }

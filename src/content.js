@@ -25,9 +25,32 @@ async function init() {
         const icon = chrome.runtime.getURL("/images/icon.png");
         document.getElementById("menuLogo").src = icon; 
     }
-    //console.debug(germsSettings, settings);
+
+    const versionAnchor = document.getElementById('version');
+    versionAnchor.innerHTML = 'Version: <b>' + '5.2.2-live-2179' + '</b>';
+    versionAnchor.removeAttribute("href");
+    
+    // Germsfox information
+    // Still need to manually update version in the bundle's console output in start() though
+    const germsfoxInfo = document.createElement("span");
+    germsfoxInfo.innerText =  " | ";
+    const germsfoxInfoAnchor = document.createElement("a");
+    germsfoxInfoAnchor.id = "germsfoxInfo";
+    germsfoxInfoAnchor.classList.add("nodrag");
+    germsfoxInfoAnchor.innerText = "Germsfox: ";
+    germsfoxInfoAnchor.href = "https://pishi.dev/germsfox";
+    germsfoxInfoAnchor.target = "_blank";
+    germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
+    const germsfoxInfoVersion = document.createElement("b");
+    germsfoxInfoVersion.innerText = await chrome.runtime.getVersion();
+    germsfoxInfoVersion.id = "germsfoxVersion";
+    germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
+    germsfoxInfo.appendChild(germsfoxInfoAnchor);
+    versionAnchor.appendChild(germsfoxInfo);
+
 
     initChat();
+    initConnecting();
     renderCustomSkinsMenu();
     renderCustomColorsMenu();
     initDebug();
@@ -230,5 +253,41 @@ function initChat() {
 
     chatObserver.observe(chatBox, {childList: true});
     return chatBox;
+}
+
+function initConnecting() {
+    const connectingDiv = document.getElementById("connecting");
+    let visible = connectingDiv.style.display !== "none"; 
+
+    const connectingObserver = new MutationObserver(() => changedServers());
+    connectingObserver.observe(connectingDiv, { attributes: true, attributeFilter: ["style"] });
+
+    function changedServers() {
+        const nowVisible = connectingDiv.style.display !== "none";
+        if (visible === nowVisible) return; // Don't care if it's the same
+        visible = nowVisible; 
+        if (!visible) return; // Don't care if it hid itself
+
+        //console.debug("Changed servers");
+        hasSpawned = false;
+        if (settings.setColor !== "None" && ( // You have a color
+            settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) // You have no skin or aren't logged in
+            ) { 
+            console.debug("Setting skin to color because you don't have a skin");
+            setSkin(settings.setColor)
+        } else {
+            setSkin(settings.setSkin);
+        }
+        // Your mass might still be >0 if you changed servers while you were alive
+        const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
+        if (match) {
+            const massDesynced = parseFloat(match[1]) > 0; // Need to wait until debug updates before your mass resets to 0
+            if (massDesynced) {
+                initDebugAfterDeath();
+                return;
+            }
+        }
+        initDebug();
+    }
 }
 

@@ -34,12 +34,10 @@
     "permissions": [
         "storage",
         "tabs",
-        "declarativeNetRequest",
-        "webRequest"
+        "declarativeNetRequest"
     ],
     "host_permissions": [
-        "*://*.germs.io/*",
-        "wss://*/*"
+        "*://*.germs.io/*"
     ],
     "declarative_net_request": {
         "rule_resources": [

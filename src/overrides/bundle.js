@@ -5391,7 +5391,7 @@ function modules(ks) {
         }
         ;class sW {
             constructor() {
-                this.skipNextCleanup = false;
+                //this.skipNextCleanup = false;
                 this.viewZoom = 0;
                 this.newViewZoom = 0;
                 this.zoom = 0.25;
@@ -5570,7 +5570,6 @@ function modules(ks) {
                     setInterval(this.counter.bind(this), 1000);
                     setInterval(this.sendMouse.bind(this), 40);
                     setInterval(this.refreshMenuAds.bind(this), 120 * 1000);
-                    setInterval(this.cleanUpCache.bind(this), 500);
 
                     this.ticker = new PIXI.Ticker();
 
@@ -5764,6 +5763,14 @@ function modules(ks) {
             render(t5) {
                 this.updateTime = performance.now();
                 this.delta = Math.min(1, Math.max(0, t5.deltaTime));
+
+                this.cacheCleanupDelta += t5.deltaMS;
+
+                if (this.cacheCleanupDelta >= 500) {
+                    this.cacheCleanupDelta %= 500; // Hopefully you don't stall your tab for too long.
+                    this.cleanUpCache();
+                }
+
                 this.lastTime = this.updateTime;
                 this.fps = this.ticker.FPS;
                 if (this.playerCells.length > 0) {
@@ -5934,8 +5941,8 @@ function modules(ks) {
                     throw e;
                 }
             }
-            cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it.
-                if (document.hidden) {
+            cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it that drips every half a second.
+                /*if (document.hidden) {
                     this.skipNextCleanup = true;
                     //console.debug("Document hidden, not cleaning up anything");
                     return;
@@ -5944,7 +5951,7 @@ function modules(ks) {
                     this.skipNextCleanup = false;
                     //console.debug("Unhidden, skipping this cleanup cycle");
                     return;
-                }
+                }*/
                 let maxDestroys = 10; // Max per cycle 
                 let destroyed = 0;
                 for (var key in this.names) {
@@ -7119,26 +7126,6 @@ function modules(ks) {
         $(document).ready(async function() {
             await instance.start();
             instance.settings.ready();
-
-            const versionAnchor = document.getElementById('version');
-            versionAnchor.innerHTML = 'Version: <b>' + '5.2.2-live-2179' + '</b>';
-            versionAnchor.removeAttribute("href");
-            
-            // Germsfox information
-            const germsfoxInfo = document.createElement("span");
-            germsfoxInfo.innerText =  " | ";
-            const germsfoxInfoAnchor = document.createElement("a");
-            germsfoxInfoAnchor.id = "germsfoxInfo";
-            germsfoxInfoAnchor.classList.add("nodrag");
-            germsfoxInfoAnchor.innerText = "Germsfox: ";
-            germsfoxInfoAnchor.href = "https://pishi.dev/germsfox";
-            germsfoxInfoAnchor.target = "_blank";
-            germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
-            const germsfoxInfoVersion = document.createElement("b");
-            germsfoxInfoVersion.innerText = "1.1.2";
-            germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
-            germsfoxInfo.appendChild(germsfoxInfoAnchor);
-            versionAnchor.appendChild(germsfoxInfo);
 
             // ===== Block Skin =====
             const blockSkinItem = document.createElement("li");

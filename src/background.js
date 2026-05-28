@@ -5,54 +5,10 @@
 
 console.log("Running background.js");
 
-const DEFAULT_CONTROLS = {
-    multibox: ["Tab", "Tab"],
-    toggleNames: ["KeyN", "N"],
-    toggleSkins: ["KeyB", "B"],
-    toggleMass: ["KeyM", "M"],
-    toggleFood: ["", ""]
-};
-
-const DEFAULT_SETTINGS = {
-    controls: DEFAULT_CONTROLS,
-    disablePishi: false,
-    setSkin: "None", //document.getElementById("skin").style.backgroundImage.slice(5, -2)
-    setColor: "None",
-    customSkins: [],
-    skinBlocklist: [],
-    playerBlocklist: [],
-    toggleNames: ["all", "none"],
-    toggleSkins: ["all", "none"],
-    switcherEnabled: false,
-    switcherWindowed: false,
-    ignoreInvites: false,
-    toggleSettings: true,
-    autoLogout: false, 
-    shortenMass: true,
-    enableDebug: false,
-    enableAllColorButtons: false,
-    enableOldSkinsButton: false,
-};
-
-settings = structuredClone(DEFAULT_SETTINGS);
-
 const handlers = {
     switchTabs,
     switchWindows,
 };
-
-// Detect server changes or restarts
-chrome.webRequest.onBeforeRequest.addListener(
-    (details) => {
-        console.debug("Changed servers");
-        try {
-            chrome.tabs.sendMessage(details.tabId, { action: "changedServers" });
-        } catch (error) {
-            console.debug("Tab no longer exists:", error.message);
-        }
-    },
-    { urls: ["wss://us.germs.io:*/"] }
-);
 
 chrome.runtime.onMessage.addListener((request) => {
     console.debug(request.action);

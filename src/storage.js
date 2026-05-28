@@ -116,36 +116,12 @@ const handlers = {
     exportSkins,
     storeSkins,
     getSettings,
-    changedServers
 };
 
 chrome.runtime.onMessage.addListener((request, sender) => {
     const handler = handlers[request.action];
     if (handler) handler(request, sender);
 });
-
-function changedServers() {
-    console.debug("Changed servers");
-    hasSpawned = false;
-    if (settings.setColor !== "None" && ( // You have a color
-        settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) // You have no skin or aren't logged in
-        ) { 
-        console.debug("Setting skin to color because you don't have a skin");
-        setSkin(settings.setColor)
-    } else {
-        setSkin(settings.setSkin);
-    }
-    // Your mass might still be >0 if you changed servers while you were alive
-    const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
-    if (match) {
-        const massDesynced = parseFloat(match[1]) > 0;
-        if (massDesynced) {
-            initDebugAfterDeath();
-            return;
-        }
-    }
-    initDebug();
-}
 
 // germs.io settings
 async function getGermsSettings() {

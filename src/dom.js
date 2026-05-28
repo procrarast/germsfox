@@ -862,7 +862,13 @@ function renderGeneralTabPane() {
     pane.replaceChildren();
 
     const generalPill = createPill("General");
-    const shortenMassCheckbox = createCheckbox("shortenMass", "Shorten Mass");
+    const disablePishiCheckbox = createCheckbox("disablePishi", "Disable Pishi Logo");
+    disablePishiInput = disablePishiCheckbox.getElementsByTagName("input")[0];
+    disablePishiInput.addEventListener("change", () => {
+        const src = !disablePishiInput.checked ? 
+            chrome.runtime.getURL("/images/icon.png") : "res/logo.png?v=2";
+        document.getElementById("menuLogo").src = src; 
+    });
     const generalInvitesCheckbox = createCheckbox("ignoreInvites", "Ignore Party Invites");
 
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
@@ -878,8 +884,6 @@ function renderGeneralTabPane() {
     dangerPill.style.backgroundColor = "rgb(220, 53, 69)";
     const dangerLabel = document.createElement('p');
     dangerLabel.innerText = "These settings enable features which may have unintended effects and should only be used for experimental purposes.";
-    const debugCheckbox = createCheckbox("enableDebug", "Enable debug information");
-    debugCheckbox.getElementsByTagName("span")[0].classList.add("danger");
     const dangerColorsEnabledCheckbox = createCheckbox("enableAllColorButtons", "Enable all cell colors");
     dangerColorsEnabledCheckbox.getElementsByTagName("span")[0].classList.add("danger");
     const dangerColorAlertsCheckbox = createCheckbox("enableColorLogoutAlerts", "Enable color logout alerts");
@@ -889,7 +893,7 @@ function renderGeneralTabPane() {
 
     pane.append(
         generalPill,
-        shortenMassCheckbox,
+        disablePishiCheckbox,
         generalInvitesCheckbox,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
@@ -902,7 +906,6 @@ function renderGeneralTabPane() {
 
         dangerPill,
         dangerLabel,
-        debugCheckbox,
         dangerColorsEnabledCheckbox,
         dangerColorAlertsCheckbox,
         dangerSkinsEnabledCheckbox
@@ -1379,24 +1382,11 @@ function renderCustomColorsMenu() {
 function renderPlayerMenu() {
     //console.debug("Rendering player menu");
 
-    const chatBox = document.getElementById("worldTab");
     const playerMenu = document.getElementById("userMenuPlayer");
     const userMenu = document.getElementById("userMenu");
     let muteButton = playerMenu.getElementsByClassName("userMenuItem")[1]; // second menu option
 
     playerMenu.getElementsByTagName("hr")[1].remove(); // remove the 2nd horizontal line so we can add our own later
-
-    // ===== Block Skin =====
-    const blockSkinItem = document.createElement("li");
-    blockSkinItem.classList.add("userMenuItem");
-
-    const blockIcon = document.createElement("i");
-    blockIcon.classList.add("fas", "fa-ban");
-
-    const blockLabel = document.createElement("p");
-    blockLabel.textContent = "Block Skin";
-
-    blockSkinItem.append(blockIcon, blockLabel);
 
     // ===== Copy Skin =====
     const copySkinItem = document.createElement("li");
@@ -1414,7 +1404,6 @@ function renderPlayerMenu() {
     const hr = document.createElement("hr");
 
     playerMenu.append(
-        blockSkinItem,
         copySkinItem,
         hr
     );
@@ -1426,6 +1415,7 @@ function renderPlayerMenu() {
     const menuItems = userMenu.querySelectorAll(".userMenuItem");
     const menuScreenshot = menuItems[menuItems.length - 1];
     menuCreate.querySelector("hr").remove();
+    menuLeave.querySelector("hr").remove();
     menuScreenshot.remove();
 
     const playerSkinElement = document.getElementById("userMenuPlayerSkin");
@@ -1444,32 +1434,6 @@ function renderPlayerMenu() {
         catch (error) {
             console.error("Failed to copy skin: ", error);
         }
-    });
-
-    blockSkinItem.addEventListener('click', function () {
-        const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
-
-        if (!settings.skinBlocklist.includes(skinURL)) { // don't add unnecessary duplicates to the list
-            if (skinURL.includes("imgur")) { // only accept imgur links
-                settings.skinBlocklist.push(skinURL);
-                chrome.storage.local.set({ "skinBlocklist": settings.skinBlocklist });
-                chrome.runtime.sendMessage({ action: "addBlockRule", url: skinURL });
-
-                let successMessage = `<div class="adminMessage" style="color: white;"><p> <font color="#00FF00">Skin blocked, please refresh this tab!</font></p></div>`;
-                chatBox.innerHTML += successMessage;
-                chatBox.scrollTop = chatBox.scrollHeight;
-            } else {
-                let errorMessage = `<div class="errorMessage" style="color: white;" ><p> <font color="#FF0000">You can only block custom skins.</font></p></div>`;
-                chatBox.innerHTML += errorMessage;
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        } else { // only triggers when the user doesn't refresh their tab and tries to block the same skin
-            let errorMessage = `<div class="errorMessage" style="color: white;"><p> <font color="#FF0000">Skin has already been blocked! Refresh your tab for it to take effect.</font></p></div>`;
-            chatBox.innerHTML += errorMessage;
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        playerMenu.parentElement.parentElement.style.display = "none"; // hide the context menu after clicking the option so it behaves normally
     });
 
     muteButton.addEventListener('click', function () {
@@ -1502,10 +1466,8 @@ function renderPlayerMenu() {
             if (mutation.type === "attributes" && mutation.attributeName === "style" && userMenu.style.display === "block") {
                 const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
                 if (skinURL.includes("imgur")) {
-                    blockSkinItem.style.display = "block";
                     copySkinItem.style.display = "block";
                 } else {
-                    blockSkinItem.style.display = "none";
                     copySkinItem.style.display = "none";
                 }
             }

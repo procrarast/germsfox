@@ -2587,16 +2587,65 @@ function modules(ks) {
                     'list': modules('badwords').exports, // badwords array of, well, bad words of course
                 });
                 this.emotes = {};
+                this.germsfoxEmotes = [
+                    "flafDuh.png",
+                    "gsTroll.png",
+                    "gsFlooshed.png",
+                    "gsPls.png",
+                    "gsHollow.png",
+                    "Self.png",
+                    "DELTA.png",
+                    "Tree.png",
+                    "Mafu.png",
+                    "josemorales.png",
+                    "SKUL.png",
+                    "trollskull.png",
+                    "gsSmil.png",
+                    "colon33.png",
+                    "NAILS.png",
+                    "Idio.png",
+                    "YIPPEE.png",
+                    "sademoji.png",
+                    "LOAL.png",
+                    "steamhappy.png",
+                    "yippie.png",
+                    "AGONY.png",
+                    "HAHA.png",
+                    "fucker.png",
+                    "rice_cat.png",
+                    "shup.png",
+                    "catAware.png",
+                    "catQue.png",
+                    "catOMG.png",
+                    "catBath.png",
+                    "catHi.png",
+                    "catnodwashingmachine.gif",
+                    "catResort.png",
+                    "flabbergastedMilly.png",
+                    "gg28.png",
+                    "katameow.png",
+                    "pcRacc.png",
+                    "pcStare.png",
+                    "widekisser.png",
+                    "firTilt.gif",
+                    "UIOHADFGIUOHDAVFB.png",
+                    "catWhat.png",
+                    "myhonesterection.png",
+                    "munch.png",
+                    "choccy.png",
+                    "yapyapyap.gif",
+                    "gsPuddle.png",
+                ];
                 this.getEmotes();
             }
             getEmotes() {
-                $.getJSON('php/Emotes.php', l9 => {
-                    if (l9) {
-                        this.emotes = l9;
-                        for (var la in l9) {
-                            var lb = l9[la];
-                            var lc = `<li class="emotesEmote" onclick="addEmote('` + la + `');"><img name="` + la + '" title="' + la + '" src="res/emotes/' + lb + '"></li>';
-                            $('#emotesList').append(lc);
+                $.getJSON('php/Emotes.php', emotes => {
+                    if (emotes) {
+                        this.emotes = emotes;
+                        for (var key in emotes) {
+                            var path = emotes[key];
+                            var emoteHTML = `<li class="emotesEmote" onclick="addEmote('` + key + `');"><img name="` + key + '" title="' + key + '" src="res/emotes/' + path + '"></li>';
+                            $('#emotesList').append(emoteHTML);
                         }
                     }
                 }
@@ -2641,13 +2690,9 @@ function modules(ks) {
                         } else {
                             sender = sender.replace(/<(?:.|\n)*?>/gm, '').trim();
                             var lu = document.createElement('div');
-                            function stripWideChars(str) {
-                                return ['\ufdfd', '\u1242b', '\u12219', '\u2e3b', '\ua9c5', '\u102a', '\u0bf5', '\u0bf8', '\u2031']
-                                    .reduce((s, c) => s.replaceAllPoly(c, ''), str);
-                            }
-                            lu.textContent = stripWideChars(sender);
+                            lu.textContent = sender.removeWideChars();
                             sender = lu.innerHTML;
-                            lu.textContent = stripWideChars(message);
+                            lu.textContent = message.removeWideChars();
                             message = lu.innerHTML;
                             if (this.game.settings.getItem('disableProfanityFilter') != true) {
                                 message = this.filter.clean(message);
@@ -2659,11 +2704,19 @@ function modules(ks) {
                             'rgb': rgb,
                             'parent': parent
                         };
-                        for (var lw in this.emotes) {
-                            var lx = this.emotes[lw];
-                            message = message.replaceAllPoly(lw, '<img class="chatEmote" src="res/emotes/' + lx + '">');
+                        for (const key in this.emotes) {
+                            const filename = this.emotes[key];
+                            message = message.replaceAllPoly(key, '<img class="chatEmote" src="res/emotes/' + filename + '">');
                         }
-                        var ly = $("<div class='" + (isAdmin ? 'adminMessage noshadow' : 'chatMessage') + "' style='color: " + color + "'><p><b oncontextmenu='openUserMenu(" + JSON.stringify(lv) + "); return false;' style='display:inline-block;pointer-events: all;white-space: nowrap;height:20px;color: " + rgb + "'>" + sender + '</b>: ' + message + '</p></p></div>');
+                        for (const filename of this.germsfoxEmotes) {
+                            const key = filename.slice(0, filename.lastIndexOf("."));
+                            message = message.replaceAllPoly(key, '<img class="germsfoxEmote" alt="' + key + '" data-filename="' + filename + '">');
+                        }
+                        if (message.replace(/<img\b[^>]*>/g, "").trim() === "") {
+                            message = message.replaceAllPoly('class="chatEmote"', 'class="chatEmote big"')
+                                             .replaceAllPoly('class="germsfoxEmote"', 'class="germsfoxEmote big"');
+                        }
+                        var ly = $("<div class='" + (isAdmin ? 'adminMessage noshadow' : 'chatMessage') + "' style='color: " + color + "'><p><b oncontextmenu='openUserMenu(" + JSON.stringify(lv) + "); return false;' style='display:inline-block;pointer-events: all;white-space: nowrap;height:14px;color: " + rgb + "'>" + sender + '</b>: ' + message + '</p></p></div>');
                         $(ly).appendTo(ll).hide().fadeIn(500);
                         if (notDefault) {
                             $('[data-toggle="tooltip"]').tooltip();
@@ -2969,6 +3022,7 @@ function modules(ks) {
                 this.y = mm()(this.y, this.ny, this.game.delta / speed);
             }
             setPosition(x, y) {
+                if ((this.game.freeze || document.getElementById("menu").style.display !== "none") && this.game.freeSpec) return;
                 this.nx = x;
                 this.ny = y;
             }
@@ -3069,9 +3123,8 @@ function modules(ks) {
                 }
             }
             reset() {
+                this.game.cellContainer.removeChild(this.root);
                 this.root.visible = false;
-                delete this.name;
-                delete this.skin;
                 if (this.nameSprite) {
                     this.root.removeChild(this.nameSprite);
                     this.nameSprite.destroy();
@@ -3084,11 +3137,13 @@ function modules(ks) {
                     this.root.removeChild(this.sizeText);
                     this.sizeText.destroy();
                 }
-                delete this.skinCache;
-                delete this.skinSprite;
-                delete this.nameCache;
-                delete this.nameSprite;
-                delete this.sizeText;
+                this.name = null;
+                this.nameCache = null;
+                this.nameSprite = null;
+                this.skin = null;
+                this.skinCache = null;
+                this.skinSprite = null;
+                this.sizeText = null;
             }
             clear() {
                 this.reset();
@@ -3139,7 +3194,7 @@ function modules(ks) {
             setSkin(key, hideSkin) {
                 if (this.skin != key || hideSkin) {
                     this.skin = key;
-                    switch (this.game.settings.getItem('showSkins')) {
+                    switch (this.game.settings.settings.showSkins) {
                     case 'all':
                         break;
                     case 'party':
@@ -3156,12 +3211,12 @@ function modules(ks) {
                         if (hideSkin && this.skinSprite) {
                             this.root.removeChild(this.skinSprite);
                             this.skinSprite.destroy();
-                            delete this.skinSprite;
-                            delete this.skinCache;
+                            this.skinSprite = null;
+                            this.skinCache = null;
                         }
                         return;
                     }
-                    if (key && key != '') {
+                    if (key && key != '' && !this.game.settings.settings.blockedSkins.has(key)) {
                         if (this.game.skins.hasOwnProperty(key) == false) {
                             this.skinCache = new my(this.game.getSkinURL(key),this.skinCheck.bind(this),this.game.settings.settings.highQualitySkins);
                             this.game.skins[key] = this.skinCache;
@@ -3176,6 +3231,8 @@ function modules(ks) {
             skinCheck() {
                 if (!this.skinSprite && this.skinCache && this.skinCache.texture != null) {
                     this.skinSprite = new PIXI.Sprite(this.skinCache.texture);
+                    this.skinSprite.visible =
+                        !this.game.settings.settings.blockedSkins.has(this.skin);
                     this.skinSprite.zIndex = 0;
                     this.skinSprite.anchor.x = 0.5;
                     this.skinSprite.anchor.y = 0.5;
@@ -3379,7 +3436,7 @@ function modules(ks) {
             getShortMass() {
                 // Return a string representing the shortened mass number
                 const mass = this.getMass();
-                if (mass > 1000000)
+                if (mass >= 1000000)
                     return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
                 if (mass >= 1000)
                     return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
@@ -3444,6 +3501,10 @@ function modules(ks) {
                     node.size = size;
                     node.oSize = size;
                     node.nSize = size;
+                    node.lastMassUpdate = this.game.updateTime - 250;
+                    node.lastMassValue = 0;
+                    node.currentMassKey = null;
+                    node.currentNameKey = null;
                     node.lockedColor = lockedColor;
                     node.lockedPosition = lockedPosition;
                     node.updateTime = this.game.updateTime;
@@ -3453,6 +3514,9 @@ function modules(ks) {
                     node.cellSprite.tint = color;
                     node.destroyed = false;
                     node.opacity = 1;
+                    if (!node.root.parent) {
+                        this.game.cellContainer.addChild(node.root); // May not be needed but we'll see
+                    }
                     node.moveRoot();
                     //node.root.alpha = 1; // Re-enable to fade cells out, as I think was originally intended
                 }
@@ -3500,7 +3564,7 @@ function modules(ks) {
             }
         }
         const nn = n2;
-        ;;// The following was initially stolen and obfuscated on Germs with a deliberate change from  
+        // The following was initially stolen and obfuscated on Germs with a deliberate change from  
         // function to class structure.
         /*
          * Simple BinaryWriter is a minimal tool to write binary stream with unpredictable size.
@@ -3725,7 +3789,7 @@ function modules(ks) {
             }
         }
         const ob = oa;
-        ;class oc {
+        /*class oc {
             constructor() {
                 this._writer = new writer(0x1);
                 this._writer.writeUInt8(0x12);
@@ -3735,8 +3799,8 @@ function modules(ks) {
             }
         }
         // Extra (??) packet constructor
-        const od = oc;
-        ;class oe {
+        const od = oc;*/
+        class oe {
             constructor(of, og) {
                 this._writer = new writer();
                 this._writer.writeUInt8(0x55);
@@ -3760,7 +3824,7 @@ function modules(ks) {
             'Mouse': o7,
             'Split': o9,
             'Eject': ob,
-            'Extra': od,
+            /*'Extra': od,*/
             'Party': oh
         };
         ;const oj = 'g-h';
@@ -3817,6 +3881,10 @@ function modules(ks) {
                 }
                 this.game.showMenu();
                 var ow = this.findMode(mode);
+                if (!ow) {
+                    mode = 'FFA';
+                    ow = this.findMode(mode);
+                }
                 this.game.settings.setItem('lastMode', mode);
                 //console.debug("Settings: " + this.game.settings.getItem('lastMode'));
                 var oz = ow[1];
@@ -3883,7 +3951,8 @@ function modules(ks) {
                 this.send(new packet.Spectate());
             }
             sendMouse(oO) {
-                this.send(new packet.Mouse(oO.x,oO.y));
+                if (!this.game.freeze && document.getElementById("menu").style.display == "none")
+                    this.send(new packet.Mouse(oO.x,oO.y));
             }
             sendChat(oP, oQ) {
                 this.send(new packet.Chat(oP,oQ));
@@ -4501,11 +4570,16 @@ function modules(ks) {
                     'disableProfanityFilter': false,
                     'mouseArrow': false,
                     'deathCount': 0,
+                    // Begin Germsfox settings
                     'lastMode': 'FFA',
-                    'highQualitySkins': true,
-                    'borderlessSkins': true,
+                    'highQualitySkins': false,
+                    'borderlessSkins': false,
                     'cameraDelay': 45,
                     'shortenMass': true,
+                    'dynamicLinesplitAxis': true,
+                    'diagonalLinesplits': true,
+                    'webGPU': true,
+                    'blockedSkins': [],
                 };
                 for (var key in this.default) {
                     if (this.settings.hasOwnProperty(key) == false) {
@@ -4519,6 +4593,7 @@ function modules(ks) {
                         this.save();
                     }
                 }
+                this.settings.blockedSkins = new Set(this.settings.blockedSkins || []);
             }
             ready() {
                 $('#nick').val(this.getItem('nick'));
@@ -4545,6 +4620,7 @@ function modules(ks) {
                 $('#keyFreeze').val(this.settings.controls.Freeze[1]);
                 $('#keyVertical').val(this.settings.controls.Vertical[1]);
                 $('#keyHide').val(this.settings.controls.Hide[1]);
+                //$('#keySpectate').val(this.settings.controls.Spectate[1]);
             }
             getItem(key) {
                 return this.settings[key];
@@ -4552,6 +4628,13 @@ function modules(ks) {
             setItem(key, value) {
                 this.settings[key] = value;
                 this.save();
+                if (key == 'blockedSkins') {
+                    for (const cell of this.game.cells) {
+                        if (cell.skin) {
+                            cell.setSkin(cell.skin, true); // setSkin updates visibility of blocked skins
+                        }
+                    }
+                }
                 if (key == 'hideBorder') {
                     if (this.game.grid)
                         this.game.drawGrid();
@@ -4595,7 +4678,10 @@ function modules(ks) {
                 this.ready();
             }
             save() {
-                window.localStorage.setItem('settings', JSON.stringify(this.settings));
+                const saveSettings = { ...this.settings };
+                saveSettings.blockedSkins = [...this.settings.blockedSkins];
+
+                window.localStorage.setItem('settings', JSON.stringify(saveSettings));
             }
         }
         ;class qI {
@@ -5334,6 +5420,7 @@ function modules(ks) {
                 this.nodes = {};
                 this.cells = [];
                 this.playerCells = [];
+                this.playerCellMap = new Map();
                 this.myCells = [];
                 this.leaderboard = [];
                 this.border = [-1000, -1000, 1000, 1000];
@@ -5391,16 +5478,12 @@ function modules(ks) {
                 this.canvas = document.getElementById('gameCanvas');
 
                 this.renderer = await PIXI.autoDetectRenderer({
-                    GCSystem: false,
-                    preference: 'webgpu',
+                    gcActive: false,
+                    preference: (this.settings.settings.webGPU ? 'webgpu' : "webgl"),
                     canvas: this.canvas,
                     antialias: true,
                     powerPreference: 'high-performance',
-                    background: 0x333439,
-
-                    webgpu: {
-                        textureFormat: navigator.gpu.getPreferredCanvasFormat(),
-                    },
+                    backgroundColor: 0x333439,
                 });
 
                 this.stage = new PIXI.Container();
@@ -5488,39 +5571,65 @@ function modules(ks) {
             calcMouse() {
                 let newX = (this.rawMouseX - this.width / 2) / this.viewZoom + this.camera.x;
                 let newY = (this.rawMouseY - this.height / 2) / this.viewZoom + this.camera.y;
-            
+
                 if (!this.vertical) {
-                    delete this.linesplitCell;
-                    delete this.linesplitAxis;
-                    delete this.linesplitOrigin;
+                    if (this.linesplitCell && this.linesplitCell.cellSprite.tint !== this.linesplitCell.color) {
+                        this.linesplitCell.cellSprite.tint = this.linesplitCell.color;
+                    }
+                    this.linesplitCell = null;
+                    this.linesplitAxis = undefined;
+                    this.linesplitOrigin = null;
                 } else {
-                    if (!this.linesplitCell || this.linesplitCell.destroyed) {
-                        //console.debug("Cell does not exist, finding new one...")
-                        this.linesplitCell = this.linesplitAxis !== undefined
-                            ? this.getCellOnAxis(newX, newY)
-                            : this.getLinesplitCell(newX, newY);
-            
-                        if (this.linesplitCell && this.linesplitAxis === undefined) {
-                            const dx = newX - this.linesplitCell.nx;
-                            const dy = newY - this.linesplitCell.ny;
-                            this.linesplitAxis = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 4) + 4) % 4;
-                            this.linesplitOrigin = { x: this.linesplitCell.nx, y: this.linesplitCell.ny };
+                    if (this.linesplitCell?.destroyed) {
+                        //console.debug("Linesplit cell was destroyed, preserving axis and origin");
+                        if (this.linesplitCell.cellSprite.tint !== this.linesplitCell.color)
+                            this.linesplitCell.cellSprite.tint = this.linesplitCell.color;
+                        this.linesplitCell = null;
+                        // axis and origin intentionally preserved
+                    }
+
+                    if (!this.linesplitCell) {
+                        if (this.linesplitAxis !== undefined) {
+                            //console.debug("Cell does not exist, looking for one on existing axis...");
+                            this.linesplitCell = this.getCellOnAxis(newX, newY);
+                        } else {
+                            //console.debug("No cell or axis, finding new one...");
+                            this.linesplitCell = this.getLinesplitCell(newX, newY);
+                            if (!this.settings.settings.dynamicLinesplitAxis) {
+                                //console.debug("Fixing the linesplit axis");
+                                this.linesplitAxis = this.getLinesplitAxis(newX, newY);
+                            }
                         }
                     }
-                    const cell = this.linesplitCell;
-                    if (cell) {
+
+                    if (this.linesplitCell) {
+                        // Highlight cell
+                        const r = (((this.linesplitCell.color >> 16) & 0xff) + 255) >> 1;
+                        const g = (((this.linesplitCell.color >> 8) & 0xff) + 255) >> 1;
+                        const b = ((this.linesplitCell.color & 0xff) + 255) >> 1;
+                        if (this.linesplitCell.cellSprite.tint !== (r << 16) | (g << 8) | b)
+                            this.linesplitCell.cellSprite.tint = (r << 16) | (g << 8) | b;
+
+                        // Update axis and origin while waiting for first split if the user wants
+                        if (this.splitPending || this.linesplitAxis === undefined) {
+                            //console.debug(this.splitPending ? "Waiting for split, calculating new origin and axis" : "No linesplit axis set, getting new one");
+                            if (this.splitPending && this.settings.settings.dynamicLinesplitAxis)
+                                this.linesplitAxis = this.getLinesplitAxis(newX, newY);
+                            this.linesplitOrigin = { x: this.linesplitCell.nx, y: this.linesplitCell.ny };
+                        }
+
+                        // Constrain mouse to axis
                         const dx = newX - this.linesplitOrigin.x;
                         const dy = newY - this.linesplitOrigin.y;
                         switch (this.linesplitAxis) {
                             case 0: newY = this.linesplitOrigin.y; break; // E/W
                             case 2: newX = this.linesplitOrigin.x; break; // N/S
-                                
                             case 1: { // SE/NW
-                                const d = (dx + dy) / 2; 
-                                newX = this.linesplitOrigin.x + d; 
-                                newY = this.linesplitOrigin.y + d; 
-                                break; 
-                            } 
+                                const d = (dx + dy) / 2;
+                                newX = this.linesplitOrigin.x + d;
+                                newY = this.linesplitOrigin.y + d;
+                                break;
+                            }
                             case 3: { // SW/NE
                                 const d = (dx - dy) / 2;
                                 newX = this.linesplitOrigin.x + d;
@@ -5530,27 +5639,44 @@ function modules(ks) {
                         }
                     }
                 }
+
                 this.mouse = { x: newX, y: newY, realX: newX, realY: newY };
             }
+            isOnLinesplitAxis(x, y) {
+                const dx = x - this.linesplitOrigin.x;
+                const dy = y - this.linesplitOrigin.y;
+
+                switch (this.linesplitAxis) {
+                    case 0: return Math.abs(dy) === 0;
+                    case 2: return Math.abs(dx) === 0;
+                    case 1: return Math.abs(dx - dy) < 5;
+                    case 3: return Math.abs(dx + dy) < 5;
+                    default: return false;
+                }
+            }
+            getLinesplitAxis(mouseX, mouseY) {
+                if (!this.linesplitCell) return null;
+
+                const dx = mouseX - this.linesplitCell.nx;
+                const dy = mouseY - this.linesplitCell.ny;
+
+                if (this.settings.settings.diagonalLinesplits) {
+                    return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 4) + 4) % 4;
+                }
+
+                return Math.abs(dx) >= Math.abs(dy)
+                    ? 0   // E/W
+                    : 2;  // N/S
+            }
+
             getCellOnAxis(mouseX, mouseY) {
                 if (!this.linesplitOrigin) return null;
-                const { x: ox, y: oy } = this.linesplitOrigin;
                 let bestCell = null;
-                let bestDist = 99999;
+                let bestDist = 99999; // The lower the better
             
                 for (const id of this.myCells) {
-                    const cell = this.playerCells.find(c => c.id === id);
-                    if (!cell || cell.destroyed) continue;
-                    const dx = cell.nx - ox, dy = cell.ny - oy;
-                    let onAxis = false;
-                    switch (this.linesplitAxis) {
-                        case 0: onAxis = Math.abs(dy) === 0; break;
-                        case 2: onAxis = Math.abs(dx) === 0; break;
-                            // Diagonals are inherently inconsistent unfortunately
-                        case 1: onAxis = Math.abs(dx - dy) < 5; break;
-                        case 3: onAxis = Math.abs(dx + dy) < 5; break;
-                    }
-                    if (!onAxis) continue;
+                    const cell = this.playerCellMap.get(id);
+                    if (!cell || cell.destroyed || !this.isOnLinesplitAxis(cell.nx, cell.ny)) continue;
                     const dist = Math.sqrt((cell.nx - mouseX) ** 2 + (cell.ny - mouseY) ** 2);
                     if (dist < bestDist) { 
                         bestDist = dist;
@@ -5559,24 +5685,24 @@ function modules(ks) {
                 }
 
                 if (bestCell === null)
-                    delete this.linesplitAxis;
+                    this.linesplitAxis = undefined;
                 return bestCell;
             }
             getLinesplitCell(mouseX, mouseY) {
                 //console.debug("Looking for new cell since you haven't set an axis yet");
                 const largestSize = Math.max(...this.playerCells.map(c => c.nSize));
                 let bestCell = null;
-                let bestScore = 99999;
+                let bestScore = 99999; // The lower the better
                 if (this.myCells.length === 0) {
                     this.vertical = false;
-                    delete this.linesplitCell;
-                    delete this.linesplitAxis;
-                    delete this.linesplitOrigin;
+                    this.linesplitCell = null;
+                    this.linesplitAxis = undefined;
+                    this.linesplitOrigin = null;
                     return null;
                 }
             
                 for (const id of this.myCells) {
-                    const cell = this.playerCells.find(c => c.id === id);
+                    const cell = this.playerCellMap.get(id);
                     if (!cell || cell.destroyed) continue;
                     const dx = mouseX - cell.nx, dy = mouseY - cell.ny;
                     const sizeFactor = largestSize / cell.nSize;
@@ -5598,7 +5724,7 @@ function modules(ks) {
                 if (this.freeze)
                     return;
                 this.calcMouse();
-                if (this.mouse && (this.playerCells.length > 0 || this.freeSpec) && this.network.open) {
+                if (this.mouse && (this.playerCells.length > 0 || (this.freeSpec)) && this.network.open) {
                     if (!this.lastMouseSent || Math.abs(this.mouse.x - this.lastMouseSent.x) > 1 || Math.abs(this.mouse.y - this.lastMouseSent.y) > 1) {
                         this.network.sendMouse(this.mouse);
                         this.lastMouseSent = {
@@ -5728,7 +5854,58 @@ function modules(ks) {
                 this.stage.scale.x = this.viewZoom;
                 this.stage.scale.y = this.viewZoom;
                 this.ui.loop();
-                this.renderer.render(this.stage);
+                try {
+                    this.renderer.render(this.stage);
+                } catch(e) {
+                    console.error('Renderer crash:', e.message);
+                    console.debug('Names cache:', Object.keys(this.names).length, 'entries');
+                    console.debug('Masses cache:', Object.keys(this.masses).length, 'entries');
+                    console.debug('Skins cache:', Object.keys(this.skins).length, 'entries');
+                    for (var key in this.skins) {
+                        const skin = this.skins[key];
+                        console.debug(`Skin [${key}]:`,
+                            'texture:', skin.texture ? 'exists' : 'null',
+                            'source destroyed:', skin.texture?.source?.destroyed ?? 'n/a',
+                            'lastAccess:', this.updateTime - skin.lastAccess, 'ms ago'
+                        );
+                    }
+                    console.debug('Cells with destroyed skin source:', this.cells.filter(c => 
+                        c.skinSprite?.texture?.source?.destroyed
+                    ).length);
+                    console.debug('Cells with destroyed mass source:', this.cells.filter(c =>
+                        c.sizeText?.texture?.source?.destroyed
+                    ).length);
+                    console.debug('Masses with destroyed source:', Object.values(this.masses).filter(m =>
+                        m.texture?.source?.destroyed
+                    ).length);
+                    console.debug('Masses with destroyed source:', Object.values(this.masses).filter(m =>
+                        m.texture?.source?.destroyed
+                    ).length);
+                    console.debug('Orphaned sizeText:', this.cells.filter(c => {
+                        if (!c.sizeText) return false;
+                        return !Object.values(this.masses).some(m => m.texture === c.sizeText.texture);
+                    }).length);
+                    console.debug('Cells with nameSprite destroyed source:', this.cells.filter(c =>
+                        c.nameSprite?.texture?.source?.destroyed
+                    ).length);
+
+                    console.debug('Cells with visible root but no parent:', this.cells.filter(c =>
+                        c.root.visible && !c.root.parent
+                    ).length);
+
+                    // Check for sprites whose texture exists but source is null (not destroyed, just null)
+                    console.debug('Cells with null mass source:', this.cells.filter(c =>
+                        c.sizeText?.texture && c.sizeText.texture.source === null
+                    ).length);
+                    console.debug('Cells with null name source:', this.cells.filter(c =>
+                        c.nameSprite?.texture && c.nameSprite.texture.source === null
+                    ).length);
+                    console.debug('Cells with null skin source:', this.cells.filter(c =>
+                        c.skinSprite?.texture && c.skinSprite.texture.source === null
+                    ).length);
+
+                    throw e;
+                }
             }
             cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it.
                 if (document.hidden) {
@@ -6013,6 +6190,7 @@ function modules(ks) {
                     this.pool.putNode(tS);
                 }
                 this.nodes = {};
+                this.playerCellMap.clear();
                 this.playerCells = [];
                 this.myCells = [];
                 this.leaderboard = [];
@@ -6091,6 +6269,7 @@ function modules(ks) {
                     this.deathTimeout = setTimeout(this.onDeath.bind(this), 500);
                 }
                 delete this.nodes[tV.id];
+                this.playerCellMap.delete(tV.id);
                 removeFromArray(this.playerCells, tV);
                 removeFromArray(this.myCells, tV.id);
                 removeFromArray(this.cells, tV);
@@ -6105,8 +6284,10 @@ function modules(ks) {
             addNode(node) {
                 this.nodes[node.id] = node;
                 this.cells.push(node);
-                if (this.myCells.indexOf(node.id) > -1 && this.playerCells.indexOf(node) == -1) {
+
+                if (this.myCells.indexOf(node.id) > -1 && !this.playerCellMap.has(node.id)) {
                     this.playerCells.push(node);
+                    this.playerCellMap.set(node.id, node);
                 }
             }
             changeZoom(tX) {
@@ -6140,8 +6321,6 @@ function modules(ks) {
                 if (tZ == 'split') {}
             }
             onKeyDown(event) {
-                if (event.repeat)
-                    return;
 
                 // Always close settings on Escape
                 if (event.keyCode === 27) {
@@ -6182,18 +6361,24 @@ function modules(ks) {
                         this.changeZoom(-1);
                         break;
                     case this.controls.Split[0]:
+                        this.splitPending = false;
                         this.network.send(new packet.Split());
                         break;
-                    case this.controls.Spectate[0]:
+                    /*case this.controls.Spectate[0]:
+                        console.debug("Spectate button pressed");
                         if (this.playerCells.length > 0) {
                             this.network.send(new packet.Extra());
                         }
-                        break;
+                        break;*/
                     case this.controls.Feed[0]:
+                        if (event.repeat)
+                            return;
                         this.network.send(new packet.Eject());
                         this.ejectKey = true;
                         break;
                     case this.controls.Hide[0]:
+                        if (event.repeat)
+                            return;
                         this.hideUI = !this.hideUI;
                         if (this.hideUI) {
                             $('#gameMenu').hide();
@@ -6203,21 +6388,32 @@ function modules(ks) {
                         this.partyMove();
                         break;
                     case this.controls.Freeze[0]:
+                        if (event.repeat)
+                            return;
                         this.freeze = !this.freeze;
-                        this.ui.updateDebug();
                         this.vertical = false;
+                        this.ui.updateDebug();
                         break;
                     case this.controls.Vertical[0]:
+                        if (event.repeat || this.freeSpec)
+                            return;
+                        this.splitPending = true;
                         this.vertical = !this.vertical;
-                        this.ui.updateDebug();
                         this.freeze = false;
+                        this.ui.updateDebug();
                         break;
                     case this.controls.Double[0]:
+                        this.splitPending = false;
                         self.network.send(new packet.Split());
+                        if (event.repeat)
+                            return;
                         setTimeout( () => self.network.send(new packet.Split()), 75);
                         break;
                     case this.controls.Triple[0]:
+                        this.splitPending = false;
                         self.network.send(new packet.Split());
+                        if (event.repeat)
+                            return;
                         setTimeout( () => {
                             self.network.send(new packet.Split());
                             setTimeout( () => self.network.send(new packet.Split()), 75);
@@ -6225,8 +6421,11 @@ function modules(ks) {
                         , 75);
                         break;
                     case this.controls['16x'][0]:
+                        this.splitPending = false;
                         for (let i = 0; i < 4; i++) {
                             setTimeout( () => self.network.send(new packet.Split()), 45 * i);
+                            if (i === 0 && event.repeat)
+                                return;
                         }
                         break;
                     }
@@ -6340,7 +6539,25 @@ function modules(ks) {
             openUserMenu(uk) {
                 if (uk && this.pID != uk.parent) {
                     this.lastSelectedPlayer = uk;
-                    $('#userMenuPlayerName').html(uk.name ? uk.name.replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '') : 'An unnamed cell');
+
+                    // Block skins
+                    const blockSkinItem = document.getElementById("userMenuBlockSkin");
+                    const blockSkinText = document.getElementById("userMenuBlockSkinText");
+
+                    if (uk?.skin) {
+                        console.debug(uk.skin);
+                        blockSkinItem.style.display = "";
+
+                        if (this.settings.settings.blockedSkins.has(uk.skin)) {
+                            blockSkinText.innerText = "Unblock Skin";
+                        } else {
+                            blockSkinText.innerText = "Block Skin";
+                        }
+                    } else {
+                        blockSkinItem.style.display = "none";
+                    }
+                    // Other default stuff
+                    $('#userMenuPlayerName').html(uk.name ? uk.name.removeWideChars() : 'An unnamed cell');
                     if (uk.skinSprite) {
                         $('#userMenuPlayerSkin').css('background-image', 'url(' + this.getSkinURL(uk.skin) + ')');
                     } else {
@@ -6374,6 +6591,37 @@ function modules(ks) {
                 $('#userMenu').css('top', ul);
                 $('#userMenu').css('left', um);
                 $('#userMenu').show();
+            }
+            userMenuBlockSkin() {
+                const player = this.lastSelectedPlayer;
+
+                if (!player?.skin) {
+                    console.debug("Player does not have a skin somehow");
+                    $('#userMenu').hide();
+                    return;
+                }
+
+                const blockedSkins = this.settings.getItem('blockedSkins');
+
+                console.debug(blockedSkins.has(player.skin));
+                console.debug(player.skin);
+                blockedSkins.has(player.skin)
+                    ? blockedSkins.delete(player.skin)
+                    : blockedSkins.add(player.skin);
+
+                this.settings.setItem('blockedSkins', blockedSkins);
+                this.updateBlockedSkins();
+
+                $('#userMenu').hide();
+            }
+            updateBlockedSkins() {
+                console.debug("Updating blocked skins");
+                for (const cell of this.cells) {
+                    if (cell.skinSprite) {
+                        cell.skinSprite.visible =
+                            !this.settings.settings.blockedSkins.has(cell.skin);
+                    }
+                }
             }
             userMenuBlock() {
                 if (this.lastSelectedPlayer) {
@@ -6594,14 +6842,18 @@ function modules(ks) {
         String.prototype.replaceAllPoly = function(uR, uS) {
             var uT = this;
             return uT.replace(new RegExp(uR,'g'), uS);
-        }
-        ;
+        };
         String.prototype.capitalize = function() {
             return this.replace(/\w\S*/g, function(uU) {
                 return uU.charAt(0).toUpperCase() + uU.substr(1).toLowerCase();
             });
-        }
-        ;
+        };
+        String.prototype.removeWideChars = function() {
+            return this.replace(
+                new RegExp('[\\uFDFD\\u{1242B}\\u{12219}\\u2E3B\\uA9C5\\u102A\\u0BF5\\u0BF8\\u2031]', 'gu'),
+                ''
+            );
+        };
         $.expr[':'].icontains = $.expr.createPseudo(function(uV) {
             return function(uW) {
                 return $(uW).text().toUpperCase().indexOf(uV.toUpperCase()) >= 0;
@@ -6861,49 +7113,163 @@ function modules(ks) {
             germsfoxInfo.appendChild(germsfoxInfoAnchor);
             versionAnchor.appendChild(germsfoxInfo);
 
-            // Render new settings buttons
+            // ===== Block Skin =====
+            const blockSkinItem = document.createElement("li");
+            blockSkinItem.id = "userMenuBlockSkin";
+            blockSkinItem.classList.add("userMenuItem");
+
+            const blockIcon = document.createElement("i");
+            blockIcon.classList.add("fas", "fa-ban");
+
+            const blockLabel = document.createElement("p");
+            blockLabel.id = "userMenuBlockSkinText";
+            blockLabel.textContent = "Block Skin";
+
+            blockSkinItem.append(blockIcon, blockLabel);
+            document.getElementById("userMenuBlockText").parentElement.after(blockSkinItem);
+
+            blockSkinItem.addEventListener('click', instance.userMenuBlockSkin.bind(instance));
+
+            // Settings changes
+            // Remove General section (skip death screen moved to UI options)
+            document.querySelector('#settings-general .badge.badge-pill.badge-primary').remove();
+
+            // Begin Render section ====================================
             const animationDelayLabel = document.getElementById("animationDelayLabel");
             animationDelayLabel.innerText = "Animation Delay";
+
             const animationDelayClearfix = animationDelayLabel.parentElement;
 
-            const newSettings = {
-                shortenMass: "Shorten Mass",
-                highQualitySkins: "Enable Hi-Res Skins",
-                borderlessSkins: "Enable Borderless Skins"
-            };
+            const cameraDelayClearfix = document.createElement("div");
+            cameraDelayClearfix.className = "clearfix";
+            cameraDelayClearfix.innerHTML = `
+                <h5 id="cameraDelayLabel" class="optionLabel">Camera Delay</h5>
+                <input
+                    data-placement="top"
+                    title=""
+                    type="range"
+                    min="10"
+                    max="200"
+                    value="${instance.settings.settings.cameraDelay}"
+                    class="range"
+                    id="cameraDelay"
+                    oninput="changeSetting('cameraDelay', this.value); $('#cameraDelayTooltip').text(this.value);"
+                    data-original-title="<div id='cameraDelayTooltip'>${instance.settings.settings.cameraDelay}</div>"
+                    data-toggle="tooltip">
+            `;
 
-            for (const key in newSettings) {
-                const clearfix = document.createElement('div');
-                clearfix.className = 'clearfix';
+            animationDelayClearfix.before(cameraDelayClearfix);
+
+            // New Render Options
+            const renderSettings = [
+                ["webGPU", "Use WebGPU"],
+                ["highQualitySkins", "Hi-Res Skins"],
+                ["borderlessSkins", "Borderless Skins"],
+                ["shortenMass", "Shorten Mass"]
+            ];
+
+            for (const [key, label] of renderSettings) {
+                const clearfix = document.createElement("div");
+                clearfix.className = "clearfix";
+
                 clearfix.innerHTML = `
-                    <h5 class="optionLabel">${newSettings[key]}</h5>
+                    <h5 class="optionLabel">${label}</h5>
                     <label class="switch">
-                        <input type="checkbox" id="${key}" onchange="changeSetting('${key}', this.checked);">
+                        <input
+                            type="checkbox"
+                            id="${key}"
+                            onchange="changeSetting('${key}', this.checked);">
                         <span class="slider round"></span>
                     </label>
                 `;
-                clearfix.querySelector(`#${key}`).checked = instance.settings.settings[key];
-                animationDelayClearfix.after(clearfix);
+
+                clearfix.querySelector("input").checked =
+                    instance.settings.settings[key];
 
                 animationDelayClearfix.after(clearfix);
             }
 
-            const delayClearfix = document.createElement('div');
-            delayClearfix.className = 'clearfix';
-            delayClearfix.innerHTML = `
-                <h5 id="cameraDelayLabel" class="optionLabel">Camera Delay</h5>
-                <input data-placement="top" title="" type="range" min="10" max="200" value="${instance.settings.settings.cameraDelay}" class="range" id="cameraDelay"
-                    oninput="changeSetting('cameraDelay', this.value); $('#cameraDelayTooltip').text(this.value);"
-                    data-original-title="<div id='cameraDelayTooltip'>45</div>" data-toggle="tooltip">
-            `;
-            animationDelayClearfix.before(delayClearfix);
+            // Move Auto Zoom into Render Options
+            const autoZoomRow =
+                document.getElementById("autoZoom").parentElement.parentElement;
+
+            autoZoomRow.after(autoZoomRow);
+
+            // Create Appearance section ===========================================
+            const appearanceBadge = document.createElement("span");
+            appearanceBadge.className = "badge badge-pill badge-primary";
+            appearanceBadge.textContent = "Appearance Options";
+
+            autoZoomRow.after(appearanceBadge);
+
+            const appearanceSettings = [
+                "showNames",
+                "showSkins",
+                "mouseArrow",
+                "showMass",
+                "hideFood",
+                "hideBorder"
+            ];
+
+            for (const id of appearanceSettings) {
+                let row = document.getElementById(id).parentElement;
+                if (row.className === "switch") row = row.parentElement;
+                console.debug(row);
+                appearanceBadge.after(row);
+            }
+
+            // Create Gameplay section =============================================
+            const gameplayBadge = document.createElement("span");
+            gameplayBadge.className = "badge badge-pill badge-primary";
+            gameplayBadge.textContent = "Gameplay Options";
+
+            appearanceBadge.before(gameplayBadge);
+
+            const gameplaySettings = [
+                ["dynamicLinesplitAxis", "Dynamic Linesplit Axis"],
+                ["diagonalLinesplits", "Diagonal Linesplits"]
+            ];
+
+            for (const [key, label] of gameplaySettings) {
+                const clearfix = document.createElement("div");
+                clearfix.className = "clearfix";
+
+                clearfix.innerHTML = `
+                    <h5 class="optionLabel">${label}</h5>
+                    <label class="switch">
+                        <input
+                            type="checkbox"
+                            id="${key}"
+                            onchange="changeSetting('${key}', this.checked);">
+                        <span class="slider round"></span>
+                    </label>
+                `;
+
+                clearfix.querySelector("input").checked =
+                    instance.settings.settings[key];
+
+                gameplayBadge.after(clearfix);
+            }
+
+            // Move Skip Death Screen into UI Options
+            const uiBadge = [...document.querySelectorAll(
+                '#settings-general .badge.badge-pill.badge-primary'
+            )].find(el => el.textContent.trim() === 'UI Options');
+
+            const skipDeathRow =
+                document.getElementById("skipDeathScreen").parentElement.parentElement;
+
+            if (uiBadge && skipDeathRow) {
+                uiBadge.after(skipDeathRow);
+            }
+
             setInterval(instance.network.refresh.bind(instance.network), 30000);
             window.onbeforeunload = function() {
                 if (instance.playerCells.length > 0) {
                     return 'You will lose all your mass!';
                 }
-            }
-            ;
+            };
+
             window.onkeydown = instance.onKeyDown.bind(instance);
             window.onkeyup = instance.onKeyUp.bind(instance);
             var vz = document.getElementById('game');
@@ -6921,6 +7287,7 @@ function modules(ks) {
                 vA.preventDefault();
             }, false);
             $.ajax('js/adsbygoogle.js').fail(function(vB) {
+                console.debug("Please disable your adblocker!");
                 $('.blocker').each(function() {
                     $(this).fadeIn();
                 });
@@ -6946,6 +7313,12 @@ function modules(ks) {
                 $('#btnEmote').blur();
                 $('#btnChannel').blur();
             });
+            
+            // uncomment keySpectate, unfortunately Extra packets dont seem to do anything
+            /*const controlsDiv = document.getElementById("settings-controls")
+            const controlsHTML = controlsDiv.innerHTML.replace("<!--", "").replace("-->", "");
+            controlsDiv.innerHTML = controlsHTML;*/
+            
             $("#settings-controls input[type='text']").on('click focus', function() {
                 $(this).select();
             });
@@ -6978,9 +7351,9 @@ function modules(ks) {
                 case 'keyHide':
                     instance.controls.Hide = [vF.which, vG];
                     break;
-                case 'keySpectate':
+                /*case 'keySpectate':
                     instance.controls.Spectate = [vF.which, vG];
-                    break;
+                    break;*/
                 }
                 instance.settings.setItem('controls', instance.controls);
                 $(this).val(vG);

@@ -15,6 +15,7 @@ const DEFAULT_CONTROLS = {
 
 const DEFAULT_SETTINGS = {
     controls: DEFAULT_CONTROLS,
+    disablePishi: false,
     setSkin: "None", //document.getElementById("skin").style.backgroundImage.slice(5, -2)
     setColor: "None",
     customSkins: [],

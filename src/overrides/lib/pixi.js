@@ -53039,16 +53039,21 @@ ${parts.join("\n")}
       getBindGroup(bindGroup, program, groupIndex) {
         bindGroup._updateKey();
         const gpuBindGroup = this._hash[bindGroup._key] || this._createBindGroup(bindGroup, program, groupIndex);
+        if (!gpuBindGroup) return null; // Germsfox added
         return gpuBindGroup;
       }
       _createBindGroup(group, program, groupIndex) {
+        //console.debug('group.resources:', group.resources, 'length:', group.resources?.length, 'resources[0]:', group.resources?.[0]);
         var _a;
         const device = this._gpu.device;
         const groupLayout = program.layout[groupIndex];
         const entries = [];
         const renderer = this._renderer;
+        if (!group.resources) return null; // Germsfox added
         for (const j in groupLayout) {
+          //console.debug('_createBindGroup group:', group, 'groupIndex:', groupIndex, 'groupLayout:', groupLayout);
           const resource = (_a = group.resources[j]) != null ? _a : group.resources[groupLayout[j]];
+          //console.debug('resource at crash point:', resource, 'j:', j, 'groupLayout[j]:', groupLayout[j]);
           let gpuResource;
           if (resource._resourceType === "uniformGroup") {
             const uniformGroup = resource;
@@ -53399,6 +53404,7 @@ ${parts.join("\n")}
         this._boundBindGroup[index] = bindGroup;
         bindGroup._touch(this._renderer.gc.now, this._renderer.tick);
         const gpuBindGroup = this._renderer.bindGroup.getBindGroup(bindGroup, program, index);
+        if (!gpuBindGroup) return; // Germsfox added
         this.renderPassEncoder.setBindGroup(index, gpuBindGroup);
       }
       setGeometry(geometry, program) {

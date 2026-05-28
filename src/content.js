@@ -20,14 +20,19 @@ init();
 async function init() {
     settings = await getSettings();
     germsSettings = await getGermsSettings();
-    console.debug(germsSettings, settings);
+
+    if (!settings.disablePishi) {
+        const icon = chrome.runtime.getURL("/images/icon.png");
+        document.getElementById("menuLogo").src = icon; 
+    }
+    //console.debug(germsSettings, settings);
 
     initChat();
     renderCustomSkinsMenu();
     renderCustomColorsMenu();
     initDebug();
     renderGameMenu();
-    renderNick(); // Hate this stupid program's settings states so I'm just passing this as an arg
+    renderNick(); 
     renderGermsfoxButton();
     renderPlayerMenu();
 
@@ -209,7 +214,10 @@ function initChat() {
                         paragraphHTML.substring(splitIndex).replace(/\*/g, '#');
                 }// Replace emotes
                 if (chatParagraph) {
-                    replaceEmotes(chatParagraph);
+                    const germsfoxEmoteImgElements = chatParagraph.querySelectorAll(".germsfoxEmote");
+                    for (const germsfoxEmoteImg of germsfoxEmoteImgElements) {
+                        germsfoxEmoteImg.src = chrome.runtime.getURL(`images/emotes/${germsfoxEmoteImg.dataset.filename}`);
+                    }
                 }
             }
 
@@ -222,68 +230,5 @@ function initChat() {
 
     chatObserver.observe(chatBox, {childList: true});
     return chatBox;
-
-    function replaceEmotes(node) {
-        // Only operate on text nodes
-        if (node.nodeType === Node.TEXT_NODE) {
-            let text = node.nodeValue;
-            let matched = false;
-
-            for (const emote of emotes) {
-                const filename = emote.slice(0, emote.lastIndexOf("."));
-
-                if (text.includes(filename)) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) return;
-
-            const fragment = document.createDocumentFragment();
-
-            while (text.length > 0) {
-                let earliestIndex = -1;
-                let matchedEmote = null;
-                let matchedFilename = null;
-
-                for (const emote of emotes) {
-                    const filename = emote.slice(0, emote.lastIndexOf("."));
-                    const index = text.indexOf(filename);
-                    if (index !== -1 && (earliestIndex === -1 || index < earliestIndex)) {
-                        earliestIndex = index;
-                        matchedEmote = emote;
-                        matchedFilename = filename;
-                    }
-                }
-                if (earliestIndex === -1) {
-                    //console.debug("No matches found");
-                    fragment.appendChild(document.createTextNode(text));
-                    break;
-                }
-                //console.debug("Matched emote " + matchedEmote);
-
-                if (earliestIndex > 0) {
-                    fragment.appendChild(
-                        document.createTextNode(text.slice(0, earliestIndex))
-                    );
-                }
-                const img = document.createElement("img");
-                img.src = chrome.runtime.getURL(`images/emotes/${matchedEmote}`);
-                img.classList.add("chatEmote");
-
-                //console.debug("Appending image");
-                fragment.appendChild(img);
-
-                text = text.slice(earliestIndex + matchedFilename.length);
-            }
-            //console.debug("Replacing with complete text+emote fragment");
-            node.replaceWith(fragment);
-            return;
-        }
-        // Recursively process child nodes
-        if (node.tagName === "B") return; // Username
-
-        node.childNodes.forEach(replaceEmotes);
-    }
 }
 

@@ -7298,6 +7298,17 @@ function modules(ks) {
                 }
             };
 
+            // Change controls labels to better reflect actual functionality
+            document.querySelector('#keyFreeze')
+                .closest('.row')
+                .querySelector('.col-md-6')
+                .textContent = 'Freeze';
+
+            document.querySelector('#keyVertical')
+                .closest('.row')
+                .querySelector('.col-md-6')
+                .textContent = 'Linesplit';
+
             window.onkeydown = instance.onKeyDown.bind(instance);
             window.onkeyup = instance.onKeyUp.bind(instance);
             var vz = document.getElementById('game');

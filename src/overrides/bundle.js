@@ -5391,7 +5391,7 @@ function modules(ks) {
         }
         ;class sW {
             constructor() {
-                //this.skipNextCleanup = false;
+                this.skipNextCleanup = false;
                 this.viewZoom = 0;
                 this.newViewZoom = 0;
                 this.zoom = 0.25;
@@ -5945,16 +5945,16 @@ function modules(ks) {
             cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it that drips every half a second.
                 //const items = Object.keys(this.names).length + Object.keys(this.skins).length + Object.keys(this.masses).length;
                 //console.debug("Cleaning up after " + items + " items");
-                /*if (document.hidden) {
+                if (document.hidden) {
                     this.skipNextCleanup = true;
                     //console.debug("Document hidden, not cleaning up anything");
                     return;
                 }               
                 if (this.skipNextCleanup) {
                     this.skipNextCleanup = false;
-                    //console.debug("Unhidden, skipping this cleanup cycle");
+                    console.debug("Unhidden, skipping this cleanup cycle");
                     return;
-                }*/
+                }
                 let maxDestroys = 10; // Max per cycle 
                 let destroyed = 0;
                 for (var key in this.names) {

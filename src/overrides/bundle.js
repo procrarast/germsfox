@@ -5765,13 +5765,6 @@ function modules(ks) {
                 this.updateTime = performance.now();
                 this.delta = Math.min(1, Math.max(0, t5.deltaTime));
 
-                this.cacheCleanupDelta += t5.deltaMS;
-
-                if (this.cacheCleanupDelta >= 500) {
-                    this.cacheCleanupDelta %= 500; // Hopefully you don't stall your tab for too long.
-                    this.cleanUpCache();
-                }
-
                 this.lastTime = this.updateTime;
                 this.fps = this.ticker.FPS;
                 if (this.playerCells.length > 0) {
@@ -5940,6 +5933,13 @@ function modules(ks) {
                     ).length);
 
                     throw e;
+                }
+
+                this.cacheCleanupDelta += t5.deltaMS;
+
+                if (this.cacheCleanupDelta >= 500) {
+                    this.cacheCleanupDelta %= 500; // Hopefully you don't stall your tab for too long.
+                    this.cleanUpCache();
                 }
             }
             cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it that drips every half a second.

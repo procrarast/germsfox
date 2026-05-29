@@ -5401,6 +5401,7 @@ function modules(ks) {
                 this.specZoom = 0;
                 this.setupLimit = 0;
                 this.lastTime = performance.now(),
+                this.cacheCleanupDelta = 0;
                 this.delta = 1;
                 this.nodeX = 0;
                 this.nodeY = 0;
@@ -5942,6 +5943,8 @@ function modules(ks) {
                 }
             }
             cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it that drips every half a second.
+                //const items = Object.keys(this.names).length + Object.keys(this.skins).length + Object.keys(this.masses).length;
+                //console.debug("Cleaning up after " + items + " items");
                 /*if (document.hidden) {
                     this.skipNextCleanup = true;
                     //console.debug("Document hidden, not cleaning up anything");

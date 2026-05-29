@@ -3311,7 +3311,7 @@ function modules(ks) {
                         style: {
                             fontFamily: 'Ubuntu',
                             fontSize: this.getNameSize(),
-                            fill: this.lockedColor ?? 0xffffff,
+                            fill: (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
                             stroke,
                             align: 'center',
                             fontWeight: 'bold',

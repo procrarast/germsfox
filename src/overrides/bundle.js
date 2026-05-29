@@ -5458,11 +5458,18 @@ function modules(ks) {
                 this.ejectSpeed = 999;
                 this.maxCacheTime = 10000;
             }
+            async waitForGermsfoxURL() {
+                while (!window.__germsfoxURL) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                return window.__germsfoxURL;
+            }
             async start() {
+                const extensionURL = await this.waitForGermsfoxURL();
 
                 await PIXI.Assets.init({
-                    // if there's a better way to do this, please feel free to change it. i was getting a bunch of errors otherwise
-                    basePath: 'chrome-extension://lecdhdjbchkkchjjglccpbnfkdpmplid/src/overrides/res/assets/',
+                    basePath: extensionURL + 'src/overrides/res/assets/',
 
                     manifest: {
                         bundles: [{

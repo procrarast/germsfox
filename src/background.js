@@ -10,6 +10,22 @@ const handlers = {
     switchWindows,
 };
 
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === "loading" && tab.url?.startsWith("https://germs.io")) {
+        const extensionURL = chrome.runtime.getURL("");
+
+        chrome.scripting.executeScript({
+            target: { tabId }, world: "MAIN",
+            func: (url) => {
+                window.__germsfoxURL = url;
+            },
+            args: [extensionURL]
+        }).catch(_ => {
+            console.debug("Tab removed before extension URL was sent.");
+        });
+    };
+});
+
 chrome.runtime.onMessage.addListener((request) => {
     console.debug(request.action);
     const handler = handlers[request.action];

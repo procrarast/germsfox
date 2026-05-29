@@ -2861,13 +2861,14 @@ function modules(ks) {
             updateDebug() {
                 var lP = '<b>Mass:</b> ' + this.getMass();
                 lP += '<br><b>Score:</b> ' + this.getScore();
+                lP += '<br><b>Cells:</b> ' + this.game.playerCells.length;
                 lP += '<br><b>FPS:</b> ' + this.getFPS();
                 lP += '<br><b>PING:</b> ' + this.getPING();
                 if (this.game.vertical) lP += '<br><b style="color:red">[ LINESPLITTING ]</b>'; // gota haha remember that game
                 else if (this.game.freeze) lP += '<br><b style="color:red">[ MOUSE FROZEN ]</b>';
                 this.debugText.innerHTML = lP;
                 if (this.game.network.restart) {
-                    var lQ = '<b>' + this.game.network.server + '</b>';
+                    var lQ = '<b>' + this.game.network.server.slice(3) + '</b>';
                     if (this.game.network.restart.indexOf('[console]') > -1) {
                         lQ = '<b>' + this.getRestart() + '</b>';
                     } else {
@@ -2938,7 +2939,7 @@ function modules(ks) {
                 ma = Math.abs(ma);
                 var mc = ma / 3600000 | 0;
                 var md = ma % 3600000 / 60000 | 0;
-                var me = Math.round(ma % 60000 / 1000);
+                var me = Math.floor(ma % 60000 / 1000);
                 return mb + m8(mc) + ':' + m8(md) + ':' + m8(me);
             }
             getMass() {
@@ -4580,6 +4581,7 @@ function modules(ks) {
                     'borderlessSkins': false,
                     'cameraDelay': 45,
                     'shortenMass': true,
+                    'hideMapGrid': true,
                     'dynamicLinesplitAxis': true,
                     'diagonalLinesplits': true,
                     'webGPU': true,
@@ -4639,7 +4641,7 @@ function modules(ks) {
                         }
                     }
                 }
-                if (key == 'hideBorder') {
+                if (key == 'hideBorder' || key == 'hideMapGrid') {
                     if (this.game.grid)
                         this.game.drawGrid();
                 }
@@ -5456,10 +5458,18 @@ function modules(ks) {
                 this.ejectSpeed = 999;
                 this.maxCacheTime = 10000;
             }
+            async waitForGermsfoxURL() {
+                while (!window.__germsfoxURL) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                return window.__germsfoxURL;
+            }
             async start() {
+                const extensionURL = await this.waitForGermsfoxURL();
 
                 await PIXI.Assets.init({
-                    basePath: 'https://germs.io/res/assets/',
+                    basePath: extensionURL + 'src/overrides/res/assets/',
 
                     manifest: {
                         bundles: [{
@@ -6185,6 +6195,62 @@ function modules(ks) {
                     }
                     this.tilingSprite.alpha = alpha;
                     this.grid.addChild(this.tilingSprite);
+                }
+                
+                if (!this.settings.settings.hideMapGrid) {
+                    const letters = ['A', 'B', 'C', 'D'];
+                    const cellSize = size / 4;
+                    let color;
+
+                    // todo: how will it adapt to custom background colors?
+                    switch (colorTheme) {
+                        case 'gray':
+                            color = 0x55565f;
+                            break;
+                        case 'white':
+                            color = 0xc0c8cc;
+                            break;
+                        case 'black':
+                            color = 0x262626;
+                            break;
+                    }
+
+                    for (let row = 0; row < 4; row++) {
+                        for (let col = 0; col < 4; col++) {
+                            const letter = letters[col];
+                            
+                            var text = new PIXI.Text({
+                                text: letter + (row + 1).toString(),
+                                style: {
+                                    fontFamily: 'Ubuntu',
+                                    fontSize: size / 24,
+                                    fill: color,
+                                    align: 'center',
+                                    fontWeight: 'bold',
+                                },
+                                anchor: 0.5,
+                                alpha: 0.9
+                            });
+
+                            // i would remove this and change fontSize above to be (size / 12) instead, but Firefox does not like that x)
+                            text.scale.set(1 / scaleFactor, 1 / scaleFactor);
+                            text.position.set((-size / 2) + (cellSize * row) + (cellSize / 2), (-size / 2) + (cellSize * col) + (cellSize / 2));
+
+                            this.grid.addChild(text);
+
+                            const gridGraphics = new PIXI.Graphics();
+                            const gridSize = Math.round(size / 150);
+
+                            gridGraphics.rect(-cellSize / 2, -cellSize / 2, cellSize, cellSize).stroke({
+                                width: gridSize,
+                                color: color
+                            });
+                            
+                            gridGraphics.position.set((-size / 2) + (cellSize * row) + (cellSize / 2), (-size / 2) + (cellSize * col) + (cellSize / 2));
+
+                            this.grid.addChild(gridGraphics);
+                        }
+                    }
                 }
 
                 if (!this.settings.getItem('hideBorder')) {
@@ -7182,7 +7248,8 @@ function modules(ks) {
                 ["webGPU", "Use WebGPU"],
                 ["highQualitySkins", "Hi-Res Skins"],
                 ["borderlessSkins", "Borderless Skins"],
-                ["shortenMass", "Shorten Mass"]
+                ["shortenMass", "Shorten Mass"],
+                ["hideMapGrid", "Hide Map Grid"]
             ];
 
             for (const [key, label] of renderSettings) {
@@ -7225,7 +7292,8 @@ function modules(ks) {
                 "mouseArrow",
                 "showMass",
                 "hideFood",
-                "hideBorder"
+                "hideBorder",
+                "hideMapGrid"
             ];
 
             for (const id of appearanceSettings) {

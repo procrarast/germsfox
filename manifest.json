@@ -34,7 +34,8 @@
     "permissions": [
         "storage",
         "tabs",
-        "declarativeNetRequest"
+        "declarativeNetRequest",
+        "scripting"
     ],
     "host_permissions": [
         "*://*.germs.io/*"
@@ -53,8 +54,9 @@
             "resources": [
                 "fonts/*",
                 "images/*",
-                "/src/overrides/bundle.js",
-                "/src/overrides/lib/pixi.js"
+                "src/overrides/bundle.js",
+                "src/overrides/lib/pixi.js",
+                "src/overrides/res/*"
             ],
             "matches": ["https://germs.io/*"]
         }

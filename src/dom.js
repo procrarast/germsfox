@@ -1269,6 +1269,7 @@ function renderMuteButton(chatter) {
     }
 
     blockButton.addEventListener("click", () => {
+        console.debug(settings.playerBlocklist);
         const blocked = settings.playerBlocklist.includes(chatter);
 
         if (blocked) {
@@ -1441,26 +1442,37 @@ function renderPlayerMenu() {
         const playerName = playerNameElement.textContent;
         const mutedText = mutedTextElement.textContent;
 
-        if (mutedText === "Mute Player" && !settings.playerBlocklist.includes(playerName)) {
+        if (mutedText === "Mute" && !settings.playerBlocklist.includes(playerName)) {
             blockPlayerName(playerName);
         }
 
-        else if (mutedText === "Unmute Player") {
+        else if (mutedText === "Unmute") {
             unblockPlayerName(playerName);
         }
         setSetting("playerBlocklist", settings.playerBlocklist);
     });
 
-    // If the menu opens for an imgur skin, show related options. Else, hide them
     let userMenuObserver = new MutationObserver((mutations) => {
-        //console.debug("Player menu mutated");
         mutations.forEach((mutation) => {
             if (mutation.type === "attributes" && mutation.attributeName === "style" && userMenu.style.display === "block") {
+                // If the menu opens for an imgur skin, show related options. Else, hide them
                 const skinURL = playerSkinElement.style.backgroundImage.replace(/url\("([^"]+)"\)/, "$1"); // replace url("https://i.imgur.com/example.png") with just the url itself
                 if (skinURL.includes("imgur")) {
                     copySkinItem.style.display = "block";
                 } else {
                     copySkinItem.style.display = "none";
+                }
+                // Update user menu block button
+                const blockText = document.getElementById("userMenuBlockText");
+                const blockIcon = blockText.previousElementSibling;
+                const blockName = document.getElementById("userMenuPlayerName");
+
+                if (settings.playerBlocklist.includes(blockName.innerText)) {
+                    blockIcon.className = "fas fa-volume-up";
+                    blockText.innerText = "Unmute";
+                } else {
+                    blockIcon.className = "fas fa-volume-mute";
+                    blockText.innerText = "Mute";
                 }
             }
         });
@@ -1686,12 +1698,22 @@ function createSkinLi(url) {
 }
 
 function unblockPlayerName(playerName) {
-    if (settings.playerBlockList.includes(playerName)) 
+    if (settings.playerBlocklist.includes(playerName)) 
         settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
 
     const chatBox = document.getElementById("worldTab");
-    chatBox.scrollTop = chatBox.scrollHeight;
 
+    // restore chat of sin
+    for (const chatMessage of chatBox.children) {
+        const messageName = chatMessage.querySelector("b");
+        if (!messageName) continue;
+
+        const chatterName = messageName.textContent;
+        if (settings.playerBlocklist.includes(chatterName)) continue;
+
+        chatMessage.style.display = 'block';
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
     setSetting("playerBlocklist", settings.playerBlocklist);
 }
 
@@ -1711,7 +1733,7 @@ function blockPlayerName(playerName) {
         const chatterName = messageName.textContent;
         if (!settings.playerBlocklist.includes(chatterName)) continue;
 
-        chatMessage.remove();
+        chatMessage.style.display = 'none';
         chatBox.scrollTop = chatBox.scrollHeight;
     }
     setSetting("playerBlocklist", settings.playerBlocklist);

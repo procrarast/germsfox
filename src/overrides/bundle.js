@@ -2664,8 +2664,6 @@ function modules(ks) {
             onMessage(sender, rgb, message, parent, ll) {
                 // on incoming chat sender
                 var color = 'white';
-                if (this.game.blocked.indexOf(parent) > -1)
-                    return;
                 if (sender.indexOf('[Console]') > -1) {
                     ll = -99;
                 }
@@ -2783,12 +2781,12 @@ function modules(ks) {
                     'top': this.nodeY + this.mapSize / 2,
                     'left': this.nodeX + this.mapSize / 2
                 });
-                if (this.game.playerCells.length > 0) {
-                    if (this.game.playerCells[0].skinSprite) {
-                        this.mapPlayer.css('background-image', 'url(' + this.game.getSkinURL(this.game.playerCells[0].skin) + ')');
-                        this.mapPlayer.css('border', '1px solid ' + this.game.playerCells[0].rgb);
+                if (this.game.playerCells.size > 0) {
+                    if (this.game.aliveCell.skinSprite && this.game.aliveCell.skinSprite.texture != null && this.game.aliveCell.skinSprite.texture !== PIXI.Texture.EMPTY) {
+                        this.mapPlayer.css('background-image', 'url(' + this.game.getSkinURL(this.game.aliveCell.skin) + ')');
+                        this.mapPlayer.css('border', '1px solid ' + this.game.aliveCell.rgb);
                     } else {
-                        this.mapPlayer.css('background-color', this.game.playerCells[0].rgb);
+                        this.mapPlayer.css('background-color', this.game.aliveCell.rgb);
                     }
                 }
             }
@@ -2816,9 +2814,9 @@ function modules(ks) {
                         lH.name = lH.name.replace('[YT]', '');
                         lJ = '<b class="lbYT">YT</b>';
                         if (this.game.pID == lH.id) {
-                            if (this.game.playerCells.length > 0) {
+                            if (this.game.playerCells.size > 0) {
                                 this.game.topPosition = Math.min(this.game.topPosition, lH.rank);
-                                lK = 'style="color: ' + this.game.playerCells[0].rgb + '; font-weight: bold;"';
+                                lK = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
                                 if (lH.rank < 10) {
                                     this.game.onLeaderboard = true;
                                 }
@@ -2826,14 +2824,14 @@ function modules(ks) {
                         }
                     } else {
                         if (this.game.pID == lH.id) {
-                            if (this.game.playerCells.length > 0) {
+                            if (this.game.playerCells.size > 0) {
                                 this.game.topPosition = Math.min(this.game.topPosition, lH.rank);
-                                lK = 'style="color: ' + this.game.playerCells[0].rgb + '; font-weight: bold;"';
+                                lK = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
                                 if (lH.rank > 2 && lH.rank < 10) {
-                                    var lM = 'background-color: ' + this.game.playerCells[0].rgb + ';';
-                                    if (this.game.playerCells[0].skinSprite) {
-                                        lM += 'background-image: url(' + this.game.getSkinURL(this.game.playerCells[0].skin) + ');';
-                                        lM += 'border: 1px solid ' + this.game.playerCells[0].rgb + ';';
+                                    var lM = 'background-color: ' + this.game.aliveCell.rgb + ';';
+                                    if (this.game.aliveCell.skinSprite && this.game.aliveCell.skinSprite.texture != null && this.game.aliveCell.skinSprite.texture !== PIXI.Texture.EMPTY) {
+                                        lM += 'background-image: url(' + this.game.getSkinURL(this.game.aliveCell.skin) + ');';
+                                        lM += 'border: 1px solid ' + this.game.aliveCell.rgb + ';';
                                     }
                                     lJ = '<span class="lbCell" style="' + lM + '"></span>';
                                 }
@@ -2846,7 +2844,7 @@ function modules(ks) {
                         }
                     }
                     var lN = document.createElement('div');
-                    lN.textContent = lH.name.trim().replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                    lN.textContent = lH.name.trim().removeWideChars();
                     var lO = lN.innerHTML;
                     lE += lI.replace('%style%', lK).replace('%rank%', lJ).replace('%name%', lO.trim() == '' ? 'An unnamed cell' : lO).replace('%mass%', '500');
                     lF++;
@@ -2861,7 +2859,7 @@ function modules(ks) {
             updateDebug() {
                 var lP = '<b>Mass:</b> ' + this.getMass();
                 lP += '<br><b>Score:</b> ' + this.getScore();
-                lP += '<br><b>Cells:</b> ' + this.game.playerCells.length;
+                lP += '<br><b>Cells:</b> ' + this.game.myCells.size;
                 lP += '<br><b>FPS:</b> ' + this.getFPS();
                 lP += '<br><b>PING:</b> ' + this.getPING();
                 if (this.game.vertical) lP += '<br><b style="color:red">[ LINESPLITTING ]</b>'; // gota haha remember that game
@@ -2880,23 +2878,25 @@ function modules(ks) {
                     var lR = '';
                     var lS = '<b>Party Members</b><br>';
                     var lT = 1;
-                    if (this.game.playerCells.length > 0) {
+                    if (this.game.playerCells.size > 0) {
                         var lU = document.createElement('div');
-                        lU.textContent = (this.game.playerCells[0].name || 'An unnamed cell').trim().replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                        lU.textContent = (this.game.aliveCell.name || 'An unnamed cell').trim().removeWideChars();
                         var lV = lU.innerHTML;
-                        lS += '<div style="color:' + this.game.playerCells[0].rgb + ';white-space: nowrap;"><p style="max-width: 150px;overflow:hidden;text-overflow: ellipsis;display:inline-block;">' + lT + '. ' + lV + '</p> <p style="display:inline-block;margin-left: 5px;float:right;">' + this.getMass() + '</p></div>';
+                        lS += '<div style="color:' + this.game.aliveCell.rgb + ';white-space: nowrap;"><p style="max-width: 150px;overflow:hidden;text-overflow: ellipsis;display:inline-block;">' + lT + '. ' + lV + '</p> <p style="display:inline-block;margin-left: 5px;float:right;">' + this.getMass() + '</p></div>';
                         lT++;
                     }
                     for (var lX in this.game.party) {
                         var lY = this.game.party[lX];
+                        console.debug(lY);
+                        console.debug("\nX: " + lY.x + "\nY:" + lY.y); 
                         var lU = document.createElement('div');
-                        lU.textContent = (lY.name || 'An unnamed cell').trim().replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                        lU.textContent = (lY.name || 'An unnamed cell').trim().removeWideChars();
                         var lV = lU.innerHTML;
                         lS += '<div style="white-space: nowrap;"><p style="max-width: 150px;overflow:hidden;text-overflow: ellipsis;display:inline-block;">' + lT + '. ' + lV + '</p> <p style="display:inline-block;margin-left: 5px;float:right;">' + lY.mass + '</p></div>';
                         lT++;
                         var m1 = lY.x / (this.game.border[3] * 2) * this.mapSize;
                         var m2 = lY.y / (this.game.border[3] * 2) * this.mapSize;
-                        lR += '<div class="mapPartyMember" style="background-color: ' + lY.color + '; top: ' + (m2 + this.mapSize / 0x2) + 'px; left: ' + (m1 + this.mapSize / 0x2) + 'px;"><p>' + lV + '</p></div>';
+                        lR += '<div class="mapPartyMember" style="background-color: ' + lY.color + '; top: ' + (m2 + this.mapSize / 2) + 'px; left: ' + (m1 + this.mapSize / 2) + 'px;"><p>' + lV + '</p></div>';
                     }
                     this.partyText.innerHTML = lS;
                     this.game.partyMove();
@@ -2944,15 +2944,15 @@ function modules(ks) {
             }
             getMass() {
                 var mf = 0;
-                for (var mg = 0; mg < this.game.playerCells.length; mg++) {
-                    mf += this.game.playerCells[mg].getMass();
+                for (const cell of this.game.playerCells) {
+                    mf += cell.getMass();
                 }
                 return ~~mf;
             }
             getScore() {
                 var mh = 0;
-                for (var mi = 0; mi < this.game.playerCells.length; mi++) {
-                    mh += this.game.playerCells[mi].getMass();
+                for (const cell of this.game.playerCells) {
+                    mh += cell.getMass();
                 }
                 this.score = Math.max(this.score || 0, mh);
                 this.game.highestMass = Math.max(this.score, this.game.highestMass);
@@ -3123,32 +3123,30 @@ function modules(ks) {
                     this.nSize = 1;
                 }
             }
-            reset() {
-                this.game.cellContainer.removeChild(this.root);
+            // reset() and clear() called by putNode() depending on whether its respective pool is at maximum capacity
+            reset() { // Going back into node pool
                 this.root.visible = false;
+                // We're keeping sprites attached, as destroying them has proven more costly than just keeping them in memory
                 if (this.nameSprite) {
                     this.root.removeChild(this.nameSprite);
-                    this.nameSprite.destroy();
+                    if (this.nameSprite.texture) this.nameSprite.texture = null;
                 }
                 if (this.skinSprite) {
                     this.root.removeChild(this.skinSprite);
-                    this.skinSprite.destroy();
+                    if (this.skinSprite.texture) this.skinSprite.texture = null;
                 }
                 if (this.sizeText) {
                     this.root.removeChild(this.sizeText);
-                    this.sizeText.destroy();
+                    if (this.sizeText.texture) this.sizeText.texture = null;
                 }
                 this.name = null;
-                this.nameCache = null;
-                this.nameSprite = null;
+                this.mass = null;
                 this.skin = null;
                 this.skinCache = null;
-                this.skinSprite = null;
-                this.sizeText = null;
             }
-            clear() {
-                this.reset();
+            clear() { // Deleting node
                 this.game.cellContainer.removeChild(this.root);
+                this.root.destroy({ children: true }); // Don't see why I shouldn't do this
             }
             getScaleSize() {
                 return this.size / this.cellSize;
@@ -3205,7 +3203,7 @@ function modules(ks) {
                             }
                         }
                     case 'self':
-                        if (this.game.myCells.indexOf(this.id) > -1) {
+                        if (this.game.myCells.has(this.id)) {
                             break;
                         }
                     default:
@@ -3230,20 +3228,21 @@ function modules(ks) {
                 }
             }
             skinCheck() {
-                if (!this.skinSprite && this.skinCache && this.skinCache.texture != null) {
+                if (this.skinCache && this.skinCache.texture != null) {
                     const tex = this.skinCache.texture;
-
-                    tex.source.autoGenerateMipmaps = true;
-
-                    this.skinSprite = new PIXI.Sprite(this.skinCache.texture);
-                    this.skinSprite.visible =
-                        !this.game.settings.settings.blockedSkins.has(this.skin);
-                    this.skinSprite.zIndex = 0;
-                    this.skinSprite.anchor.x = 0.5;
-                    this.skinSprite.anchor.y = 0.5;
+                    if (!this.skinSprite) {
+                        tex.source.autoGenerateMipmaps = true;
+                        this.skinSprite = new PIXI.Sprite(tex);
+                        this.skinSprite.zIndex = 0;
+                        this.skinSprite.anchor.set(0.5, 0.5);
+                        this.root.addChild(this.skinSprite);
+                        this.sort();
+                    } else {
+                        this.skinSprite.texture = tex;
+                        this.root.addChild(this.skinSprite);
+                    }
+                    this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(this.skin);
                     this.skinSprite.scale.set(this.getSkinSize());
-                    this.root.addChild(this.skinSprite);
-                    this.sort();
                 }
             }
             getSkinSize() {
@@ -3271,22 +3270,13 @@ function modules(ks) {
                     if (this.game.party?.hasOwnProperty(this.parent))
                         break;
                 case 'self':
-                    if (this.game.myCells.includes(this.id))
+                    if (this.game.myCells.has(this.id))
                         break;
                 default:
                     if (dontShow && this.nameSprite) {
-                        this.root.removeChild(this.nameSprite);
-                        this.nameSprite.destroy();
-                        this.nameSprite = null;
+                        this.nameSprite.texture = null;
                     }
                     return;
-                }
-
-                // Remove existing sprite
-                if (this.nameSprite) {
-                    this.root.removeChild(this.nameSprite);
-                    this.nameSprite.destroy();
-                    this.nameSprite = null;
                 }
 
                 if (!name || name.trim() === '')
@@ -3337,7 +3327,8 @@ function modules(ks) {
                 }
 
                 this.game.names[cacheKey].lastAccess = this.game.updateTime;
-                this.nameSprite = new PIXI.Sprite(this.game.names[cacheKey].texture);
+                if (!this.nameSprite) this.nameSprite = new PIXI.Sprite();
+                this.nameSprite.texture = this.game.names[cacheKey].texture;
                 this.nameSprite.zIndex = 1;
 
                 switch (this.lockedPosition) {
@@ -3351,6 +3342,7 @@ function modules(ks) {
                     break;
                 default:
                     this.nameSprite.anchor.set(0.5);
+                    this.nameSprite.scale.set(1);
                 }
 
                 this.root.addChild(this.nameSprite);
@@ -3367,13 +3359,6 @@ function modules(ks) {
                         // Urgently update mass if it changes significantly
                         && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25))
                     return;
-
-                // Remove existing sprite
-                if (this.sizeText) {
-                    this.root.removeChild(this.sizeText);
-                    this.sizeText.destroy();
-                    this.sizeText = null;
-                }
 
                 if (this.size * this.game.viewZoom < 50) return; // Might be too aggressive?
 
@@ -3416,10 +3401,14 @@ function modules(ks) {
                 this.lastMassUpdate = this.game.updateTime;
                 this.lastMassValue = size;
 
-                this.sizeText = new PIXI.Sprite(this.game.masses[massStr].texture);
-                this.sizeText.anchor.set(0.5);
-                this.sizeText.position.y = this.cellSize / 2;
-                this.sizeText.zIndex = 1;
+                if (this.sizeText) { 
+                    this.sizeText.texture = this.game.masses[massStr].texture;
+                } else {
+                    this.sizeText = new PIXI.Sprite(this.game.masses[massStr].texture);
+                    this.sizeText.anchor.set(0.5);
+                    this.sizeText.position.y = this.cellSize / 2;
+                    this.sizeText.zIndex = 1;
+                }
                 this.root.addChild(this.sizeText);
             }
             getRadius() {
@@ -3493,7 +3482,7 @@ function modules(ks) {
                     break;
                 }
                 if (node == null) {
-                    node = new n1(this.game,id,parent,type,x,y,size,ne,lockedColor,lockedPosition,nh,color,rgb);
+                    node = new n1(this.game, id, parent, type, x, y, size, ne, lockedColor, lockedPosition, nh, color, rgb);
                 } else {
                     node.id = id;
                     node.parent = parent;
@@ -3519,9 +3508,6 @@ function modules(ks) {
                     node.cellSprite.tint = color;
                     node.destroyed = false;
                     node.opacity = 1;
-                    if (!node.root.parent) {
-                        this.game.cellContainer.addChild(node.root); // May not be needed but we'll see
-                    }
                     node.moveRoot();
                     //node.root.alpha = 1; // Re-enable to fade cells out, as I think was originally intended
                 }
@@ -3845,6 +3831,7 @@ function modules(ks) {
                 this.open = false;
                 this.ping = Date.now();
                 this.searching = false;
+                this.verifying = false;
                 this.verified = false;
                 this.turnstileReady = false;
                 this.token = null;
@@ -3964,9 +3951,10 @@ function modules(ks) {
             }
             verify() {
                 return new Promise( (oR, oS) => {
-                    if (this.verified)
+                    if (this.verified) {
                         return oR();
-                    this.tryVerifyCf();
+                    }
+                    if (!this.verifying) this.tryVerifyCf();
                     this.captchaInterval = setInterval( () => {
                         if (this.verified) {
                             clearInterval(this.captchaInterval);
@@ -3984,14 +3972,13 @@ function modules(ks) {
             }
             tryVerify() {
                 if (!this.token) {
-                    if (this.game.playerCells.length > 0) {
+                    if (this.game.playerCells.size > 0) {
                         return;
                     }
                     grecaptcha.execute(this.captchaId);
                 }
             }
             tryVerifyCf() {
-
                 if (!this.cfToken) {
                     if (!this.turnstileReady) {
                         if (this.cdTimeout) {
@@ -4003,9 +3990,11 @@ function modules(ks) {
                         turnstile.remove(this.turnstileId);
                         this.turnstileId = null;
                     }
-                    if (this.game.playerCells.length > 0) {
+                    if (this.game.playerCells.size > 0) {
                         return;
                     }
+
+                    this.verifying = true;
 
                     // disable play button
                     const playButton = document.getElementById("play");
@@ -4019,6 +4008,7 @@ function modules(ks) {
                         'theme': 'dark',
                         'appearance': 'interaction-only',
                         'callback': token => {
+                            this.verifying = false;
                             this.cfToken = token;
                             this.sendVerification();
                             $('.turnstile-container').hide();
@@ -4175,7 +4165,7 @@ function modules(ks) {
             onClose(p0) {
                 $('#resetCenter').hide();
                 this.game.log('Connection Closed! ' + (p0.reason ? p0.reason : ''));
-                if (this.game.playerCells.length > 0) {
+                if (this.game.playerCells.size > 0) {
                     this.game.refreshAds();
                     this.game.deathTimeout = setTimeout(this.game.onDeath.bind(this.game), 100);
                 } else {
@@ -4241,12 +4231,14 @@ function modules(ks) {
                     let pk = p8.readInt32();
                     var pl;
                     if (this.game.party && this.game.party.hasOwnProperty(pc)) {
+                        console.debug('updating', pc, pj, pk);
                         pl = this.game.party[pc];
-                        pl.ox = pl.x;
-                        pl.oy = pl.y;
-                        pl.nx = pj;
-                        pl.ny = pk;
+                        pl.originX = pl.x;
+                        pl.originY = pl.y;
+                        pl.targetX = pj;
+                        pl.targetY = pk;
                     } else {
+                        console.debug('creating', pc, pj, pk);
                         pl = new mn(this.game,pc,pi,pj,pk,pd);
                     }
                     pl.color = ph;
@@ -4261,10 +4253,10 @@ function modules(ks) {
             handleDrawLine(pm) {}
             handeDrawLines(pn) {}
             handleAddNode(po) {
-                if (this.game.myCells.length == 0) {
+                if (this.game.myCells.size == 0) {
                     this.game.startTime = Date.now();
                 }
-                this.game.myCells.push(po.readUInt32());
+                this.game.myCells.add(po.readUInt32());
             }
             handleNodes(buffer) {
                 let now = performance.now();
@@ -4279,7 +4271,7 @@ function modules(ks) {
                             eaten.hunter = hunter;
                             eaten.nx = hunter.x;
                             eaten.ny = hunter.y;
-                            if (this.game.playerCells.indexOf(hunter) > -1) {
+                            if (this.game.playerCells.has(hunter)) {
                                 if (eaten.parent == -1) {
                                     this.game.foodEaten++;
                                 } else {
@@ -4337,7 +4329,7 @@ function modules(ks) {
                         skin = buffer.readStringZeroUtf8().substr(1);
                     }
                     if (hasName) {
-                        name = buffer.readStringZeroUtf8().trim().replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                        name = buffer.readStringZeroUtf8().trim().removeWideChars();
                     }
 
                     let node;
@@ -5426,18 +5418,16 @@ function modules(ks) {
                     'y': 0
                 };
                 this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                this.nodes = {};
-                this.cells = [];
-                this.playerCells = [];
-                this.playerCellMap = new Map();
-                this.myCells = [];
+                this.nodes = {};                // Nodes are keyed by id
+                this.cells = new Set();         // Set of ALL player cell nodes
+                this.playerCells = new Set();   // Set of your cell nodes
+                this.myCells = new Set();       // Set of your cell IDs
                 this.leaderboard = [];
                 this.border = [-1000, -1000, 1000, 1000];
                 this.drawLines = [];
                 this.skins = {};
                 this.names = {};
                 this.masses = {};
-                this.blocked = [];
                 this.sizes = {};
                 this.settings = new qz(this);
                 this.camera = new mu(this);
@@ -5509,6 +5499,8 @@ function modules(ks) {
                         globalMove: false
                     }
                 });
+
+                await document.fonts.load('bold 32px Ubuntu');
 
                 this.stage = new PIXI.Container();
                 this.stage.eventMode = 'none';
@@ -5595,7 +5587,7 @@ function modules(ks) {
                 if (this.onLeaderboard) {
                     this.leaderboardTime++;
                 }
-                if (this.playerCells.length > 0) {
+                if (this.playerCells.size > 0) {
                     this.timeAlive++;
                 }
             }
@@ -5712,7 +5704,7 @@ function modules(ks) {
                 let bestDist = 99999; // The lower the better
             
                 for (const id of this.myCells) {
-                    const cell = this.playerCellMap.get(id);
+                    const cell = this.nodes[id];
                     if (!cell || cell.destroyed || !this.isOnLinesplitAxis(cell.nx, cell.ny)) continue;
                     const dist = Math.sqrt((cell.nx - mouseX) ** 2 + (cell.ny - mouseY) ** 2);
                     if (dist < bestDist) { 
@@ -5727,10 +5719,14 @@ function modules(ks) {
             }
             getLinesplitCell(mouseX, mouseY) {
                 //console.debug("Looking for new cell since you haven't set an axis yet");
-                const largestSize = Math.max(...this.playerCells.map(c => c.nSize));
+                let largestSize = 0;
+                for (const cell of this.playerCells) {
+                    if (cell.nSize > largestSize) 
+                        largestSize = cell.nSize;
+                }
                 let bestCell = null;
                 let bestScore = 99999; // The lower the better
-                if (this.myCells.length === 0) {
+                if (this.myCells.size === 0) {
                     this.vertical = false;
                     this.linesplitCell = null;
                     this.linesplitAxis = undefined;
@@ -5739,7 +5735,7 @@ function modules(ks) {
                 }
             
                 for (const id of this.myCells) {
-                    const cell = this.playerCellMap.get(id);
+                    const cell = this.nodes[id];
                     if (!cell || cell.destroyed) continue;
                     const dx = mouseX - cell.nx, dy = mouseY - cell.ny;
                     const sizeFactor = largestSize / cell.nSize;
@@ -5761,7 +5757,7 @@ function modules(ks) {
                 if (this.freeze)
                     return;
                 this.calcMouse();
-                if (this.mouse && (this.playerCells.length > 0 || (this.freeSpec)) && this.network.open) {
+                if (this.mouse && (this.playerCells.size > 0 || (this.freeSpec)) && this.network.open) {
                     if (!this.lastMouseSent || Math.abs(this.mouse.x - this.lastMouseSent.x) > 1 || Math.abs(this.mouse.y - this.lastMouseSent.y) > 1) {
                         this.network.sendMouse(this.mouse);
                         this.lastMouseSent = {
@@ -5777,31 +5773,31 @@ function modules(ks) {
 
                 this.lastTime = this.updateTime;
                 this.fps = this.ticker.FPS;
-                if (this.playerCells.length > 0) {
+                if (this.playerCells.size > 0) {
                     if (this.ejectKey) {
                         this.network.send(new packet.Eject());
                         this.lastEject = this.updateTime;
                     }
                     let playerCellsAlive = 0;
                     let totalSize = 0;
-                    for (let i = 0; i < this.playerCells.length; i++) {
-                        if (this.playerCells[i].destroyed)
+                    for (const cell of this.playerCells) {
+                        if (cell.destroyed)
                             continue;
                         playerCellsAlive++;
-                        totalSize += this.playerCells[i].nSize;
+                        totalSize += cell.nSize;
                     }
                     let t6 = 0;
                     let t7 = 0;
                     let t8 = 0;
 
-                    for (let i = 0; i < this.playerCells.length; i++) {
-                        if (this.playerCells[i].destroyed)
+                    for (const cell of this.playerCells) {
+                        if (cell.destroyed)
                             continue;
-                        this.playerCells[i].updatePos();
-                        const weight = this.playerCells[i].nSize / totalSize;
-                        t6 += this.playerCells[i].x * weight;
-                        t7 += this.playerCells[i].y * weight;
-                        t8 = Math.max(t8, this.playerCells[i].size);
+                        cell.updatePos();
+                        const weight = cell.nSize / totalSize;
+                        t6 += cell.x * weight;
+                        t7 += cell.y * weight;
+                        t8 = Math.max(t8, cell.size);
                     }
                     if (this.settings.getItem('mouseArrow') == true || this.isMobile) {
                         let ta = 0;
@@ -5814,12 +5810,12 @@ function modules(ks) {
                             this.arrowContainer.addChild(this.arrowSprite);
                             this.cellContainer.addChild(this.arrowContainer);
                         }
-                        if (this.playerCells.length == 1) {
-                            ta = this.playerCells[0].size * 1.5;
+                        if (this.playerCells.size == 1) {
+                            ta = this.aliveCell.size * 1.5;
                         } else {
-                            for (var t9 = 0; t9 < this.playerCells.length; t9++) {
-                                ta = Math.max(ta, Math.abs(this.playerCells[t9].x - t6) + this.playerCells[t9].size * 1.5);
-                                ta = Math.max(ta, Math.abs(this.playerCells[t9].y - t7) + this.playerCells[t9].size * 1.5);
+                            for (const cell of this.playerCells) {
+                                ta = Math.max(ta, Math.abs(cell.x - t6) + cell.size * 1.5);
+                                ta = Math.max(ta, Math.abs(cell.y - t7) + cell.size * 1.5);
                             }
                         }
                         if (!this.vertical) {
@@ -5830,7 +5826,7 @@ function modules(ks) {
                         }
                         this.arrowSprite.scale.x = 0x28 / this.arrowTexture.width / this.viewZoom;
                         this.arrowSprite.scale.y = this.arrowSprite.scale.x;
-                        this.arrowSprite.tint = this.playerCells[0].color;
+                        this.arrowSprite.tint = this.aliveCell.color;
                         this.arrowContainer.x = t6;
                         this.arrowContainer.y = t7;
                         this.arrowContainer.pivot.x = -ta;
@@ -5866,20 +5862,19 @@ function modules(ks) {
                     }
                 }
                 this.viewZoom = Math.max(0, mm()(this.viewZoom, this.calcViewZoom(), 10 * this.delta / this.settings.settings.cameraDelay));
-                for (var i = 0; i < this.cells.length; i++) {
-                    const cell = this.cells[i];
-                    if (this.playerCells.indexOf(cell) > -1 && !cell.destroyed)
-                        continue;
+                
+                // Update all cells and removeNode() those which are destroyed and have faded away
+                for (const cell of this.cells) {
                     cell.updatePos();
-
                     if (cell.destroyed) {
-                        cell.opacity = Math.max(0, cell.opacity - this.delta /* / 10*/
-                        );
+
+                        cell.opacity = Math.max(0, cell.opacity - this.delta);
                         if (cell.opacity <= 0) {
                             this.removeNode(cell);
                         }
                     }
                 }
+
                 if (this.party) {
                     for (var ti in this.party) {
                         this.party[ti].updatePos();
@@ -5907,54 +5902,48 @@ function modules(ks) {
                             'lastAccess:', this.updateTime - skin.lastAccess, 'ms ago'
                         );
                     }
-                    console.debug('Cells with destroyed skin source:', this.cells.filter(c => 
+                    const cellsArr = [...this.cells];
+                    console.debug('Cells with destroyed skin source:', cellsArr.filter(c =>
                         c.skinSprite?.texture?.source?.destroyed
                     ).length);
-                    console.debug('Cells with destroyed mass source:', this.cells.filter(c =>
+                    console.debug('Cells with destroyed mass source:', cellsArr.filter(c =>
                         c.sizeText?.texture?.source?.destroyed
                     ).length);
                     console.debug('Masses with destroyed source:', Object.values(this.masses).filter(m =>
                         m.texture?.source?.destroyed
                     ).length);
-                    console.debug('Masses with destroyed source:', Object.values(this.masses).filter(m =>
-                        m.texture?.source?.destroyed
-                    ).length);
-                    console.debug('Orphaned sizeText:', this.cells.filter(c => {
+                    console.debug('Orphaned sizeText:', cellsArr.filter(c => {
                         if (!c.sizeText) return false;
                         return !Object.values(this.masses).some(m => m.texture === c.sizeText.texture);
                     }).length);
-                    console.debug('Cells with nameSprite destroyed source:', this.cells.filter(c =>
+                    console.debug('Cells with nameSprite destroyed source:', cellsArr.filter(c =>
                         c.nameSprite?.texture?.source?.destroyed
                     ).length);
-
-                    console.debug('Cells with visible root but no parent:', this.cells.filter(c =>
+                    console.debug('Cells with visible root but no parent:', cellsArr.filter(c =>
                         c.root.visible && !c.root.parent
                     ).length);
-
-                    // Check for sprites whose texture exists but source is null (not destroyed, just null)
-                    console.debug('Cells with null mass source:', this.cells.filter(c =>
+                    console.debug('Cells with null mass source:', cellsArr.filter(c =>
                         c.sizeText?.texture && c.sizeText.texture.source === null
                     ).length);
-                    console.debug('Cells with null name source:', this.cells.filter(c =>
+                    console.debug('Cells with null name source:', cellsArr.filter(c =>
                         c.nameSprite?.texture && c.nameSprite.texture.source === null
                     ).length);
-                    console.debug('Cells with null skin source:', this.cells.filter(c =>
+                    console.debug('Cells with null skin source:', cellsArr.filter(c =>
                         c.skinSprite?.texture && c.skinSprite.texture.source === null
                     ).length);
-
                     throw e;
                 }
 
                 this.cacheCleanupDelta += t5.deltaMS;
 
-                if (this.cacheCleanupDelta >= 500) {
-                    this.cacheCleanupDelta %= 500; // Hopefully you don't stall your tab for too long.
+                if (this.cacheCleanupDelta >= 250) {
+                    this.cacheCleanupDelta %= 250; // Hopefully you don't stall your tab for too long.
                     this.cleanUpCache();
                 }
             }
-            cleanUpCache() { // Imagine a bucket. Now imagine it has a leak in it that drips every half a second.
+            cleanUpCache() { // Leaky bucket :gsPuddle:
                 //const items = Object.keys(this.names).length + Object.keys(this.skins).length + Object.keys(this.masses).length;
-                //console.debug("Cleaning up after " + items + " items");
+                //console.debug("Cleaning up 5 out of " + items + " items");
                 /*if (document.hidden) {
                     this.skipNextCleanup = true;
                     //console.debug("Document hidden, not cleaning up anything");
@@ -5965,7 +5954,7 @@ function modules(ks) {
                     console.debug("Unhidden, skipping this cleanup cycle");
                     return;
                 }*/
-                let maxDestroys = 10; // Max per cycle 
+                let maxDestroys = 5; // Max per cycle 
                 let destroyed = 0;
                 for (var key in this.names) {
                     if (destroyed >= maxDestroys) break;
@@ -6014,7 +6003,7 @@ function modules(ks) {
                 } catch (tq) {}
             }
             prerollComplete() {
-                if (this.playerCells.length == 0) {
+                if (this.playerCells.size == 0) {
                     this.network.sendNick(this.settings.getItem('nick'));
                 }
             }
@@ -6027,11 +6016,11 @@ function modules(ks) {
                 this.settings.setItem('nick', tr);
                 this.deleteLastKiller();
                 this.freeSpec = false;
-                if (this.playerCells.length == 0) {
+                if (this.playerCells.size == 0) {
                     this.freeze = false;
                     this.vertical = false;
                     const ts = this.settings.getItem('deathCount');
-                    if (ts % 0x5 == 0 && typeof adplayer !== 'undefined') {
+                    if (ts % 5 == 0 && typeof adplayer !== 'undefined') {
                         try {
                             aiptag.cmd.player.push(function() {
                                 adplayer.startPreRoll();
@@ -6093,7 +6082,7 @@ function modules(ks) {
             }
             spectate() {
                 this.iframe();
-                if (this.playerCells.length > 0)
+                if (this.playerCells.size > 0)
                     return this.hideMenu();
                 this.deleteLastKiller();
                 this.hideMenu();
@@ -6101,14 +6090,14 @@ function modules(ks) {
                 this.freeSpec = true;
             }
             updatePosition(tB, tC, tD) {
-                if (this.playerCells.length == 0) {
+                if (this.playerCells.size == 0) {
                     this.specZoom = tD;
                 }
             }
             setBorder(tE, tF, tG, tH) {
                 var tI = [tE, tG, tF, tH];
                 if (this.border != tI) {
-                    if (this.playerCells.length == 0) {
+                    if (this.playerCells.size == 0) {
                         this.freeSpec = false;
                         this.mouse.x = 0;
                         this.mouse.y = 0;
@@ -6120,12 +6109,12 @@ function modules(ks) {
             }
             calcViewZoom() {
                 if (this.isMobile || this.settings.getItem('autoZoom') == true) {
-                    if (this.playerCells.length == 0 && this.specZoom) {
+                    if (this.playerCells.size == 0 && this.specZoom) {
                         return this.specZoom * this.viewRange();
                     }
                     this.newViewZoom = 0;
-                    for (var tJ = 0; tJ < this.playerCells.length; tJ++) {
-                        this.newViewZoom += this.playerCells[tJ].size;
+                    for (const cell of this.playerCells) {
+                        this.newViewZoom += cell.size;
                     }
                     this.newViewZoom = Math.pow(Math.min(64 / this.newViewZoom, 2), 0.3) * this.viewRange();
                 } else {
@@ -6288,20 +6277,19 @@ function modules(ks) {
             }
             clearNodes() {
                 this.deleteLastKiller();
-                for (var tR in this.nodes) {
-                    var tS = this.nodes[tR];
-                    this.pool.putNode(tS);
+                for (const id in this.nodes) {
+                    const node = this.nodes[id];
+                    this.pool.putNode(node);
                 }
                 this.nodes = {};
-                this.playerCellMap.clear();
-                this.playerCells = [];
-                this.myCells = [];
+                this.playerCells.clear();
+                this.aliveCell = null;
+                this.myCells.clear();
                 this.leaderboard = [];
                 this.ui.score = 0;
                 this.drawLines = [];
-                this.blocked = [];
-                delete this.party;
-                this.cells = [];
+                this.party = null;
+                this.cells.clear();
                 this.camera.setPosition(0, 0);
                 this.ui.update();
                 for (var key in this.names) {
@@ -6367,30 +6355,34 @@ function modules(ks) {
                     this.log('Failed to refresh ads');
                 }
             }
-            removeNode(tV) {
-                if (this.playerCells.indexOf(tV) > -1 && this.playerCells.length == 1) {
+            removeNode(node) {
+                if (node === this.aliveCell) { // Get new aliveCell if it's removed
+                    if (this.playerCells.size === 1) {
+                        this.aliveCell = null;
+                    } else { 
+                        for (const cell of this.playerCells) {
+                            if (cell !== node) {
+                                this.aliveCell = cell; 
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (this.playerCells.size === 1 && this.playerCells.has(node)) {
                     this.deathTimeout = setTimeout(this.onDeath.bind(this), 500);
                 }
-                delete this.nodes[tV.id];
-                this.playerCellMap.delete(tV.id);
-                removeFromArray(this.playerCells, tV);
-                removeFromArray(this.myCells, tV.id);
-                removeFromArray(this.cells, tV);
-                this.pool.putNode(tV);
-
-                function removeFromArray(arr, item) {
-                    let index = arr.indexOf(item);
-                    if (index > -1)
-                        arr.splice(index, 1);
-                }
+                delete this.nodes[node.id];
+                this.playerCells.delete(node);
+                this.myCells.delete(node.id);
+                this.cells.delete(node);
+                this.pool.putNode(node);
             }
             addNode(node) {
                 this.nodes[node.id] = node;
-                this.cells.push(node);
-
-                if (this.myCells.indexOf(node.id) > -1 && !this.playerCellMap.has(node.id)) {
-                    this.playerCells.push(node);
-                    this.playerCellMap.set(node.id, node);
+                this.cells.add(node);
+                if (this.myCells.has(node.id) && !this.playerCells.has(node)) {
+                    if (!this.aliveCell) this.aliveCell = node;
+                    this.playerCells.add(node);
                 }
             }
             changeZoom(tX) {
@@ -6400,7 +6392,7 @@ function modules(ks) {
             }
             onTouchButtonStart(tY) {
                 if (tY == 'eject') {
-                    if (this.playerCells.length == 0) {
+                    if (this.playerCells.size == 0) {
                         this.changeZoom(1);
                     } else {
                         this.sendMouse();
@@ -6409,7 +6401,7 @@ function modules(ks) {
                     }
                 }
                 if (tY == 'split') {
-                    if (this.playerCells.length == 0) {
+                    if (this.playerCells.size == 0) {
                         this.changeZoom(-1);
                     } else {
                         this.sendMouse();
@@ -6469,7 +6461,7 @@ function modules(ks) {
                         break;
                     /*case this.controls.Spectate[0]:
                         console.debug("Spectate button pressed");
-                        if (this.playerCells.length > 0) {
+                        if (this.playerCells.size > 0) {
                             this.network.send(new packet.Extra());
                         }
                         break;*/
@@ -6625,16 +6617,14 @@ function modules(ks) {
                 if ($('#menu').is(':visible') || ue.target.id != 'gameMenu')
                     return false;
                 ue.preventDefault();
-                var uf = this.mouse.realX;
-                var ug = this.mouse.realY;
-                for (var uh in this.nodes) {
-                    var uj = this.nodes[uh];
-                    if (this.pointInCircle(uf, ug, uj.x, uj.y, uj.size)) {
-                        if (this.playerCells.indexOf(uj.id) == -1) {
-                            if (uj.parent > 0) {
-                                return openUserMenu(uj);
-                            }
-                        }
+                var mouseX = this.mouse.realX;
+                var mouseY = this.mouse.realY;
+                for (const id in this.nodes) {
+                    const node = this.nodes[id];
+                    if (this.pointInCircle(mouseX, mouseY, node.x, node.y, node.size)
+                        && !this.myCells.has(node.id) 
+                        && node.parent > 0) {
+                            return openUserMenu(node);
                     }
                 }
                 return openUserMenu(null);
@@ -6660,19 +6650,17 @@ function modules(ks) {
                         blockSkinItem.style.display = "none";
                     }
                     // Other default stuff
+                    document.getElementById("userMenuBlockText").innerText = "Block Player";
                     $('#userMenuPlayerName').html(uk.name ? uk.name.removeWideChars() : 'An unnamed cell');
-                    if (uk.skinSprite) {
+                    if (uk.skinSprite?.texture != null && uk.skinSprite?.texture !== PIXI.Texture.EMPTY) {
+                        console.debug("Player has a skin");
+                        console.debug(uk.skinSprite.texture);
                         $('#userMenuPlayerSkin').css('background-image', 'url(' + this.getSkinURL(uk.skin) + ')');
                     } else {
                         $('#userMenuPlayerSkin').css('background-image', 'none');
                     }
                     $('#userMenuPlayerSkin').css('background-color', uk.rgb);
                     $('#userMenuPlayer').show();
-                    if (this.blocked.indexOf(uk.parent) > -1) {
-                        $('#userMenuBlockText').text('Unmute Player');
-                    } else {
-                        $('#userMenuBlockText').text('Mute Player');
-                    }
                 } else {
                     $('#userMenuPlayer').hide();
                 }
@@ -6727,13 +6715,7 @@ function modules(ks) {
                 }
             }
             userMenuBlock() {
-                if (this.lastSelectedPlayer) {
-                    if (this.blocked.indexOf(this.lastSelectedPlayer.parent) > -1) {
-                        this.blocked.splice(this.blocked.indexOf(this.lastSelectedPlayer.parent), 1);
-                    } else {
-                        this.blocked.push(this.lastSelectedPlayer.parent);
-                    }
-                }
+                // Default blocking behavior is useless, just let Germsfox handle blocking people
                 $('#userMenu').hide();
             }
             userMenuCreateParty() {
@@ -7026,7 +7008,6 @@ function modules(ks) {
             instance.spectate();
             return false;
         });
-        window.__game = instance;
         self.hideDeath = instance.hideDeath.bind(instance);
         self.setSkin = instance.setSkin.bind(instance);
         self.setTheme = instance.setTheme.bind(instance);
@@ -7350,7 +7331,7 @@ function modules(ks) {
 
             setInterval(instance.network.refresh.bind(instance.network), 30000);
             window.onbeforeunload = function() {
-                if (instance.playerCells.length > 0) {
+                if (instance.playerCells.size > 0) {
                     return 'You will lose all your mass!';
                 }
             };

@@ -61,6 +61,82 @@
 .germsfox-btn:focus, .germsfox-btn:active {
     box-shadow: 0 0 0 .2rem #cf670080 !important;
 }
+#theme {
+    color: #fff;
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    width: auto;
+    height: auto;
+    background: transparent;
+    transform-origin: bottom right;
+    will-change: auto;
+    user-select: none;
+}
+#theme p {
+    display: inline-block;
+    font-family: Ubuntu;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+}
+#theme p:hover {
+    text-decoration: line-through;
+    cursor: pointer;
+    color: #FFF;
+}
+#theme span {
+    width: 112px;
+    display: flex;
+    padding-top: 0.8em;
+    gap: 8px;
+    align-items: center;
+}
+#theme .themePicker {
+    height: 20px;
+    width: 20px;
+    border-radius: 4px;
+    display: inline-block;
+    border: 0px;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px inset, rgba(0, 0, 0, 0.5) 0px 0px 4px;
+    transition: transform 0.3s ease-out;
+}
+#theme .themePicker:hover {
+    transform: scale(1.1);
+    border: 1px solid rgba(255, 255, 255, 0.7) !important;
+}
+#themeUI {
+    align-items: center;
+    transition: 
+        height 0.3s ease-out,
+        width 0.2s ease-out;
+    display: flex;
+    width: 0px;
+    height: 0px;
+    overflow: hidden;
+    flex-direction: column;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #DDDDDD;
+    border-radius: 10px;
+}
+#themeButton {
+    border: none;
+    height: 34px;
+    width: 34px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    color: #BBBBBB;
+    cursor: pointer;
+    transition: all 0.3s ease-out;
+}
+#themeButton:hover {
+    transform: scale(1.2);
+    border: 2px solid #FFF;
+}
+#themeButton:focus {
+    outline: none;
+}
 #germsfoxDebugText {
     font-family: Roboto;
     padding: 10px;

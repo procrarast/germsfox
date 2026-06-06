@@ -2887,8 +2887,6 @@ function modules(ks) {
                     }
                     for (var lX in this.game.party) {
                         var lY = this.game.party[lX];
-                        console.debug(lY);
-                        console.debug("\nX: " + lY.x + "\nY:" + lY.y); 
                         var lU = document.createElement('div');
                         lU.textContent = (lY.name || 'An unnamed cell').trim().removeWideChars();
                         var lV = lU.innerHTML;
@@ -2901,6 +2899,7 @@ function modules(ks) {
                     this.partyText.innerHTML = lS;
                     this.game.partyMove();
                     this.mapParty.innerHTML = lR;
+                    this.game.themeMove();
                 }
                 
             }
@@ -2912,7 +2911,7 @@ function modules(ks) {
                     var m3 = new Date(this.game.network.restart.split('[console]')[1]);
                     var m4 = this.game.network.restart.split('[console]')[0];
                     var m5 = document.createElement('div');
-                    m5.textContent = m4.replaceAllPoly('\u0bf5', '').replaceAllPoly('\ufdfd', '');
+                    m5.textContent = m4.removeWideChars();
                     m4 = m5.innerHTML;
                     if (m3.getTime() - Date.now() <= 5 * 1000 * 60) {
                         return m4 + ('<font color="#ff0000">' + this.timeUntil(m3) + '</font>');
@@ -3032,15 +3031,25 @@ function modules(ks) {
             constructor(src, mA, isHighQuality) {
                 this.cb = mA;
                 this._canvas = null;
-                this._texture = null;
+                this.texture = null;
                 this._ctx = null;
                 this.size = isHighQuality ? 1024 : 512;
                 this.lastAccess = Date.now();
+                this.pending = [];  // Callbacks waiting for texture
                 this.image = new Image();
                 this.image.crossOrigin = 'anonymous';
                 this.image.src = src;
                 this.image.onload = this.render.bind(this);
             }
+            
+            onReady(cb) {
+                if (this.texture) {
+                    cb(this.texture);  // Already loaded, fire immediately
+                } else {
+                    this.pending.push(cb);  // Queue it
+                }
+            }
+            
             async render() {
                 if (null == this._canvas) {
                     this._canvas = document.createElement('canvas');
@@ -3054,17 +3063,18 @@ function modules(ks) {
                 this._ctx.drawImage(this.image, 0, 0, this._canvas.width, this._canvas.height);
                 if (!this.texture) {
                     this.texture = PIXI.Texture.from(this._canvas);
-                    if (this.cb)
-                        this.cb();
+                    if (this.cb) this.cb();
+                    for (const cb of this.pending) cb(this.texture);
+                    this.pending = [];
                 }
             }
         }
-        ;const nodeType = {
+        const nodeType = {
             'Player': 0,
             'Virus': 1,
             'Food': 2
         };
-        ;class mC {
+        class mC {
             constructor(mD, id, parent, mG, mH, mI, mJ, mK, mL, mM, mN, mO, mP) {
                 this.id = id;
                 this.parent = parent;
@@ -3221,7 +3231,7 @@ function modules(ks) {
                             this.game.skins[key] = this.skinCache;
                         } else {
                             this.skinCache = this.game.skins[key];
-                            this.skinCheck();
+                            this.skinCache.onReady(this.skinCheck.bind(this));
                         }
                         this.skinCache.lastAccess = this.game.updateTime;
                     }
@@ -3231,7 +3241,6 @@ function modules(ks) {
                 if (this.skinCache && this.skinCache.texture != null) {
                     const tex = this.skinCache.texture;
                     if (!this.skinSprite) {
-                        tex.source.autoGenerateMipmaps = true;
                         this.skinSprite = new PIXI.Sprite(tex);
                         this.skinSprite.zIndex = 0;
                         this.skinSprite.anchor.set(0.5, 0.5);
@@ -3241,6 +3250,7 @@ function modules(ks) {
                         this.skinSprite.texture = tex;
                         this.root.addChild(this.skinSprite);
                     }
+                    tex.source.autoGenerateMipmaps = true;
                     this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(this.skin);
                     this.skinSprite.scale.set(this.getSkinSize());
                 }
@@ -3825,7 +3835,7 @@ function modules(ks) {
             return ok[oo] + ol[op] + ok[oq];
         }
         ;
-        ;class or {
+        ;class Network {
             constructor(os) {
                 this.game = os;
                 this.open = false;
@@ -4305,15 +4315,15 @@ function modules(ks) {
 
                     let skin = null;
                     let name = null;
-                    let colorHex = null;
-                    let colorStr = null;
+                    let hex = null;
+                    let rgb = null;
                     let parentId = -1;
-                    let partyId = null;
-                    let partyFlags = null;
+                    let lockedColor = null;
+                    let lockedPosition = null;
 
                     if (hasPartyInfo) {
-                        partyId = buffer.readUInt32();
-                        partyFlags = buffer.readUInt8();
+                        lockedColor = buffer.readUInt32();
+                        lockedPosition = buffer.readUInt8();
                     }
                     if (hasParent) {
                         parentId = buffer.readInt32();
@@ -4322,8 +4332,8 @@ function modules(ks) {
                         let r = buffer.readUInt8();
                         let g = buffer.readUInt8();
                         let b = buffer.readUInt8();
-                        colorStr = `rgb(${r}, ${g}, ${b})`;
-                        colorHex = (r << 16) + (g << 8) + b;
+                        rgb = `rgb(${r}, ${g}, ${b})`;
+                        hex = (r << 16) + (g << 8) + b;
                     }
                     if (hasSkin) {
                         skin = buffer.readStringZeroUtf8().substr(1);
@@ -4347,7 +4357,7 @@ function modules(ks) {
                         } else if (isVirus) {
                             type = nodeType.Virus;
                         }
-                        node = this.game.pool.getNode(nodeId, parentId, type, x, y, size, name, partyId, partyFlags, skin, colorHex, colorStr, isEjected);
+                        node = this.game.pool.getNode(nodeId, parentId, type, x, y, size, name, lockedColor, lockedPosition, skin, hex, rgb, isEjected);
                         this.game.addNode(node);
                     }
 
@@ -4357,18 +4367,36 @@ function modules(ks) {
                     node.updateTime = now;
 
                     if (hasPartyInfo) {
-                        node.lockedColor = partyId;
-                        node.lockedPosition = partyFlags;
+                        node.lockedColor = lockedColor;
+                        node.lockedPosition = lockedPosition;
                     }
                     if (hasColor) {
-                        node.setColor(colorHex, colorStr);
+                        switch (node.type) {
+                            case nodeType.Food:
+                                if (this.game.customTheme.food !== null) {
+                                    hex = this.filterColor(hex, this.game.customTheme.food[0]);
+                                    rgb = this.game.customTheme.food[1]; // Unfiltered
+                                }
+                                break;
+                            case nodeType.Virus:
+                                if (this.game.customTheme.virus !== null) {
+                                    hex = this.game.customTheme.virus[0];
+                                    rgb = this.game.customTheme.virus[1];
+                                }
+                                break;
+                            case nodeType.Player:
+                                if (this.game.customTheme.players !== null) {
+                                    hex = this.filterColor(hex, this.game.customTheme.players[0]);
+                                    rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
+                                }
+                                break;
+                        }
+                        
+                        node.setColor(hex, rgb);
                     }
-                    if (hasSkin && skin && skin != '') {
-                        node.setSkin(skin);
-                    }
-                    if (hasName && name && name != '') {
-                        node.setName(name);
-                    }
+
+                    if (hasSkin && skin) node.setSkin(skin);
+                    if (hasName && name) node.setName(name);
                 }
 
                 let destroyCount = buffer.readUInt16();
@@ -4379,6 +4407,23 @@ function modules(ks) {
                         node.destroy();
                     }
                 }
+            }
+            filterColor(baseHex, filterHex) {
+                const baseR = (baseHex >> 16) & 0xFF;
+                const baseG = (baseHex >> 8) & 0xFF;
+                const baseB = baseHex & 0xFF;
+                
+                const filterR = (filterHex >> 16) & 0xFF;
+                const filterG = (filterHex >> 8) & 0xFF;
+                const filterB = filterHex & 0xFF;
+                
+                const brightness = (baseR + baseG + baseB) / (3 * 255) * 2;
+                
+                const r = Math.min(255, Math.round(filterR * brightness));
+                const g = Math.min(255, Math.round(filterG * brightness));
+                const b = Math.min(255, Math.round(filterB * brightness));
+                
+                return (r << 16) | (g << 8) | b;
             }
             handleBorder(pW) {
                 this.game.setBorder(pW.readDouble(), pW.readDouble(), pW.readDouble(), pW.readDouble());
@@ -4532,15 +4577,22 @@ function modules(ks) {
                 );
             }
         }
-        ;class qz {
-            constructor(qA) {
-                this.game = qA;
+        ;class Settings {
+            constructor(game) {
+                this.game = game;
                 this.settings = JSON.parse(window.localStorage.getItem('settings') || '{}');
                 this.default = {
                     'nick': '',
                     'skin': '',
                     'theme': 'hex',
                     'color': 'gray',
+                    'customTheme': {
+                        virus: null,
+                        food: null,
+                        players: null,
+                        background: null,
+                        border: null
+                    },
                     'controls': {
                         'Split': [32, 'Space'],
                         'Feed': [0x57, 'W'],
@@ -4591,6 +4643,15 @@ function modules(ks) {
                         this.save();
                     }
                 }
+                for (var key in this.default.customTheme) {
+                    if (this.settings.customTheme.hasOwnProperty(key) == false) {
+                        console.debug(`Setting ${key} to null`);
+                        this.settings.customTheme[key] = this.default.customTheme[key];
+                        this.save();
+                    } else {
+                        console.debug(`Found setting for ${key} with val ${this.settings.customTheme[key]}`);
+                    }
+                }
                 this.settings.blockedSkins = new Set(this.settings.blockedSkins || []);
             }
             ready() {
@@ -4619,6 +4680,7 @@ function modules(ks) {
                 $('#keyVertical').val(this.settings.controls.Vertical[1]);
                 $('#keyHide').val(this.settings.controls.Hide[1]);
                 //$('#keySpectate').val(this.settings.controls.Spectate[1]);
+                this.game.renderTheme();
             }
             getItem(key) {
                 return this.settings[key];
@@ -4626,38 +4688,37 @@ function modules(ks) {
             setItem(key, value) {
                 this.settings[key] = value;
                 this.save();
-                if (key == 'blockedSkins') {
-                    for (const cell of this.game.cells) {
-                        if (cell.skin) {
-                            cell.setSkin(cell.skin, true); // setSkin updates visibility of blocked skins
-                        }
-                    }
+                if (key === "customTheme") {
+                    // TODO: Update food in real time
+                    this.game.drawGrid();
                 }
                 if (key == 'hideBorder' || key == 'hideMapGrid') {
                     if (this.game.grid)
                         this.game.drawGrid();
                 }
                 if (key == 'showNames') {
-                    for (var i = 0; i < this.game.cells.length; i++) {
-                        if (this.game.cells[i].name && this.game.cells[i].name != '') {
-                            this.game.cells[i].setName(this.game.cells[i].name, true);
+                    for (const cell of this.game.cells) {
+                        if (cell.name && cell.name != '') {
+                            cell.setName(cell.name, true);
                         }
                     }
                 }
-                if (key == 'showSkins') {
-                    for (var i = 0; i < this.game.cells.length; i++) {
-                        if (this.game.cells[i].skin && this.game.cells[i].skin != '') {
-                            this.game.cells[i].setSkin(this.game.cells[i].skin, true);
+                if (key === 'highQualitySkins' || key === "borderlessSkins" || key == 'showSkins' || key == 'blockedSkins') {
+                    // TODO: Update hq/borderless skins in real time
+                    for (const cell of this.game.cells) {
+                        if (cell.skin && cell.skin != '') {
+                            cell.setSkin(cell.skin, true);
                         }
                     }
                 }
                 if (key == 'showMass') {
-                    for (var i = 0; i < this.game.cells.length; i++) {
-                        const cell = this.game.cells[i];
+                    for (const cell of this.game.cells) {
                         if (!this.getItem('showMass') && cell.sizeText) {
                             cell.root.removeChild(cell.sizeText);
                             cell.sizeText.destroy();
                             delete cell.sizeText;
+                        } else {
+                            cell.setSize(cell.nSize + 0.0001); // Just to update it
                         }
                     }
                 }
@@ -5429,9 +5490,9 @@ function modules(ks) {
                 this.names = {};
                 this.masses = {};
                 this.sizes = {};
-                this.settings = new qz(this);
+                this.settings = new Settings(this);
                 this.camera = new mu(this);
-                this.network = new or(this);
+                this.network = new Network(this);
                 this.ui = new lC(this);
                 this.login = new qI(this);
                 this.chat = new l7(this);
@@ -5444,6 +5505,7 @@ function modules(ks) {
                 this.topPosition = 999;
                 this.onLeaderboard = false;
                 this.controls = this.settings.getItem('controls');
+                this.customTheme = this.settings.getItem('customTheme'); // Reduce lookups
                 this.theme = 2;
                 this.ejectSpeed = 999;
                 this.maxCacheTime = 10000;
@@ -6128,16 +6190,21 @@ function modules(ks) {
             drawGrid() {
                 $(window).trigger('resize');
                 const colorTheme = this.settings.getItem('color');
-                switch (colorTheme) {
-                case 'gray':
-                    this.renderer.background.color = 0x333439;
-                    break;
-                case 'white':
-                    this.renderer.background.color = 0xf0fbff;
-                    break;
-                case 'black':
-                    this.renderer.background.color = 0x000000;
-                    break;
+                const customTheme = this.settings.getItem('customTheme');
+                if (customTheme.background) {
+                    this.renderer.background.color = customTheme.background[0];
+                } else {
+                    switch (colorTheme) {
+                    case 'gray':
+                        this.renderer.background.color = 0x333439;
+                        break;
+                    case 'white':
+                        this.renderer.background.color = 0xf0fbff;
+                        break;
+                    case 'black':
+                        this.renderer.background.color = 0x000000;
+                        break;
+                    }
                 }
 
                 if (this.grid) {
@@ -6248,7 +6315,7 @@ function modules(ks) {
 
                     borderGraphics.rect(-borderSize / 2, -borderSize / 2, size + borderSize, size + borderSize).stroke({
                         width: borderSize,
-                        color: 0x00ff00,
+                        color: customTheme.border ? customTheme.border[0] : 0x00ff00,
                         alpha: 1
                     });
 
@@ -6315,8 +6382,8 @@ function modules(ks) {
                     delete this.masses[key];
                 }
                 this.masses = {};
-
             }
+
             refreshMenuAds() {
                 if ($('#menu').is(':visible')) {
                     try {
@@ -6481,6 +6548,7 @@ function modules(ks) {
                             $('#gameMenu').show();
                         }
                         this.partyMove();
+                        this.themeMove();
                         break;
                     case this.controls.Freeze[0]:
                         if (event.repeat)
@@ -6793,15 +6861,117 @@ function modules(ks) {
                 $('#xpProgress').css('transform', 'scale(' + this.UIRatio + ', ' + this.UIRatio + ')');
                 $('#mobile').css('transform', 'scale(' + this.UIRatio + ', ' + this.UIRatio + ')');
                 this.partyMove();
+                this.themeMove();
                 if (this.renderer)
                     this.renderer.resize(this.width, this.height);
             }
+
             partyMove() {
                 $('#party').css({
                     'transform': 'scale(' + this.UIRatio + ', ' + this.UIRatio + ')',
                     'left': 20 + $('#debug').width() * this.UIRatio + 'px'
                 });
             }
+
+            themeMove() {
+                const themeDiv = document.getElementById("theme");
+                if (!themeDiv) return;
+                themeDiv.style.bottom = 20 + $('#map').height() * this.UIRatio + 'px';
+                themeDiv.style.transform = `scale(${this.UIRatio})`;
+            }
+
+            themeClick() {
+                const themeDiv = document.getElementById("theme");
+                const themeButton = themeDiv.querySelector("#themeButton");
+                const themeButtonIcon = themeButton.querySelector("i");
+                const themeUI = themeDiv.querySelector("#themeUI");
+                const isHidden = themeUI.style.height === "0px";
+                
+                themeButtonIcon.className = isHidden ? "fas fa-angle-down" : "fas fa-palette";
+                themeButton.style.marginRight = isHidden ? "4px" : "0px";
+                themeUI.style.height = isHidden ? "185px" : "0px";
+                themeUI.style.width = isHidden ? "140px" : "0px";
+            }
+
+            renderTheme() {
+                if (document.getElementById("theme")) return;
+                
+                const themeDiv = document.createElement("div");
+                themeDiv.id = "theme";
+                document.getElementById("map").before(themeDiv);
+                
+                // Button
+                const themeButton = document.createElement("button");
+                themeButton.id = "themeButton";
+                themeButton.addEventListener('click', () => this.themeClick());
+                themeButton.innerHTML = '<i class="fas fa-palette"></i>';
+                themeDiv.appendChild(themeButton);
+                
+                // UI
+                const themeUI = document.createElement("div");
+                themeUI.id = "themeUI";
+                themeUI.style.height = "0px";
+                themeUI.style.width = "0px";
+                
+                const labels = {
+                    virus: "Virus",
+                    food: "Food",
+                    players: "Player Cells",
+                    background: "Background",
+                    border: "Map Border"
+                };
+                
+                let theme = this.settings.getItem('customTheme');
+                
+                const renderSection = (key, label) => {
+                    const sectionSpan = document.createElement("span");
+                    sectionSpan.classList.add("themeRow");
+                    
+                    const sectionPickerDiv = document.createElement("div");
+                    sectionPickerDiv.classList.add("themePicker");
+                    const colorPicker = new CP(sectionPickerDiv);
+                    if (theme[key] === null) {
+                        colorPicker.source.style.background = "#000";
+                        colorPicker.source.style.border = "1px solid #B00";
+                    } else {
+                        const anotherPixiColor = new PIXI.Color(theme[key][0]); // Tired. not dealing with making this good right now
+                        colorPicker.set(anotherPixiColor.toHex());
+                    }
+
+                    colorPicker.on('change', (color) => {
+                        const pixiColor = new PIXI.Color('#' + color);
+                        console.debug(pixiColor.toHex());
+                        if (pixiColor.toHex() === "#ff0000" && theme[key] === null) return; // Terrible
+                        theme[key] = [pixiColor.toNumber(), pixiColor.toRgbaString()];
+                        this.changeSetting('customTheme', theme);
+                        colorPicker.source.style.background = pixiColor.toRgbaString();
+                        colorPicker.source.style.border = "0px";
+                    });
+                    
+                    sectionSpan.appendChild(sectionPickerDiv);
+
+                    const sectionLabel = document.createElement("p");
+                    sectionLabel.innerText = label;
+
+                    sectionLabel.addEventListener('click', () => {
+                        theme[key] = null;
+                        this.changeSetting('customTheme', theme);
+                        colorPicker.source.style.background = "#000";
+                        colorPicker.source.style.border = "1px solid #B00";
+                    });
+
+                    sectionSpan.appendChild(sectionLabel);
+                    
+                    themeUI.appendChild(sectionSpan);
+                };
+                
+                for (const key in labels) {
+                    renderSection(key, labels[key]);
+                }
+                
+                themeDiv.appendChild(themeUI);
+            }
+
             exitParty() {
                 $('#party').hide();
                 this.party = {};
@@ -6935,7 +7105,7 @@ function modules(ks) {
         };
         String.prototype.removeWideChars = function() {
             return this.replace(
-                new RegExp('[\\uFDFD\\u{1242B}\\u{12219}\\u2E3B\\uA9C5\\u102A\\u0BF5\\u0BF8\\u2031]', 'gu'),
+                new RegExp('[\\uFDFD\\u{1242B}\\u{12219}\\u2E3B\\uA9C5\\u102A\\u0BF5\\u0BF8\\u2031\\u{1242A}]', 'gu'),
                 ''
             );
         };
@@ -6981,10 +7151,7 @@ function modules(ks) {
             return v4 + ':' + v5;
         }
         ;
-        /* Also interferes with systems init
-        Array.prototype.last = function() {
-            return this[this.length - 0x1];
-        }*/
+
         var instance = new sW();
         $('#play').click(function(v7) {
             if (v7.originalEvent === undefined) {

@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.1
+ * @version     1.1.8
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -3027,48 +3027,117 @@ function modules(ks) {
                 this.ny = y;
             }
         }
-        class my {
+
+        class SkinTexture {
             constructor(src, mA, isHighQuality) {
                 this.cb = mA;
-                this._canvas = null;
                 this.texture = null;
-                this._ctx = null;
                 this.size = isHighQuality ? 1024 : 512;
                 this.lastAccess = Date.now();
-                this.pending = [];  // Callbacks waiting for texture
+                this.pending = [];
                 this.image = new Image();
                 this.image.crossOrigin = 'anonymous';
                 this.image.src = src;
                 this.image.onload = this.render.bind(this);
             }
-            
+
             onReady(cb) {
                 if (this.texture) {
-                    cb(this.texture);  // Already loaded, fire immediately
+                    cb(this.texture);
                 } else {
-                    this.pending.push(cb);  // Queue it
+                    this.pending.push(cb);
                 }
             }
-            
+
             async render() {
-                if (null == this._canvas) {
-                    this._canvas = document.createElement('canvas');
-                    this._ctx = this._canvas.getContext('2d');
-                }
-                this._canvas.width = this.size;
-                this._canvas.height = this.size;
-                this._ctx.beginPath();
-                this._ctx.arc(this._canvas.width / 2, this._canvas.height / 2, this.size / 2, 0, Math.PI * 2);
-                this._ctx.clip();
-                this._ctx.drawImage(this.image, 0, 0, this._canvas.width, this._canvas.height);
-                if (!this.texture) {
-                    this.texture = PIXI.Texture.from(this._canvas);
-                    if (this.cb) this.cb();
-                    for (const cb of this.pending) cb(this.texture);
-                    this.pending = [];
-                }
+                const canvas = document.createElement('canvas');
+                canvas.width = this.size;
+                canvas.height = this.size;
+                const ctx = canvas.getContext('2d');
+                ctx.beginPath();
+                ctx.arc(this.size / 2, this.size / 2, this.size / 2, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(this.image, 0, 0, this.size, this.size);
+                const bitmap = await createImageBitmap(canvas);
+                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: bitmap }) });
+                this.texture.source.autoGenerateMipmaps = true;
+                if (this.cb) this.cb();
+                for (const cb of this.pending) cb(this.texture);
+                this.pending = [];
             }
         }
+
+        class NameTexture {
+            constructor(name, fontSize, fill, strokeWidth, strokeAlpha) {
+                this.lastAccess = Date.now();
+                this.texture = null;
+                this.pending = [];
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const font = `bold ${fontSize}px Ubuntu`;
+                const pad = Math.ceil(strokeWidth / 2);
+
+                ctx.font = font;
+                canvas.width = Math.ceil(ctx.measureText(name).width) + pad * 2;
+                canvas.height = Math.ceil(fontSize * 1.4) + pad * 2;
+
+                ctx.font = font;
+                ctx.textBaseline = 'top';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = strokeWidth;
+                ctx.globalAlpha = strokeAlpha ?? 1;
+                ctx.strokeStyle = 'black';
+                ctx.strokeText(name, pad, pad);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = `#${fill.toString(16).padStart(6, '0')}`;
+                ctx.fillText(name, pad, pad);
+
+                // Temp texture until permanent bmp is done rendering
+                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
+                this.texture.source.autoGenerateMipmaps = true;
+
+                createImageBitmap(canvas).then(bitmap => {
+                    this.texture.source.resourse = bitmap;
+                    this.texture.source.update();
+                });
+            }
+        }
+
+        class MassTexture {
+            constructor(massStr, fontSize, strokeWidth) {
+                this.lastAccess = Date.now();
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const font = `bold ${fontSize}px Ubuntu`;
+                const pad = Math.ceil(strokeWidth / 2);
+
+                ctx.font = font;
+                const measured = ctx.measureText(massStr);
+                canvas.width = Math.ceil(measured.width) + pad * 2;
+                canvas.height = Math.ceil(fontSize * 1.4) + pad * 2;
+
+                ctx.font = font;
+                ctx.textBaseline = 'top';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = strokeWidth;
+                ctx.strokeStyle = 'black';
+                ctx.strokeText(massStr, pad, pad);
+                ctx.fillStyle = 'white';
+                ctx.fillText(massStr, pad, pad);
+
+                // Temp texture until permanent bmp is done rendering
+                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
+                this.texture.source.autoGenerateMipmaps = true;
+
+                createImageBitmap(canvas).then(bitmap => {
+                    this.texture.source.resource = bitmap;
+                    this.texture.source.update();
+                });
+            }
+        }
+
         const nodeType = {
             'Player': 0,
             'Virus': 1,
@@ -3139,15 +3208,15 @@ function modules(ks) {
                 // We're keeping sprites attached, as destroying them has proven more costly than just keeping them in memory
                 if (this.nameSprite) {
                     this.root.removeChild(this.nameSprite);
-                    if (this.nameSprite.texture) this.nameSprite.texture = null;
+                    if (this.nameSprite.texture) this.nameSprite.texture = PIXI.Texture.EMPTY;
                 }
                 if (this.skinSprite) {
                     this.root.removeChild(this.skinSprite);
-                    if (this.skinSprite.texture) this.skinSprite.texture = null;
+                    if (this.skinSprite.texture) this.skinSprite.texture = PIXI.Texture.EMPTY;
                 }
                 if (this.sizeText) {
                     this.root.removeChild(this.sizeText);
-                    if (this.sizeText.texture) this.sizeText.texture = null;
+                    if (this.sizeText.texture) this.sizeText.texture = PIXI.Texture.EMPTY;
                 }
                 this.name = null;
                 this.mass = null;
@@ -3181,8 +3250,8 @@ function modules(ks) {
                 this.y = mm()(this.oy, this.ny, this.delta);
                 this.size = mm()(this.oSize, this.nSize, this.delta);
                 //if (this.destroyed) this.opacity -= this.delta / 10;
-                if (this.skinCache) {
-                    this.skinCache.lastAccess = this.game.updateTime;
+                if (this.skin && this.game.skins[this.skin]) {
+                    this.game.skins[this.skin].lastAccess = this.game.updateTime;
                 }
                 if (this.currentNameKey && this.game.names[this.currentNameKey]) {
                     this.game.names[this.currentNameKey].lastAccess = this.game.updateTime;
@@ -3227,13 +3296,13 @@ function modules(ks) {
                     }
                     if (key && key != '' && !this.game.settings.settings.blockedSkins.has(key)) {
                         if (this.game.skins.hasOwnProperty(key) == false) {
-                            this.skinCache = new my(this.game.getSkinURL(key),this.skinCheck.bind(this),this.game.settings.settings.highQualitySkins);
+                            this.skinCache = new SkinTexture(this.game.getSkinURL(key),this.skinCheck.bind(this),this.game.settings.settings.highQualitySkins);
                             this.game.skins[key] = this.skinCache;
                         } else {
                             this.skinCache = this.game.skins[key];
                             this.skinCache.onReady(this.skinCheck.bind(this));
                         }
-                        this.skinCache.lastAccess = this.game.updateTime;
+                        this.game.skins[key].lastAccess = this.game.updateTime;
                     }
                 }
             }
@@ -3250,7 +3319,6 @@ function modules(ks) {
                         this.skinSprite.texture = tex;
                         this.root.addChild(this.skinSprite);
                     }
-                    tex.source.autoGenerateMipmaps = true;
                     this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(this.skin);
                     this.skinSprite.scale.set(this.getSkinSize());
                 }
@@ -3284,7 +3352,7 @@ function modules(ks) {
                         break;
                 default:
                     if (dontShow && this.nameSprite) {
-                        this.nameSprite.texture = null;
+                        this.nameSprite.texture = PIXI.Texture.EMPTY;
                     }
                     return;
                 }
@@ -3296,49 +3364,25 @@ function modules(ks) {
                 this.currentNameKey = cacheKey;
 
                 if (!this.game.names[cacheKey]) {
-                    const stroke = this.lockedColor === null ? {
-                        color: 0x000000,
-                        width: 15,
-                        join: 'round'
-                    } : {
-                        color: 0x000000,
-                        alpha: 0.25,
-                        width: 10,
-                        join: 'round'
-                    };
-
-                    const text = new PIXI.Text({
-                        text: name,
-                        style: {
-                            fontFamily: 'Ubuntu',
-                            fontSize: this.getNameSize(),
-                            fill: (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
-                            stroke,
-                            align: 'center',
-                            fontWeight: 'bold',
-                            padding: 10,
-                        }
-                    });
-                    const nameTexture = PIXI.RenderTexture.create({
-                        width: text.width,
-                        height: text.height,
-                    });
-
-                    this.game.renderer.render({
-                        container: text,
-                        target: nameTexture
-                    });
-                    text.destroy();
-
-                    this.game.names[cacheKey] = {
-                        texture: nameTexture,
-                        lastAccess: this.game.updateTime
-                    };
+                    this.game.names[cacheKey] = new NameTexture(
+                        name,
+                        this.getNameSize(),
+                        (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
+                        this.lockedColor !== null ? 10 : 15,
+                        this.lockedColor !== null ? 0.25 : 1
+                    );
                 }
 
                 this.game.names[cacheKey].lastAccess = this.game.updateTime;
                 if (!this.nameSprite) this.nameSprite = new PIXI.Sprite();
+
+                // Clear the old texture, as otherwise event listeners start to accumulate on pooled nodes and eventually nuke the main thread
+                if (this.nameSprite.texture && this.nameSprite.texture !== PIXI.Texture.EMPTY) {
+                    this.nameSprite.texture = PIXI.Texture.EMPTY;
+                }
                 this.nameSprite.texture = this.game.names[cacheKey].texture;
+
+                this.nameSprite.position.y = this.cellSize * 0.12;
                 this.nameSprite.zIndex = 1;
 
                 switch (this.lockedPosition) {
@@ -3360,15 +3404,15 @@ function modules(ks) {
             }
             sort() {} // Useless, but referenced a lot
             setSize(size) {
-                if (this.nSize == size) return;
-                this.nSize = size;
                 if (this.destroyed == true
+                    || this.nSize == size
                     || this.type != nodeType.Player
                     || this.game.settings.getItem('showMass') == false
-                    || (this.game.updateTime - this.lastMassUpdate < 250
+                    || (this.game.updateTime - this.lastMassUpdate < 100
                         // Urgently update mass if it changes significantly
                         && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25))
                     return;
+                this.nSize = size;
 
                 if (this.size * this.game.viewZoom < 50) return; // Might be too aggressive?
 
@@ -3376,35 +3420,7 @@ function modules(ks) {
                 this.currentMassKey = massStr;
 
                 if (!this.game.masses[massStr]) {
-                    const text = new PIXI.Text({
-                        text: massStr,
-                        style: {
-                            fontFamily: 'Ubuntu',
-                            fontSize: this.getMassSize(),
-                            fill: 0xffffff,
-                            stroke: {
-                                color: 0x000000,
-                                width: (this.game.settings.settings.shortenMass ? 13 : 10),
-                                join: 'round'
-                            },
-                            align: 'center',
-                            fontWeight: 'bold',
-                            padding: 1
-                        }
-                    });
-                    const texture = PIXI.RenderTexture.create({
-                        width: text.width,
-                        height: text.height
-                    });
-                    this.game.renderer.render({
-                        container: text,
-                        target: texture
-                    });
-                    text.destroy();
-                    this.game.masses[massStr] = {
-                        texture,
-                        lastAccess: this.game.updateTime
-                    };
+                    this.game.masses[massStr] = new MassTexture(massStr, this.getMassSize(), this.game.settings.settings.shortenMass ? 13 : 10);
                 }
 
                 this.game.masses[massStr].lastAccess = this.game.updateTime;
@@ -3412,11 +3428,12 @@ function modules(ks) {
                 this.lastMassValue = size;
 
                 if (this.sizeText) { 
+                    this.sizeText.texture = PIXI.Texture.EMPTY;
                     this.sizeText.texture = this.game.masses[massStr].texture;
                 } else {
                     this.sizeText = new PIXI.Sprite(this.game.masses[massStr].texture);
                     this.sizeText.anchor.set(0.5);
-                    this.sizeText.position.y = this.cellSize / 2;
+                    this.sizeText.position.y = this.cellSize * 0.6;
                     this.sizeText.zIndex = 1;
                 }
                 this.root.addChild(this.sizeText);
@@ -4241,14 +4258,12 @@ function modules(ks) {
                     let pk = p8.readInt32();
                     var pl;
                     if (this.game.party && this.game.party.hasOwnProperty(pc)) {
-                        console.debug('updating', pc, pj, pk);
                         pl = this.game.party[pc];
                         pl.originX = pl.x;
                         pl.originY = pl.y;
                         pl.targetX = pj;
                         pl.targetY = pk;
                     } else {
-                        console.debug('creating', pc, pj, pk);
                         pl = new mn(this.game,pc,pi,pj,pk,pd);
                     }
                     pl.color = ph;
@@ -4649,7 +4664,7 @@ function modules(ks) {
                         this.settings.customTheme[key] = this.default.customTheme[key];
                         this.save();
                     } else {
-                        console.debug(`Found setting for ${key} with val ${this.settings.customTheme[key]}`);
+                        //console.debug(`Found setting for ${key} with val ${this.settings.customTheme[key]}`);
                     }
                 }
                 this.settings.blockedSkins = new Set(this.settings.blockedSkins || []);
@@ -5574,7 +5589,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.7 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.8 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -6016,6 +6031,9 @@ function modules(ks) {
                     console.debug("Unhidden, skipping this cleanup cycle");
                     return;
                 }*/
+                if (document.hidden) {
+                    console.warn("Document is hidden during a successful render call. This should not happen!");
+                }
                 let maxDestroys = 5; // Max per cycle 
                 let destroyed = 0;
                 for (var key in this.names) {
@@ -6721,8 +6739,6 @@ function modules(ks) {
                     document.getElementById("userMenuBlockText").innerText = "Block Player";
                     $('#userMenuPlayerName').html(uk.name ? uk.name.removeWideChars() : 'An unnamed cell');
                     if (uk.skinSprite?.texture != null && uk.skinSprite?.texture !== PIXI.Texture.EMPTY) {
-                        console.debug("Player has a skin");
-                        console.debug(uk.skinSprite.texture);
                         $('#userMenuPlayerSkin').css('background-image', 'url(' + this.getSkinURL(uk.skin) + ')');
                     } else {
                         $('#userMenuPlayerSkin').css('background-image', 'none');
@@ -6940,7 +6956,7 @@ function modules(ks) {
 
                     colorPicker.on('change', (color) => {
                         const pixiColor = new PIXI.Color('#' + color);
-                        console.debug(pixiColor.toHex());
+                        //console.debug(pixiColor.toHex());
                         if (pixiColor.toHex() === "#ff0000" && theme[key] === null) return; // Terrible
                         theme[key] = [pixiColor.toNumber(), pixiColor.toRgbaString()];
                         this.changeSetting('customTheme', theme);

@@ -3058,8 +3058,7 @@ function modules(ks) {
                 ctx.arc(this.size / 2, this.size / 2, this.size / 2, 0, Math.PI * 2);
                 ctx.clip();
                 ctx.drawImage(this.image, 0, 0, this.size, this.size);
-                const bitmap = await createImageBitmap(canvas);
-                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: bitmap }) });
+                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
                 this.texture.source.autoGenerateMipmaps = true;
                 if (this.cb) this.cb();
                 for (const cb of this.pending) cb(this.texture);
@@ -3093,14 +3092,8 @@ function modules(ks) {
                 ctx.fillStyle = `#${fill.toString(16).padStart(6, '0')}`;
                 ctx.fillText(name, pad, pad);
 
-                // Temp texture until permanent bmp is done rendering
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
                 this.texture.source.autoGenerateMipmaps = true;
-
-                createImageBitmap(canvas).then(bitmap => {
-                    this.texture.source.resourse = bitmap;
-                    this.texture.source.update();
-                });
             }
         }
 
@@ -3127,14 +3120,8 @@ function modules(ks) {
                 ctx.fillStyle = 'white';
                 ctx.fillText(massStr, pad, pad);
 
-                // Temp texture until permanent bmp is done rendering
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
                 this.texture.source.autoGenerateMipmaps = true;
-
-                createImageBitmap(canvas).then(bitmap => {
-                    this.texture.source.resource = bitmap;
-                    this.texture.source.update();
-                });
             }
         }
 

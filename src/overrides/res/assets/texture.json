@@ -1,5 +1,29 @@
 {
   "frames": {
+    "borderlessCell": {
+      "frame": {
+        "x": 0,
+        "y": 768,
+        "w": 512,
+        "h": 512
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 512,
+        "h": 512
+      },
+      "sourceSize": {
+        "w": 512,
+        "h": 512
+      },
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
     "cell": {
       "frame": {
         "x": 0,
@@ -50,16 +74,16 @@
     },
     "food1": {
       "frame": {
-        "x": 0,
-        "y": 768,
+        "x": 256,
+        "y": 512,
         "w": 32,
         "h": 32
       },
       "rotated": false,
       "trimmed": false,
       "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
+        "x": 256,
+        "y": 544,
         "w": 32,
         "h": 32
       },
@@ -74,8 +98,8 @@
     },
     "food2": {
       "frame": {
-        "x": 0,
-        "y": 800,
+        "x": 256,
+        "y": 576,
         "w": 32,
         "h": 32
       },
@@ -98,8 +122,8 @@
     },
     "food3": {
       "frame": {
-        "x": 0,
-        "y": 832,
+        "x": 256,
+        "y": 608,
         "w": 32,
         "h": 32
       },

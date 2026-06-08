@@ -3029,7 +3029,7 @@ function modules(ks) {
         }
 
         class SkinTexture {
-            constructor(src, cb, mipmapped, isHighQuality) {
+            constructor(src, cb, isHighQuality, mipmapped) {
                 this.mipmapped = mipmapped;
                 this.cb = cb;
                 this.texture = null;
@@ -3078,23 +3078,32 @@ function modules(ks) {
                 const font = `bold ${fontSize}px Ubuntu`;
                 const pad = Math.ceil(strokeWidth / 2);
 
+                let lines = name.split('\n');
+                if (lines.length > 6) { // Keep names from being way too tall
+                    lines = [...lines.slice(0, 6), lines[lines.length - 1]];
+                }
+                const lineHeight = fontSize * 1.5;
+
                 ctx.font = font;
-                canvas.width = Math.ceil(ctx.measureText(name).width) + pad * 2;
-                canvas.height = Math.ceil(fontSize * 1.4) + pad * 2;
+                // Find the widest line :widekisser:
+                canvas.width = Math.ceil(Math.max(...lines.map(line => ctx.measureText(line).width))) + pad * 2;
+                canvas.height = Math.ceil(lines.length * lineHeight) + pad * 2;
 
                 ctx.font = font;
                 ctx.textBaseline = 'top';
+                ctx.textAlign = 'center';
                 ctx.lineJoin = 'round';
                 ctx.lineWidth = strokeWidth;
-                ctx.globalAlpha = strokeAlpha ?? 1;
                 ctx.strokeStyle = 'black';
-                ctx.strokeText(name, pad, pad);
+                ctx.globalAlpha = strokeAlpha ?? 1;
+                lines.forEach((line, i) => ctx.strokeText(line, canvas.width / 2, pad + i * lineHeight));
                 ctx.globalAlpha = 1;
                 ctx.fillStyle = `#${fill.toString(16).padStart(6, '0')}`;
-                ctx.fillText(name, pad, pad);
+                lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, pad + i * lineHeight));
 
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
                 this.texture.source.autoGenerateMipmaps = mipmapped;
+                
             }
         }
 
@@ -3110,7 +3119,7 @@ function modules(ks) {
                 ctx.font = font;
                 const measured = ctx.measureText(massStr);
                 canvas.width = Math.ceil(measured.width) + pad * 2;
-                canvas.height = Math.ceil(fontSize * 1.4) + pad * 2;
+                canvas.height = Math.ceil(fontSize * 1.5) + pad * 2;
 
                 ctx.font = font;
                 ctx.textBaseline = 'top';
@@ -3312,10 +3321,7 @@ function modules(ks) {
                 }
             }
             getSkinSize() {
-                if (!this.skinSize) {
-                    const baseSize = this.game.settings.settings.highQualitySkins ? 512 : 256;
-                    this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessSkins ? 1 : 0.96) : 0.88) * (this.cellSize / baseSize);
-                }
+                this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessCells ? 1 : 0.96) : 0.88) * (2 * this.cellSize / this.skinCache.size);
                 return this.skinSize;
             }
             getNameSize() {
@@ -3371,7 +3377,7 @@ function modules(ks) {
                 }
                 this.nameSprite.texture = this.game.names[cacheKey].texture;
 
-                this.nameSprite.position.y = this.cellSize * 0.12;
+                this.nameSprite.position.y = this.cellSize / 2;
                 this.nameSprite.zIndex = 1;
 
                 switch (this.lockedPosition) {
@@ -3389,7 +3395,6 @@ function modules(ks) {
                 }
 
                 this.root.addChild(this.nameSprite);
-                this.sort();
             }
             sort() {} // Useless, but referenced a lot
             setSize(size) {
@@ -3467,13 +3472,13 @@ function modules(ks) {
             }
             populate(n4) {
                 for (let n5 = 0; n5 < 128; n5++) {
-                    this.putNode(new n1(this.game,0,-1,nodeType.Player,0,0,1,null,null,null,null,0,''));
+                    this.putNode(new n1(this.game,0,-1,nodeType.Player,0,0,1,null,null,null,null,0,'',0));
                 }
                 for (let n6 = 0; n6 < 32; n6++) {
-                    this.putNode(new n1(this.game,0,-1,nodeType.Virus,0,0,1,null,null,null,null,0,''));
+                    this.putNode(new n1(this.game,0,-1,nodeType.Virus,0,0,1,null,null,null,null,0,'',0));
                 }
                 for (let n7 = 0; n7 < 64; n7++) {
-                    this.putNode(new n1(this.game,0,-1,nodeType.Food,0,0,1,null,null,null,null,0,''));
+                    this.putNode(new n1(this.game,0,-1,nodeType.Food,0,0,1,null,null,null,null,0,'',0));
                 }
                 if (n4)
                     n4();
@@ -3535,6 +3540,10 @@ function modules(ks) {
                     node.root.visible = false;
                 } else {
                     node.root.visible = true;
+                }
+                if (type === nodeType.Player) {
+                    node.cellSprite.texture = this.game.cellTexture;
+                    node.skinCheck();
                 }
                 return node;
             }
@@ -4626,7 +4635,7 @@ function modules(ks) {
                     // Begin Germsfox settings
                     'lastMode': 'FFA',
                     'highQualitySkins': false,
-                    'borderlessSkins': false,
+                    'borderlessCells': false,
                     'cameraDelay': 45,
                     'shortenMass': true,
                     'hideMapGrid': true,
@@ -4712,13 +4721,8 @@ function modules(ks) {
                         }
                     }
                 }
-                if (key === 'highQualitySkins' || key === "borderlessSkins" || key == 'showSkins' || key == 'blockedSkins') {
-                    // TODO: Update hq/borderless skins in real time
-                    for (const cell of this.game.cells) {
-                        if (cell.skin && cell.skin != '') {
-                            cell.setSkin(cell.skin, true);
-                        }
-                    }
+                if (key === 'highQualitySkins' || key === "borderlessCells" || key == 'showSkins' || key == 'blockedSkins') {
+                    this.game.updateCellsAppearance();
                 }
                 if (key == 'showMass') {
                     for (const cell of this.game.cells) {
@@ -5595,11 +5599,11 @@ function modules(ks) {
                 this.hexTexture = PIXI.Assets.get('hex');
                 this.arrowTexture = PIXI.Assets.get('arrow');
 
-                this.cellTexture = this.spriteSheet.textures.cell;
+                this.cellTexture = this.settings.settings.borderlessCells ? this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
                 this.virusTexture = this.spriteSheet.textures.virus;
                 this.foodTextures = [this.spriteSheet.textures.food1, this.spriteSheet.textures.food2, this.spriteSheet.textures.food3];
 
-                const textures = [
+                this.gameTextures = [
                     this.gridTexture,
                     this.hexTexture,
                     this.arrowTexture,
@@ -5608,10 +5612,12 @@ function modules(ks) {
                     ...this.foodTextures
                 ];
 
-                for (const texture of textures) {
-                    texture.source.autoGenerateMipmaps = true;
-                    texture.source.update();
-                }              
+                if (this.settings.settings.textureMipmaps) {
+                    for (const texture of this.gameTextures) {
+                        texture.source.autoGenerateMipmaps = true;
+                        texture.source.update();
+                    }              
+                }
 
                 this.cellSize = this.cellTexture.frame.width / 2;
                 this.virusSize = this.virusTexture.frame.width / 2;
@@ -5654,17 +5660,25 @@ function modules(ks) {
                 );
 
             }
+            updateCellsAppearance() {
+                this.cellTexture = this.settings.settings.borderlessCells ? 
+                    this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
+                for (const cell of this.cells) {
+                    if (cell.type === nodeType.Player) {
+                        cell.skinCheck();
+                        cell.cellSprite.texture = this.cellTexture;
+                    }
+                    if (cell.skin && cell.skin != '') {
+                        cell.setSkin(cell.skin, true);
+                        cell.setName(cell.name, true); // Gets hidden behind skin as skin redraws, so update
+                    }
+                }
+                for (const texture of this.gameTextures) {
+                    texture.source.update();
+                }
+            }
             updateTextureMipmaps() {
-                const textures = [
-                    this.gridTexture,
-                    this.hexTexture,
-                    this.arrowTexture,
-                    this.cellTexture,
-                    this.virusTexture,
-                    ...this.foodTextures
-                ];
-
-                for (const texture of textures) {
+                for (const texture of this.gameTextures) {
                     texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;
                     texture.source.update();
                 }
@@ -7435,7 +7449,7 @@ function modules(ks) {
             const renderSettings = [
                 ["webGPU", "Use WebGPU"],
                 ["highQualitySkins", "Hi-Res Skins"],
-                ["borderlessSkins", "Borderless Skins"],
+                ["borderlessCells", "Borderless Cells"],
                 ["shortenMass", "Shorten Mass"],
                 ["hideMapGrid", "Hide Map Grid"],
                 ["textureMipmaps", "Texture Mipmapping"],
@@ -7483,7 +7497,7 @@ function modules(ks) {
                 "hideBorder",
                 "hideMapGrid",
                 "mouseArrow",
-                "borderlessSkins",
+                "borderlessCells",
                 "showNames",
                 "showSkins"
             ];

@@ -1667,6 +1667,10 @@ function renderEmotesPanel() {
         emotesList.appendChild(emoteLi);
     }
 
+    emotesButton.addEventListener("mouseover", () => {
+        icon.src = chrome.runtime.getURL(`images/emotes/${emotes[Math.floor(Math.random() * emotes.length)]}`);
+    });
+
     document.addEventListener("click", (event) => {
         // Would rather this not be so hacky, but trying to adhere to outdated germs style+convention makes this difficult
         if (emotesPanel.style.display === "block"

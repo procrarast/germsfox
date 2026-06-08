@@ -450,6 +450,7 @@
     font-weight: 700;
 }
 #btnGermsfoxEmotes img {
+    transition: transform 0.3s ease-out;
     pointer-events: none;
     width: 18px;
     height: auto;
@@ -459,6 +460,9 @@
 #btnGermsfoxEmotes:hover {
     cursor: pointer;
     background: rgba(0, 0, 0, 0.3);
+}
+#btnGermsfoxEmotes:hover img {
+    transform: scale(1.1);
 }
 #germsfoxEmotes {
     color: #fff;

@@ -3393,15 +3393,15 @@ function modules(ks) {
             }
             sort() {} // Useless, but referenced a lot
             setSize(size) {
+                if (this.nSize === size) return;
+                this.nSize = size;
                 if (this.destroyed == true
-                    || this.nSize == size
                     || this.type != nodeType.Player
                     || this.game.settings.getItem('showMass') == false
                     || (this.game.updateTime - this.lastMassUpdate < 100
                         // Urgently update mass if it changes significantly
                         && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25))
                     return;
-                this.nSize = size;
 
                 if (this.size * this.game.viewZoom < 50) return; // Might be too aggressive?
 

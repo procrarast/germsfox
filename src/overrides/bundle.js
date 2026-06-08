@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.1.8
+ * @version     1.1.8.1
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -3029,8 +3029,9 @@ function modules(ks) {
         }
 
         class SkinTexture {
-            constructor(src, mA, isHighQuality) {
-                this.cb = mA;
+            constructor(src, cb, mipmapped, isHighQuality) {
+                this.mipmapped = mipmapped;
+                this.cb = cb;
                 this.texture = null;
                 this.size = isHighQuality ? 1024 : 512;
                 this.lastAccess = Date.now();
@@ -3059,7 +3060,7 @@ function modules(ks) {
                 ctx.clip();
                 ctx.drawImage(this.image, 0, 0, this.size, this.size);
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = true;
+                this.texture.source.autoGenerateMipmaps = this.mipmapped;
                 if (this.cb) this.cb();
                 for (const cb of this.pending) cb(this.texture);
                 this.pending = [];
@@ -3067,7 +3068,7 @@ function modules(ks) {
         }
 
         class NameTexture {
-            constructor(name, fontSize, fill, strokeWidth, strokeAlpha) {
+            constructor(name, fontSize, fill, strokeWidth, strokeAlpha, mipmapped) {
                 this.lastAccess = Date.now();
                 this.texture = null;
                 this.pending = [];
@@ -3093,12 +3094,12 @@ function modules(ks) {
                 ctx.fillText(name, pad, pad);
 
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = true;
+                this.texture.source.autoGenerateMipmaps = mipmapped;
             }
         }
 
         class MassTexture {
-            constructor(massStr, fontSize, strokeWidth) {
+            constructor(massStr, fontSize, strokeWidth, mipmapped) {
                 this.lastAccess = Date.now();
 
                 const canvas = document.createElement('canvas');
@@ -3121,7 +3122,7 @@ function modules(ks) {
                 ctx.fillText(massStr, pad, pad);
 
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = true;
+                this.texture.source.autoGenerateMipmaps = mipmapped;
             }
         }
 
@@ -3283,7 +3284,7 @@ function modules(ks) {
                     }
                     if (key && key != '' && !this.game.settings.settings.blockedSkins.has(key)) {
                         if (this.game.skins.hasOwnProperty(key) == false) {
-                            this.skinCache = new SkinTexture(this.game.getSkinURL(key),this.skinCheck.bind(this),this.game.settings.settings.highQualitySkins);
+                            this.skinCache = new SkinTexture(this.game.getSkinURL(key),this.skinCheck.bind(this),this.game.settings.settings.highQualitySkins, this.game.settings.settings.textureMipmaps);
                             this.game.skins[key] = this.skinCache;
                         } else {
                             this.skinCache = this.game.skins[key];
@@ -3356,7 +3357,8 @@ function modules(ks) {
                         this.getNameSize(),
                         (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
                         this.lockedColor !== null ? 10 : 15,
-                        this.lockedColor !== null ? 0.25 : 1
+                        this.lockedColor !== null ? 0.25 : 1,
+                        this.game.settings.settings.textMipmaps
                     );
                 }
 
@@ -3407,7 +3409,7 @@ function modules(ks) {
                 this.currentMassKey = massStr;
 
                 if (!this.game.masses[massStr]) {
-                    this.game.masses[massStr] = new MassTexture(massStr, this.getMassSize(), this.game.settings.settings.shortenMass ? 13 : 10);
+                    this.game.masses[massStr] = new MassTexture(massStr, this.getMassSize(), this.game.settings.settings.shortenMass ? 13 : 10, this.game.settings.settings.textMipmaps);
                 }
 
                 this.game.masses[massStr].lastAccess = this.game.updateTime;
@@ -4631,6 +4633,8 @@ function modules(ks) {
                     'dynamicLinesplitAxis': true,
                     'diagonalLinesplits': true,
                     'webGPU': true,
+                    'textureMipmaps': true,
+                    'textMipmaps': false,
                     'blockedSkins': [],
                 };
                 for (var key in this.default) {
@@ -4690,6 +4694,9 @@ function modules(ks) {
             setItem(key, value) {
                 this.settings[key] = value;
                 this.save();
+                if (key === "textureMipmaps" || key === "textMipmaps") {
+                    this.game.updateTextureMipmaps();
+                }
                 if (key === "customTheme") {
                     // TODO: Update food in real time
                     this.game.drawGrid();
@@ -5552,7 +5559,7 @@ function modules(ks) {
                     gcActive: false,
                     preference: (this.settings.settings.webGPU ? 'webgpu' : "webgl"),
                     canvas: this.canvas,
-                    antialias: true,
+                    antialias: false, // Doesn't change much anyways
                     resolution: window.devicePixelRatio,
                     powerPreference: 'high-performance',
                     backgroundColor: 0x333439,
@@ -5576,7 +5583,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.8 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.8.1 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -5601,9 +5608,9 @@ function modules(ks) {
                     ...this.foodTextures
                 ];
 
-                for (const tex of textures) {
-                    tex.source.autoGenerateMipmaps = true;
-                    tex.source.update();
+                for (const texture of textures) {
+                    texture.source.autoGenerateMipmaps = true;
+                    texture.source.update();
                 }              
 
                 this.cellSize = this.cellTexture.frame.width / 2;
@@ -5646,6 +5653,36 @@ function modules(ks) {
                 }
                 );
 
+            }
+            updateTextureMipmaps() {
+                const textures = [
+                    this.gridTexture,
+                    this.hexTexture,
+                    this.arrowTexture,
+                    this.cellTexture,
+                    this.virusTexture,
+                    ...this.foodTextures
+                ];
+
+                for (const texture of textures) {
+                    texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;
+                    texture.source.update();
+                }
+
+                for (const skin in this.skins) {
+                    this.skins[skin].texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;
+                    this.skins[skin].texture.source.update();
+                }
+
+                for (const mass in this.masses) {
+                    this.masses[mass].texture.source.autoGenerateMipmaps = this.settings.settings.textMipmaps;
+                    this.masses[mass].texture.source.update();
+                }
+
+                for (const name in this.names) {
+                    this.names[name].texture.source.autoGenerateMipmaps = this.settings.settings.textMipmaps;
+                    this.names[name].texture.source.update();
+                }
             }
             counter() {
                 if (this.onLeaderboard) {
@@ -7400,7 +7437,9 @@ function modules(ks) {
                 ["highQualitySkins", "Hi-Res Skins"],
                 ["borderlessSkins", "Borderless Skins"],
                 ["shortenMass", "Shorten Mass"],
-                ["hideMapGrid", "Hide Map Grid"]
+                ["hideMapGrid", "Hide Map Grid"],
+                ["textureMipmaps", "Texture Mipmapping"],
+                ["textMipmaps", "Text Mipmapping"]
             ];
 
             for (const [key, label] of renderSettings) {
@@ -7438,13 +7477,15 @@ function modules(ks) {
             autoZoomRow.after(appearanceBadge);
 
             const appearanceSettings = [
-                "showNames",
-                "showSkins",
-                "mouseArrow",
                 "showMass",
+                "shortenMass",
                 "hideFood",
                 "hideBorder",
-                "hideMapGrid"
+                "hideMapGrid",
+                "mouseArrow",
+                "borderlessSkins",
+                "showNames",
+                "showSkins"
             ];
 
             for (const id of appearanceSettings) {

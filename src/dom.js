@@ -108,7 +108,7 @@ function renderCellPreviewCard() {
                 } else {
                     // If not, set preview color to your set color
                     //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                    cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+                    cellColor.style.backgroundColor = settings.setColor === "None" ? "rgb(200,200,200)" : cellColorList[settings.setColor][1];
                 }
             }
             return; // Continue with default deleteButton behavior
@@ -130,7 +130,7 @@ function renderCellPreviewCard() {
         } else if (event.target.tagName === "IMG") {
             //console.debug("Preventing default click and setting a skin");
             if (event.target.src.startsWith("data")) {
-                console.debug("Clicked a 'None' skin. Setting the skin setting");
+                //console.debug("Clicked a 'None' skin. Setting the skin setting");
                 setSetting("setSkin", "None");
                 cellSkin.style.display = "none";
                 cellSkinButton.style.removeProperty("background-image");
@@ -140,6 +140,7 @@ function renderCellPreviewCard() {
                     skinsListUl.removeEventListener('click', skinsListClicked, true);
                     setSkin(settings.setColor);
                 }
+                skinsCard.style.display = 'none';
             } else { // Normal skin
                 console.debug("You clicked a regular skin. Setting the skin");
                 if (event.target.src.includes("imgur")) {
@@ -164,7 +165,8 @@ function renderCellPreviewCard() {
                     } else {
                         // If not, set preview color to your set color
                         //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                        cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+                        console.debug(settings.setColor);
+                        cellColor.style.backgroundColor = settings.setColor === "None" ? "rgb(200,200,200)" : cellColorList[settings.setColor][1];
                     }
 
                     skinsCard.style.display = 'none';
@@ -450,10 +452,10 @@ function renderCellPreviewCard() {
         if (match) { //match[0] is the key, if it finds it within the colors constant
             // Set color to your skin
             cellColor.style.backgroundColor = cellColorList[match[0]][1];
-        } else if (settings.setColor !== "None") {
+        } else {
             // If not, set color to your color
             //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-            cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
+            cellColor.style.backgroundColor = settings.setColor === "None" ? "rgb(200,200,200)" : cellColorList[settings.setColor][1];
         }
         
         // Color picker

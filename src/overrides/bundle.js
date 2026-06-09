@@ -3584,14 +3584,17 @@ function modules(ks) {
                 // We're keeping sprites attached, as destroying them has proven more costly than just keeping them in memory
                 if (this.nameSprite) {
                     this.root.removeChild(this.nameSprite);
+                    this.nameSprite.removeAllListeners();
                     if (this.nameSprite.texture) this.nameSprite.texture = PIXI.Texture.EMPTY;
                 }
                 if (this.skinSprite) {
                     this.root.removeChild(this.skinSprite);
+                    this.skinSprite.removeAllListeners();
                     if (this.skinSprite.texture) this.skinSprite.texture = PIXI.Texture.EMPTY;
                 }
                 if (this.sizeText) {
                     this.root.removeChild(this.sizeText);
+                    this.sizeText.removeAllListeners();
                     if (this.sizeText.texture) this.sizeText.texture = PIXI.Texture.EMPTY;
                 }
                 this.name = null;

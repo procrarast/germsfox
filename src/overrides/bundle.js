@@ -3703,7 +3703,7 @@ function modules(ks) {
                 }
             }
             getSkinSize() {
-                this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessCells ? 1 : 0.96) : 0.88) * (2 * this.cellSize / this.skinCache.size);
+                if (!this.skinSize) this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessCells ? 1 : 0.96) : 0.88) * (2 * this.cellSize / this.skinCache.size);
                 return this.skinSize;
             }
             getNameSize() {
@@ -3856,18 +3856,18 @@ function modules(ks) {
                 this.maxVirusPoolSize = 128;
                 this.maxFoodPoolSize = 256;
             }
-            populate(n4) {
+            populate(cb) {
                 for (let n5 = 0; n5 < 128; n5++) {
-                    this.putNode(new Node(this.game,0,-1,nodeType.Player,0,0,1,null,null,null,null,0,'',0));
+                    this.putNode(new Node(this.game,0,-1,nodeType.Player,0,0,1,null,null,null,null,0,''));
                 }
                 for (let n6 = 0; n6 < 32; n6++) {
-                    this.putNode(new Node(this.game,0,-1,nodeType.Virus,0,0,1,null,null,null,null,0,'',0));
+                    this.putNode(new Node(this.game,0,-1,nodeType.Virus,0,0,1,null,null,null,null,0,''));
                 }
                 for (let n7 = 0; n7 < 64; n7++) {
-                    this.putNode(new Node(this.game,0,-1,nodeType.Food,0,0,1,null,null,null,null,0,'',0));
+                    this.putNode(new Node(this.game,0,-1,nodeType.Food,0,0,1,null,null,null,null,0,''));
                 }
-                if (n4)
-                    n4();
+                if (cb)
+                    cb();
             }
             getNode(id, parent, type, x, y, size, ne, lockedColor, lockedPosition, nh, color, rgb, nk) {
                 let node = null;
@@ -6042,10 +6042,9 @@ function modules(ks) {
                     this.ticker.add(this.render.bind(this));
 
                     this.ticker.start();
-                }
-                );
-
+                });
             }
+
             updateCellsAppearance() {
                 this.cellTexture = this.settings.settings.borderlessCells ? 
                     this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
@@ -6063,6 +6062,7 @@ function modules(ks) {
                     texture.source.update();
                 }
             }
+
             updateTextureMipmaps() {
                 for (const texture of this.gameTextures) {
                     texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;

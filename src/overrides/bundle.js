@@ -3703,7 +3703,7 @@ function modules(ks) {
                 }
             }
             getSkinSize() {
-                if (!this.skinSize) this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessCells ? 1 : 0.96) : 0.88) * (2 * this.cellSize / this.skinCache.size);
+                this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessCells ? 1 : 0.96) : 0.88) * (2 * this.cellSize / this.skinCache.size);
                 return this.skinSize;
             }
             getNameSize() {

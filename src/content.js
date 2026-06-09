@@ -257,7 +257,7 @@ function initChat() {
 
 function initConnecting() {
     const connectingDiv = document.getElementById("connecting");
-    let visible = connectingDiv.style.display !== "none"; 
+    let visible = false; 
 
     const connectingObserver = new MutationObserver(() => changedServers());
     connectingObserver.observe(connectingDiv, { attributes: true, attributeFilter: ["style"] });
@@ -268,7 +268,7 @@ function initConnecting() {
         visible = nowVisible; 
         if (!visible) return; // Don't care if it hid itself
 
-        //console.debug("Changed servers");
+        console.debug("Changed servers");
         hasSpawned = false;
         if (settings.setColor !== "None" && ( // You have a color
             settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) // You have no skin or aren't logged in

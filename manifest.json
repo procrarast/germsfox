@@ -54,6 +54,7 @@
             "resources": [
                 "fonts/*",
                 "images/*",
+                "sound/*",
                 "src/overrides/bundle.js",
                 "src/overrides/lib/pixi.js",
                 "src/overrides/res/*"

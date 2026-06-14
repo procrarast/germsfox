@@ -3479,7 +3479,7 @@ function modules(ks) {
                     let cleared = 0;
                     for (const [key, entry] of this.entries) {
                         if (cleared >= this.maxClears) {
-                            console.debug("Max clears reached");
+                            //console.debug("Max clears reached");
                             return;
                         }
                         
@@ -5054,30 +5054,7 @@ function modules(ks) {
                         let b = buffer.readUInt8();
                         rgb = `rgb(${r}, ${g}, ${b})`;
                         color = (r << 16) + (g << 8) + b;
-                        //
-                        // TODO: Move to each respective class
-                        if (hasColor) {
-                            switch (node.type) {
-                                case nodeType.Food:
-                                    if (this.game.customTheme.food !== null) {
-                                        color = this.filterColor(color, this.game.customTheme.food[0]);
-                                        rgb = this.game.customTheme.food[1]; // Unfiltered
-                                    }
-                                    break;
-                                case nodeType.Virus:
-                                    if (this.game.customTheme.virus !== null) {
-                                        color = this.game.customTheme.virus[0];
-                                        rgb = this.game.customTheme.virus[1];
-                                    }
-                                    break;
-                                case nodeType.Player:
-                                    if (this.game.customTheme.players !== null) {
-                                        color = this.filterColor(color, this.game.customTheme.players[0]);
-                                        rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
-                                    }
-                                    break;
-                            }
-                        }
+                        
                     }
                     if (hasSkin) skin = buffer.readStringZeroUtf8().substr(1);
                     if (hasName) name = buffer.readStringZeroUtf8().trim().removeWideChars();
@@ -5090,6 +5067,28 @@ function modules(ks) {
                             type = nodeType.Player;
                         } else if (isVirus) {
                             type = nodeType.Virus;
+                        }
+                        
+                        // TODO: Move to each respective node's class
+                        switch (type) {
+                            case nodeType.Food:
+                                if (this.game.customTheme.food !== null) {
+                                    color = this.filterColor(color, this.game.customTheme.food[0]);
+                                    rgb = this.game.customTheme.food[1]; // Unfiltered
+                                }
+                                break;
+                            case nodeType.Virus:
+                                if (this.game.customTheme.virus !== null) {
+                                    color = this.game.customTheme.virus[0];
+                                    rgb = this.game.customTheme.virus[1];
+                                }
+                                break;
+                            case nodeType.Player:
+                                if (this.game.customTheme.players !== null) {
+                                    color = this.filterColor(color, this.game.customTheme.players[0]);
+                                    rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
+                                }
+                                break;
                         }
 
                         const nodeData = {
@@ -5354,6 +5353,7 @@ function modules(ks) {
                     'textureMipmaps': true,
                     'textMipmaps': false,
                     'acidMode': false,
+                    'bruhMode': false,
                     'blockedSkins': [],
                 };
                 for (var key in this.default) {
@@ -6341,6 +6341,8 @@ function modules(ks) {
                     ...this.foodTextures
                 ];
 
+                this.bruh = new Audio(`${extensionURL}sound/bruh.mp3`);
+
                 this.updateTextureMipmaps();
 
                 this.cellSize = this.cellTexture.frame.width / 2;
@@ -7035,7 +7037,6 @@ function modules(ks) {
                     return;
 
                 const self = this;
-                const now = performance.now();
 
                 if ($('#chat_input').is(':focus')) {
                     switch (event.keyCode) {
@@ -7065,6 +7066,11 @@ function modules(ks) {
                         break;
                     case this.controls.Split[0]:
                         this.splitPending = false;
+                        if (!event.repeat && this.settings.settings.bruhMode) {
+                            this.bruh.pause();
+                            this.bruh.currentTime = 0.1;
+                            this.bruh.play();
+                        }
                         this.network.send(new packet.Split());
                         break;
                     /*case this.controls.Spectate[0]:
@@ -7893,7 +7899,7 @@ function modules(ks) {
                 ["hideMapGrid", "Hide Map Grid"],
                 ["textureMipmaps", "Texture Mipmapping"],
                 ["textMipmaps", "Text Mipmapping"],
-                ["acidMode", "Acid Mode"]
+                ["acidMode", "Acid Mode"],
             ];
 
             for (const [key, label] of renderSettings) {
@@ -7961,7 +7967,8 @@ function modules(ks) {
 
             const gameplaySettings = [
                 ["dynamicLinesplitAxis", "Dynamic Linesplit Axis"],
-                ["diagonalLinesplits", "Diagonal Linesplits"]
+                ["diagonalLinesplits", "Diagonal Linesplits"],
+                ["bruhMode", "Bruh Mode"]
             ];
 
             for (const [key, label] of gameplaySettings) {

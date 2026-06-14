@@ -915,8 +915,8 @@ function renderBlocklistTabPane() {
         //ltgGif.src = "https://media1.tenor.com/m/pYh_Xp0IuloAAAAC/low-tier-god-ltg.gif";
 
         const message = `
-            Nobody has chatted yet.\n
-            When someone does, you can block them here!`;
+            I'LL BLOCK A BITCH.\n
+            ON GERMS.IO!`;
         const messageLabel = document.createElement("p");
         messageLabel.textContent = message;
         pane.append(messageLabel/*, ltgGif*/);

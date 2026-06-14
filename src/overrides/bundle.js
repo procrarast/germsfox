@@ -3072,7 +3072,7 @@ function modules(ks) {
 
             update() {
                 // Update position
-                const speed = this.game.freeSpec ? 15 : this.cameraDelay / 10;
+                const speed = this.game.freeSpec ? 25 : this.cameraDelay / 10;
                 this.renderX = lerp(this.renderX, this.targetX, this.game.delta / speed);
                 this.renderY = lerp(this.renderY, this.targetY, this.game.delta / speed);
                 
@@ -3449,16 +3449,16 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
                 this.entries = new Map();
-                this.maxClears = 5;
+                this.maxClears = 10;
             }
 
+            // Called by create()
             set(key, texture) {
                 this.entries.set(key, {
-                    texture,        // The texture which is cached
-                    refs: 1,        // The amount of onscreen nodes which reference the texture
+                    texture: texture,        // The texture which is cached
+                    refs: 0,        // The amount of onscreen nodes which reference the texture
                     clearAt: null,  // The time at which the texture may be freed
                 });
-                this.hold(key);
 
                 return texture;
             }
@@ -3469,7 +3469,6 @@ function modules(ks) {
             get(key) {
                 const entry = this.entries.get(key);
                 if (!entry) return null;
-                this.hold(key);
 
                 return entry.texture;
             }
@@ -3479,20 +3478,21 @@ function modules(ks) {
                 setInterval(() => {
                     let cleared = 0;
                     for (const [key, entry] of this.entries) {
-                        if (cleared >= this.maxClears) return;
+                        if (cleared >= this.maxClears) {
+                            console.debug("Max clears reached");
+                            return;
+                        }
                         
                         // Texture is orphaned
                         if (entry.refs <= 0) {
                             // Put it on a timer if it isn't already
                             if (!entry.clearAt) {
-                                console.debug("Orphaned texture, starting timer");
                                 entry.clearAt = this.game.updateTime + 10000;
-                                return;
+                                continue;
                             }
 
                             // Clear the texture if it's ready
                             if (entry.clearAt < this.game.updateTime) {
-                                console.debug("Clearing " + key);
                                 this.destroyTexture(entry);
                                 this.entries.delete(key);
                                 cleared++;
@@ -3511,7 +3511,7 @@ function modules(ks) {
                 const entry = this.entries.get(key);
                 if (entry) {
                     entry.refs++;
-                    return;
+                    return true;
                 }
                 console.warn(`Tried to hold nonexistent resource ${key}. This should never happen!`);
             }
@@ -3520,7 +3520,7 @@ function modules(ks) {
                 const entry = this.entries.get(key);
                 if (entry) {
                     entry.refs--;
-                    return;
+                    return true;
                 }
                 console.warn(`Tried to release nonexistent resource ${key}. This should never happen!`);
             }
@@ -3558,12 +3558,14 @@ function modules(ks) {
                 this.mipmapping = this.game.settings.settings.textMipmaps;
             }
 
-            create(key, name, fontSize, fill, strokeAlpha) {
+            create(key, name, fontSize, fill, isLocked) {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const font = `bold ${fontSize}px Ubuntu`;
-                const strokeWidth = fontSize / 6;
+                const strokeWidth = fontSize / (isLocked ? 12 : 6);
                 const pad = Math.ceil(strokeWidth);
+                const strokeAlpha = isLocked ? 0.5 : 1; 
+                const strokeStyle = isLocked ? `#${fill.toString(16).padStart(6, '0')}` : 'black';
 
                 let lines = name.split('\n');
                 if (lines.length > 6) { // Keep names from being way too tall
@@ -3584,7 +3586,7 @@ function modules(ks) {
                 ctx.textAlign = 'center';
                 ctx.lineJoin = 'round';
                 ctx.lineWidth = strokeWidth;
-                ctx.strokeStyle = 'black';
+                ctx.strokeStyle = strokeStyle;
                 ctx.globalAlpha = strokeAlpha ?? 1;
                 lines.forEach((line, i) => ctx.strokeText(line, canvas.width / 2, pad + i * lineHeight + lineHeight * 0.5));
                 ctx.globalAlpha = 1;
@@ -3648,11 +3650,10 @@ function modules(ks) {
 
             set(key, resource) {
                 this.entries.set(key, {
-                    resource,
-                    refs: 1,        // Caller always holds the resource
+                    resource: resource,
+                    refs: 0,        // Caller always holds the resource
                     clearAt: null,
                 });
-                this.hold(key);
 
                 return resource;
             }
@@ -3661,7 +3662,6 @@ function modules(ks) {
             get(key) {
                 const entry = this.entries.get(key);
                 if (!entry) return null;
-                this.hold(key);
 
                 return entry.resource;
             }
@@ -3673,15 +3673,13 @@ function modules(ks) {
                     this.mipmapping
                 );
 
-                //console.debug(`Created SkinResource ${skinName}, SkinCache is now ${this.entries.size + 1} entries long`); 
-
                 return this.set(skinName, resource);
             }
 
             getTexture(entry) { return entry.texture ?? null; }; // Null if not loaded
 
             destroyTexture(entry) { 
-                entry.pending = []; // Clear queue in case the texture hasn't rendered yet
+                entry.pending = null; // Clear queue in case the texture hasn't rendered yet
                 if (entry.resource.texture) 
                     entry.resource.texture.destroy(true); 
             }
@@ -3692,20 +3690,24 @@ function modules(ks) {
                 this.mipmapped = mipmapped;
                 this.texture = null;
                 this.size = isHighQuality ? 1024 : 512;
-                this.pending = []; // Array of pending callbacks to run when image loads
+                this.pending = new Map(); // Map of pending callbacks to run when image loads
                 this.image = new Image();
                 this.image.crossOrigin = 'anonymous';
                 this.image.onload = this.render.bind(this);
                 this.image.src = src;
             }
 
-            onReady(cb) {
+            onReady(id, cb) {
                 if (this.texture) {
                     // Callback immediately if the texture already exists
                     cb(this);
                 } else {
                     // Or add it to the queue
-                    this.pending.push(cb);
+                    if (this.pending.has(id)) {
+                        console.warn("Duplicate callback denied");
+                        return;
+                    }
+                    this.pending.set(id, cb);
                 }
             }
 
@@ -3724,10 +3726,10 @@ function modules(ks) {
                 this.texture.source.autoGenerateMipmaps = this.mipmapped;
 
                 // Done rendering, callback those who're waiting
-                for (const cb of this.pending) 
+                for (const cb of this.pending.values()) 
                     cb(this);
 
-                this.pending = [];
+                this.pending = null;
             }
         }
 
@@ -3747,12 +3749,10 @@ function modules(ks) {
                 this.game = game;
 
                 this.root = new PIXI.Container();
+                this.cellSprite = this.sprite;
+                this.root.addChild(this.cellSprite);
                 this.root.sortableChildren = true;
 
-                this.cellSprite = this.sprite;
-                this.cellSprite.anchor.set(0.5, 0.5);
-
-                this.root.addChild(this.cellSprite);
                 this.reset(nodeData);
             }
 
@@ -3778,21 +3778,26 @@ function modules(ks) {
                 this.lastUpdate = this.game.updateTime;
                 this.created = this.game.updateTime;
                 this.eaten = false;
-                this.root.alpha = 1;
                 this.animationDelay = this.game.settings.settings.animationDelay;
 
                 this.name = name;
                 this.skin = skin;
                 this.size = size;
 
-                this.cellSprite.tint = color;
                 this.moveRoot();
                 this.game.cellContainer.addChild(this.root);
+                this.cellSprite.tint = this.color;
+                this.cellSprite.texture = this.texture;
+                this.root.alpha = 1;
                 this.root.visible = true;
             }
 
             getEatenBy(hunter) {
                 this.eaten = true;
+                
+                // Max travel distance relative to size
+                const maxDist = this.size * 3;
+
                 this.size *= 0.5;
 
                 if (!hunter) return;
@@ -3802,8 +3807,6 @@ function modules(ks) {
 
                 const dist = Math.hypot(dx, dy);
 
-                // Max travel distance relative to size
-                const maxDist = this.size * 2;
 
                 // Clamp distance
                 const moveDist = Math.min(dist, maxDist);
@@ -3859,8 +3862,8 @@ function modules(ks) {
                     this.renderX = lerp(this.renderX, this.x, delta);
                     this.renderY = lerp(this.renderY, this.y, delta);
 
-                    this.root.alpha = Math.max(0, this.root.alpha - delta / 2);
-                    if (this.root.alpha <= 0.5) {
+                    this.root.alpha = Math.max(0, this.root.alpha - delta / 5);
+                    if (this.root.alpha <= 0.8) {
                         this.game.removeNode(this);
                         return;
                     }
@@ -3902,7 +3905,12 @@ function modules(ks) {
             get mass() { return Math.floor(this.size * this.size / 100); }
             get scaleSize() { return this.renderSize / this.cellSize; }
             get type() { console.error("No type override!"); }
-            get sprite() { console.error("No sprite override!"); }
+            get sprite() {
+                const sprite = new PIXI.Sprite(this.texture);
+                sprite.anchor.set(0.5, 0.5);
+                return sprite;
+            }
+            get texture() { return null; }
             get animationDelay() { return this._delay; }
             set animationDelay(delay) { this._delay = delay; } 
 
@@ -3922,6 +3930,12 @@ function modules(ks) {
                     this.nameSprite.texture = PIXI.Texture.EMPTY;
                 }
                 if (this.heldSkin) {
+                    const resource = this.game.skins.get(this.heldSkin);
+                    
+                    // Check if its SkinResource is pending
+                    // If it is, remove this node from the queue
+                    if (resource.pending) resource.pending.delete(this.id);
+
                     this.game.skins.release(this.heldSkin);
                     this.heldSkin = null;
                     if (this.skinSprite) { // Texture may not have loaded yet
@@ -3945,26 +3959,26 @@ function modules(ks) {
                 if (!skin || skin === '') return;
 
                 if (!this.canDisplay(this.game.settings.settings.showSkins)) {
-                    this.skinSprite.visible = false;
+                    if (this.skinSprite) this.skinSprite.visible = false;
                     return;
                 }
 
                 // Set the new skin texture
+                if (this.heldSkin) this.game.skins.release(this.heldSkin);
+
                 let resource = this.game.skins.get(skin);
 
-                if (!resource) {
-                    if (this.heldSkin)
-                        this.game.skins.release(this.heldSkin);
-
+                if (resource === null) {
                     resource = this.game.skins.create(
                         skin,
                         this.game.settings.settings.highQualitySkins, 
                     );
                 }
 
+                this.game.skins.hold(skin);
                 this.heldSkin = skin;
 
-                resource.onReady(this.skinCheck.bind(this));
+                resource.onReady(this.id, this.skinCheck.bind(this));
             }
 
             skinCheck(resource) {
@@ -3993,25 +4007,28 @@ function modules(ks) {
                 if (!name || !name.trim()) return;
 
                 if (!this.canDisplay(this.game.settings.settings.showNames)) {
-                    this.nameSprite.visible = false;
+                    if (this.nameSprite) this.nameSprite.visible = false;
                     return;
                 }
 
                 // Create the name texture if it doesn't exist
+
+                if (this.heldName) this.game.names.release(this.heldName);
+
                 let texture = this.game.names.get(this.nameKey);
+
                 if (texture === null) {
-                    if (this.heldName)
-                        this.game.names.release(this.heldName);
 
                     texture = this.game.names.create(
                         this.nameKey,
                         name,
                         this.nameSize,
                         (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
-                        this.lockedColor !== null ? 0.25 : 1,
+                        this.lockedColor !== null ? true : false
                     );
                 }
 
+                this.game.names.hold(this.nameKey);
                 this.heldName = this.nameKey;
 
                 if (this.nameSprite) {
@@ -4070,11 +4087,15 @@ function modules(ks) {
         class FoodNode extends Node {
             reset(nodeData = {}) {
                 super.reset(nodeData);
-                this.cellSprite.rotation = Math.random() * Math.PI * 2;
                 this.root.visible = !this.game.settings.settings.hideFood;
             }
 
-            get sprite() { return new PIXI.Sprite(this.game.randomFoodTexture); }
+            get sprite() { 
+                const sprite = super.sprite;
+                sprite.rotation = Math.random() * Math.PI * 2; 
+                return sprite;
+            }
+            get texture() { return this.game.randomFoodTexture; }
             get cellSize() { return this.game.foodSize; }
             get type() { return nodeType.Food; }
         }
@@ -4125,27 +4146,24 @@ function modules(ks) {
                  *  Sprite visibility doesn't matter at all
                  */
 
+                if (this.heldMass) this.game.masses.release(this.heldMass);
+
                 let texture = this.game.masses.get(this.massKey);
 
                 if (texture === null) {
-                    // Remove held state for previous mass texture
-                    if (this.heldMass)
-                        this.game.masses.release(this.heldMass);
-
-                    // Create the new mass texture
                     texture = this.game.masses.create(
                         this.massKey, 
                         this.game.settings.settings.shortenMass ? 75 : 60, 
                     );
                 }
 
+                this.game.masses.hold(this.massKey);
                 this.heldMass = this.massKey;
 
                 // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
                 if (this.massSprite) { 
                     this.massSprite.visible = true;
-                    if (this.massSprite.texture !== texture)
-                        this.massSprite.texture = texture;
+                    this.massSprite.texture = texture;
                 } else {
                     this.massSprite = new PIXI.Sprite(texture);
                     this.massSprite.anchor.set(0.5);
@@ -4169,14 +4187,14 @@ function modules(ks) {
             get massString() { return this.mass.toString(); }
             get massKey() { return this.game.settings.settings.shortenMass ? this.shortMassString : this.massString; }
             get size() { return this._size; }
-            get sprite() { return new PIXI.Sprite(this.game.cellTexture); }
+            get texture() { return this.game.cellTexture };
             get cellSize() { return this.game.cellSize; }
             get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
             get type() { return nodeType.Player; }
         }
 
         class VirusNode extends PlayerNode { // I'm only doing this because Stas plays as a virus node
-            get sprite() { return new PIXI.Sprite(this.game.virusTexture); }
+            get texture() { return this.game.virusTexture; }
             get cellSize() { return this.game.virusSize; }
             get skinSize() { return 0.88; }
             get type() { return nodeType.Virus; }
@@ -4813,9 +4831,15 @@ function modules(ks) {
                 this.send(new packet.Login(oV));
             }
             sendLocked() {
-                var oW = Date.now() / 1000;
-                if (this.game.login.lockedExpire && this.game.login.lockedExpire - oW > 0) {
+                const now = Date.now() / 1000;
+                if (this.lastLocked && this.lastLocked - this.game.updateTime < 1000) {
+                    this.lastLocked = this.game.updateTime;
+                    return;
+                }
+                if (this.game.login.lockedExpire && 
+                    this.game.login.lockedExpire - now > 0) {
                     this.send(new packet.Login('locked-' + this.game.settings.getItem('lockedColor') + '-' + this.game.settings.getItem('lockedPosition')));
+                    this.lastLocked = this.game.updateTime;
                 }
             }
             onMessage(oX) {
@@ -5334,6 +5358,7 @@ function modules(ks) {
                     'webGPU': true,
                     'textureMipmaps': true,
                     'textMipmaps': false,
+                    'acidMode': false,
                     'blockedSkins': [],
                 };
                 for (var key in this.default) {
@@ -5358,30 +5383,34 @@ function modules(ks) {
                 this.settings.blockedSkins = new Set(this.settings.blockedSkins || []);
             }
             ready() {
-                $('#nick').val(this.getItem('nick'));
                 this.game.setSkin(this.getItem('skin'));
                 this.game.setTheme(this.getItem('theme'), '#theme-' + this.getItem('theme'));
                 this.game.setColor(this.getItem('color'), '#color-' + this.getItem('color'));
-                $('#showNames').val(this.getItem('showNames'));
-                $('#showSkins').val(this.getItem('showSkins'));
-                $('#showMass').prop('checked', this.getItem('showMass'));
-                $('#skipDeathScreen').prop('checked', this.getItem('skipDeathScreen'));
-                $('#hideXP').prop('checked', this.getItem('hideXP'));
-                $('#hideChat').prop('checked', this.getItem('hideChat'));
-                $('#hideChat').prop('checked', this.getItem('hideFood'));
-                $('#hideBorder').prop('checked', this.getItem('hideBorder'));
-                $('#disableProfanityFilter').prop('checked', this.getItem('disableProfanityFilter'));
-                $('#animationDelay').val(this.getItem('animationDelay'));
-                $('#autoZoom').prop('checked', this.getItem('autoZoom'));
-                $('#mouseArrow').prop('checked', this.getItem('mouseArrow'));
-                $('#keyFeed').val(this.settings.controls.Feed[1]);
-                $('#keySplit').val(this.settings.controls.Split[1]);
-                $('#keyDouble').val(this.settings.controls.Double[1]);
-                $('#keyTriple').val(this.settings.controls.Triple[1]);
-                $('#key16x').val(this.settings.controls['16x'][1]);
-                $('#keyFreeze').val(this.settings.controls.Freeze[1]);
-                $('#keyVertical').val(this.settings.controls.Vertical[1]);
-                $('#keyHide').val(this.settings.controls.Hide[1]);
+                document.getElementById('nick').value = this.getItem('nick');
+                document.getElementById('showNames').value = this.getItem('showNames');
+                document.getElementById('showSkins').value = this.getItem('showSkins');
+
+                document.getElementById('showMass').checked = this.getItem('showMass');
+                document.getElementById('skipDeathScreen').checked = this.getItem('skipDeathScreen');
+                document.getElementById('hideXP').checked = this.getItem('hideXP');
+                document.getElementById('hideChat').checked = this.getItem('hideChat');
+                document.getElementById('hideFood').checked = this.getItem('hideFood');
+                document.getElementById('hideBorder').checked = this.getItem('hideBorder');
+                document.getElementById('disableProfanityFilter').checked = this.getItem('disableProfanityFilter');
+
+                document.getElementById('animationDelay').value = this.getItem('animationDelay');
+
+                document.getElementById('autoZoom').checked = this.getItem('autoZoom');
+                document.getElementById('mouseArrow').checked = this.getItem('mouseArrow');
+
+                document.getElementById('keyFeed').value = this.settings.controls.Feed[1];
+                document.getElementById('keySplit').value = this.settings.controls.Split[1];
+                document.getElementById('keyDouble').value = this.settings.controls.Double[1];
+                document.getElementById('keyTriple').value = this.settings.controls.Triple[1];
+                document.getElementById('key16x').value = this.settings.controls['16x'][1];
+                document.getElementById('keyFreeze').value = this.settings.controls.Freeze[1];
+                document.getElementById('keyVertical').value = this.settings.controls.Vertical[1];
+                document.getElementById('keyHide').value = this.settings.controls.Hide[1];
                 //$('#keySpectate').val(this.settings.controls.Spectate[1]);
                 this.game.renderTheme();
             }
@@ -5394,6 +5423,17 @@ function modules(ks) {
                 this.save();
 
                 switch (key) {
+                    case 'acidMode':
+                        if (!this.game.settings.settings.webGPU) {
+                            this.game.renderer.clearBeforeRender = !value;
+                            this.game.renderer.preserveDrawingBuffer = !value;
+                        }
+                        break;
+                    case 'webGPU':
+                        const acidModeInput = document.getElementById("acidMode").parentElement.parentElement;
+                        console.debug(acidModeInput);
+                        acidModeInput.style.display = value ? "none" : "block";
+                        break;
                     case 'cameraDelay':
                         this.game.camera.cameraDelay = value;
                         break;
@@ -6255,12 +6295,18 @@ function modules(ks) {
                     resolution: window.devicePixelRatio,
                     powerPreference: 'high-performance',
                     backgroundColor: 0x333439,
+
+                    webgl: {
+                        clearBeforeRender: !this.settings.settings.acidMode,
+                        preserveDrawingBuffer: this.settings.settings.acidMode,
+                    },
+
                     eventFeatures: {
                         move: false,
                         click: false,
                         wheel: false,
                         globalMove: false
-                    }
+                    },
                 });
 
                 await document.fonts.load('bold 32px Ubuntu');
@@ -6802,6 +6848,9 @@ function modules(ks) {
 
                     this.tilingSprite.position.set(-size / 2, -size / 2);
 
+                    if (colorTheme === 'white' && texture === this.hexTexture) {
+                        alpha = 0.3;
+                    }
                     if (colorTheme === 'white' && texture === this.gridTexture) {
                         alpha = 0.2;
                     }
@@ -6908,7 +6957,6 @@ function modules(ks) {
                 this.names.clear();
                 this.skins.clear();
                 this.masses.clear();
-                console.debug(this.names.entries.size, this.skins.entries.size, this.masses.entries.size);
             }
 
             refreshMenuAds() {
@@ -7849,7 +7897,8 @@ function modules(ks) {
                 ["shortenMass", "Shorten Mass"],
                 ["hideMapGrid", "Hide Map Grid"],
                 ["textureMipmaps", "Texture Mipmapping"],
-                ["textMipmaps", "Text Mipmapping"]
+                ["textMipmaps", "Text Mipmapping"],
+                ["acidMode", "Acid Mode"]
             ];
 
             for (const [key, label] of renderSettings) {
@@ -7895,7 +7944,8 @@ function modules(ks) {
                 "mouseArrow",
                 "borderlessCells",
                 "showNames",
-                "showSkins"
+                "showSkins",
+                "acidMode",
             ];
 
             for (const id of appearanceSettings) {
@@ -7903,6 +7953,9 @@ function modules(ks) {
                 if (row.className === "switch") row = row.parentElement;
                 appearanceBadge.after(row);
             }
+
+            const acidModeInput = document.getElementById("acidMode").parentElement.parentElement;
+            acidModeInput.display = instance.renderer.type === 2 ? "none" : "block";
 
             // Create Gameplay section =============================================
             const gameplayBadge = document.createElement("span");

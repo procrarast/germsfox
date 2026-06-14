@@ -2401,13 +2401,6 @@ var moduleRegistry = {
         ;
     }
     ,
-    lerp: kk => {
-        function kl(km, kn, ko) {
-            return km * (1 - ko) + kn * ko;
-        }
-        kk.exports = kl;
-    }
-    ,
 };
 var kq = {};
 function modules(ks) {
@@ -2577,7 +2570,7 @@ function modules(ks) {
         const reader = BinaryReader;
         var l5 = modules('badwordsFilter');
         var l6 = modules.n(l5); // module wrapper
-        ;class l7 {
+        ;class Chat {
             constructor(l8) {
                 this.game = l8;
                 this.channel = -1;
@@ -2636,9 +2629,9 @@ function modules(ks) {
                     "yapyapyap.gif",
                     "gsPuddle.png",
                 ];
-                this.getEmotes();
+                this.fetchEmotes();
             }
-            getEmotes() {
+            fetchEmotes() {
                 $.getJSON('php/Emotes.php', emotes => {
                     if (emotes) {
                         this.emotes = emotes;
@@ -2822,15 +2815,15 @@ function modules(ks) {
                 setInterval(this.updateDebug.bind(this), 500);
             }
             loop() {
-                this.nodeX = this.game.camera.x / (this.game.border[3] * 2) * this.mapSize;
-                this.nodeY = this.game.camera.y / (this.game.border[3] * 2) * this.mapSize;
+                this.nodeX = this.game.camera.renderX / (this.game.border[3] * 2) * this.mapSize;
+                this.nodeY = this.game.camera.renderY / (this.game.border[3] * 2) * this.mapSize;
                 this.mapPlayer.css({
                     'top': this.nodeY + this.mapSize / 2,
                     'left': this.nodeX + this.mapSize / 2
                 });
                 if (this.game.playerCells.size > 0) {
                     if (this.game.aliveCell.skinSprite && this.game.aliveCell.skinSprite.texture != null && this.game.aliveCell.skinSprite.texture !== PIXI.Texture.EMPTY) {
-                        this.mapPlayer.css('background-image', 'url(' + this.game.getSkinURL(this.game.aliveCell.skin) + ')');
+                        this.mapPlayer.css('background-image', 'url(' + this.game.skinURLFrom(this.game.aliveCell.skin) + ')');
                         this.mapPlayer.css('border', '1px solid ' + this.game.aliveCell.rgb);
                     } else {
                         this.mapPlayer.css('background-color', this.game.aliveCell.rgb);
@@ -2877,7 +2870,7 @@ function modules(ks) {
                                 if (lH.rank > 2 && lH.rank < 10) {
                                     var lM = 'background-color: ' + this.game.aliveCell.rgb + ';';
                                     if (this.game.aliveCell.skinSprite && this.game.aliveCell.skinSprite.texture != null && this.game.aliveCell.skinSprite.texture !== PIXI.Texture.EMPTY) {
-                                        lM += 'background-image: url(' + this.game.getSkinURL(this.game.aliveCell.skin) + ');';
+                                        lM += 'background-image: url(' + this.game.skinURLFrom(this.game.aliveCell.skin) + ');';
                                         lM += 'border: 1px solid ' + this.game.aliveCell.rgb + ';';
                                     }
                                     lJ = '<span class="lbCell" style="' + lM + '"></span>';
@@ -2909,7 +2902,7 @@ function modules(ks) {
                 lP += '<br><b>Cells:</b> ' + this.game.myCells.size;
                 lP += '<br><b>FPS:</b> ' + this.getFPS();
                 lP += '<br><b>PING:</b> ' + this.getPING();
-                if (this.game.vertical) lP += '<br><b style="color:red">[ LINESPLITTING ]</b>'; // gota haha remember that game
+                if (this.game.linesplit) lP += '<br><b style="color:red">[ LINESPLITTING ]</b>'; // gota haha remember that game
                 else if (this.game.freeze) lP += '<br><b style="color:red">[ MOUSE FROZEN ]</b>';
                 this.debugText.innerHTML = lP;
                 if (this.game.network.restart) {
@@ -2990,17 +2983,18 @@ function modules(ks) {
                 var me = Math.floor(ma % 60000 / 1000);
                 return mb + m8(mc) + ':' + m8(md) + ':' + m8(me);
             }
+            // TODO: Robust getMass, getScore
             getMass() {
                 var mf = 0;
                 for (const cell of this.game.playerCells) {
-                    mf += cell.getMass();
+                    mf += cell.mass;
                 }
                 return ~~mf;
             }
             getScore() {
                 var mh = 0;
                 for (const cell of this.game.playerCells) {
-                    mh += cell.getMass();
+                    mh += cell.mass;
                 }
                 this.score = Math.max(this.score || 0, mh);
                 this.game.highestMass = Math.max(this.score, this.game.highestMass);
@@ -3031,9 +3025,12 @@ function modules(ks) {
                 }
             }
         }
-        var ml = modules('lerp');
-        var mm = modules.n(ml); // module wrapper
-        class mn {
+
+        function lerp(a, b, t) {
+            return a + (b - a) * t;
+        }
+
+        class PartyMember {
             constructor(game, id, mass, originX, originY, name) {
                 this.game = game;
                 this.id = id;
@@ -3045,36 +3042,73 @@ function modules(ks) {
                 this.x = originX;
                 this.y = originY;
                 this.name = name;
-                this.updateTime = Date.now();
+                this.lastUpdate = performance.now();
             }
             updatePos() {
-                this.delta = (this.game.updateTime - this.updateTime) / this.game.settings.settings.animationDelay;
-                this.delta = Math.min(1, Math.max(0, this.delta));
-                this.x = mm()(this.originX, this.targetX, this.delta);
-                this.y = mm()(this.originY, this.targetY, this.delta);
+                this.delta = Math.min(1, Math.max(0, 
+                    (this.game.updateTime - this.lastUpdate) / 10));
+                this.x = lerp(this.originX, this.targetX, this.delta);
+                this.y = lerp(this.originY, this.targetY, this.delta);
+                this.lastUpdate = this.game.updateTime;
             }
         }
-        class mu {
+
+        class Camera {
             constructor(game) {
                 this.game = game;
-                this.x = 0;
-                this.y = 0;
-                this.nx = 0;
-                this.ny = 0;
-                this.ox = 0;
-                this.oy = 0;
-                this.delta = 0;
+                // Render pos
+                this.renderX = 0;
+                this.renderY = 0;
+                // Interpolated position
+                this.targetX = 0;
+                this.targetY = 0;
+
+                this.userZoom = 0.25;
+                this.specZoom = 0;
+                this.renderZoom = 1;
+
+                this.cameraDelay = this.game.settings.settings.cameraDelay;
             }
+
             update() {
-                const speed = this.game.freeSpec ? 15 : this.game.settings.settings.cameraDelay / 10;
-                this.x = mm()(this.x, this.nx, this.game.delta / speed);
-                this.y = mm()(this.y, this.ny, this.game.delta / speed);
+                // Update position
+                const speed = this.game.freeSpec ? 15 : this.cameraDelay / 10;
+                this.renderX = lerp(this.renderX, this.targetX, this.game.delta / speed);
+                this.renderY = lerp(this.renderY, this.targetY, this.game.delta / speed);
+                
+                // Update zoom
+                let newZoom;
+                // Autozoom?
+                if (this.game.settings.settings.autoZoom == true) {
+                    newZoom = 0;
+                    // Sometimes the server updates specZoom, might be from unimplemented spectate mode
+                    if (this.game.playerCells.size === 0 && this.specZoom) {
+                        newZoom = this.specZoom * this.viewRange;
+                    }
+                    for (const cell of this.game.playerCells) {
+                        newZoom += cell.size;
+                    }
+                    newZoom = Math.pow(Math.min(64 / newZoom, 2), 0.3) * this.viewRange;
+                } else {
+                    newZoom = this.viewRange / 2;
+                }
+
+                this.renderZoom = Math.max(0, lerp(this.renderZoom, newZoom, 10 * this.game.delta / this.cameraDelay));
             }
+
             setPosition(x, y) {
                 if ((this.game.freeze || document.getElementById("menu").style.display !== "none") && this.game.freeSpec) return;
-                this.nx = x;
-                this.ny = y;
+                this.targetX = x;
+                this.targetY = y;
             }
+
+            changeZoom(amount) { this.userZoom *= Math.pow(0.9, amount); }
+
+            setZoom(value) { this.userZoom = value; }
+
+            get viewRange() { return Math.max(this.game.width / 1080, this.game.height / 1920) * this.userZoom; }
+            get cameraDelay() { return this._delay }
+            set cameraDelay(cameraDelay) { this._delay = cameraDelay; }
         }
 
         class JellyCellContainer extends PIXI.Container {
@@ -3406,60 +3440,136 @@ function modules(ks) {
             }
         }
 
-        class SkinTexture {
-            constructor(src, cb, isHighQuality, mipmapped) {
-                this.mipmapped = mipmapped;
-                this.cb = cb;
-                this.texture = null;
-                this.size = isHighQuality ? 1024 : 512;
-                this.lastAccess = Date.now();
-                this.pending = [];
-                this.image = new Image();
-                this.image.crossOrigin = 'anonymous';
-                this.image.src = src;
-                this.image.onload = this.render.bind(this);
+        /*
+         *  TextureCache is just a Map with a bunch of helpers and maintanence functions
+         *  TextureCache subclasses define how they create new textures or, in skins' case, what we call 'resources'
+         */
+
+        class TextureCache {
+            constructor(game) {
+                this.game = game;
+                this.entries = new Map();
+                this.maxClears = 5;
             }
 
-            onReady(cb) {
-                if (this.texture) {
-                    cb(this.texture);
-                } else {
-                    this.pending.push(cb);
+            set(key, texture) {
+                this.entries.set(key, {
+                    texture,        // The texture which is cached
+                    refs: 1,        // The amount of onscreen nodes which reference the texture
+                    clearAt: null,  // The time at which the texture may be freed
+                });
+                this.hold(key);
+
+                return texture;
+            }
+
+            has(key) { return this.entries.has(key); }
+
+            // Return a texture, or null if it doesn't exist
+            get(key) {
+                const entry = this.entries.get(key);
+                if (!entry) return null;
+                this.hold(key);
+
+                return entry.texture;
+            }
+
+
+            startCleanupInterval(interval) {
+                setInterval(() => {
+                    let cleared = 0;
+                    for (const [key, entry] of this.entries) {
+                        if (cleared >= this.maxClears) return;
+                        
+                        // Texture is orphaned
+                        if (entry.refs <= 0) {
+                            // Put it on a timer if it isn't already
+                            if (!entry.clearAt) {
+                                console.debug("Orphaned texture, starting timer");
+                                entry.clearAt = this.game.updateTime + 10000;
+                                return;
+                            }
+
+                            // Clear the texture if it's ready
+                            if (entry.clearAt < this.game.updateTime) {
+                                console.debug("Clearing " + key);
+                                this.destroyTexture(entry);
+                                this.entries.delete(key);
+                                cleared++;
+                                console.debug("Cleared entry " + key);
+                            }
+                        } else {
+                            // If attached texture was on a timer, clear the timer
+                            if (entry.clearAt) entry.clearAt = null;
+                        }
+                    }
+                }, interval);
+            }
+
+            // Put a texture on hold. The entry may be deleted once its texture has no references
+            hold(key) {
+                const entry = this.entries.get(key);
+                if (entry) {
+                    entry.refs++;
+                    return;
+                }
+                console.warn(`Tried to hold nonexistent resource ${key}. This should never happen!`);
+            }
+
+            release(key) {
+                const entry = this.entries.get(key);
+                if (entry) {
+                    entry.refs--;
+                    return;
+                }
+                console.warn(`Tried to release nonexistent resource ${key}. This should never happen!`);
+            }
+
+            destroyTexture(entry) { entry.texture.destroy(true); }
+
+            updateMipmaps(isEnabled) {
+                this.mipmapping = isEnabled
+                for (const entry of this.entries.values()) {
+                    const texture = this.getTexture(entry.value);
+
+                    if (!texture)
+                        continue;
+
+                    texture.source.autoGenerateMipmaps = isEnabled;
+                    texture.source.update();
                 }
             }
 
-            async render() {
-                const canvas = document.createElement('canvas');
-                canvas.width = this.size;
-                canvas.height = this.size;
-                const ctx = canvas.getContext('2d');
-                ctx.beginPath();
-                ctx.arc(this.size / 2, this.size / 2, this.size / 2, 0, Math.PI * 2);
-                ctx.clip();
-                ctx.drawImage(this.image, 0, 0, this.size, this.size);
-                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = this.mipmapped;
-                if (this.cb) this.cb();
-                for (const cb of this.pending) cb(this.texture);
-                this.pending = [];
+            // Entry is the texture
+            getTexture(value) { return value; }
+
+            clear() {
+                // Delete all textures so they don't leak all over the place
+                for (const entry of this.entries.values()) {
+                    this.destroyTexture(entry);
+                }
+                this.entries.clear();
             }
         }
 
-        class NameTexture {
-            constructor(name, fontSize, fill, strokeWidth, strokeAlpha, mipmapped) {
-                this.lastAccess = Date.now();
-                this.texture = null;
-                this.pending = [];
+        class NameCache extends TextureCache {
+            constructor(game) {
+                super(game);
+                this.mipmapping = this.game.settings.settings.textMipmaps;
+            }
 
+            create(key, name, fontSize, fill, strokeAlpha) {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const font = `bold ${fontSize}px Ubuntu`;
+                const strokeWidth = fontSize / 6;
                 const pad = Math.ceil(strokeWidth);
 
                 let lines = name.split('\n');
                 if (lines.length > 6) { // Keep names from being way too tall
                     lines = [...lines.slice(0, 6), lines[lines.length - 1]];
                 }
+
                 const lineHeight = fontSize * 1.5;
 
                 ctx.font = font;
@@ -3467,8 +3577,8 @@ function modules(ks) {
                 canvas.width = Math.ceil(Math.max(...lines.map(line => ctx.measureText(line).width))) + pad * 2;
                 canvas.height = Math.ceil(lines.length * lineHeight) + pad * 2;
 
-                /*ctx.fillStyle = 'red';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);*/
+                //ctx.fillStyle = 'red';
+                //ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.font = font;
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'center';
@@ -3481,22 +3591,30 @@ function modules(ks) {
                 ctx.fillStyle = `#${fill.toString(16).padStart(6, '0')}`;
                 lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, pad + i * lineHeight + lineHeight * 0.5));
 
-                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = mipmapped;
+                let texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
+                texture.source.autoGenerateMipmaps = this.mipmapping;
+
+                return this.set(key, texture);
             }
         }
 
-        class MassTexture {
-            constructor(massStr, fontSize, strokeWidth, mipmapped) {
+        class MassCache extends TextureCache {
+            constructor(game) {
+                super(game);
+                this.mipmapping = this.game.settings.settings.textMipmaps;
+            }
+
+            create(massText, fontSize) {
                 this.lastAccess = Date.now();
 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
+                const strokeWidth = fontSize / 6;
                 const font = `bold ${fontSize}px Ubuntu`;
                 const pad = Math.ceil(strokeWidth / 2);
 
                 ctx.font = font;
-                const measured = ctx.measureText(massStr);
+                const measured = ctx.measureText(massText);
                 canvas.width = Math.ceil(measured.width) + pad * 2;
                 canvas.height = Math.ceil(fontSize * 1.5) + pad * 2;
 
@@ -3505,12 +3623,111 @@ function modules(ks) {
                 ctx.lineJoin = 'round';
                 ctx.lineWidth = strokeWidth;
                 ctx.strokeStyle = 'black';
-                ctx.strokeText(massStr, pad, pad);
+                ctx.strokeText(massText, pad, pad);
                 ctx.fillStyle = 'white';
-                ctx.fillText(massStr, pad, pad);
+                ctx.fillText(massText, pad, pad);
+
+                let texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
+                texture.source.autoGenerateMipmaps = this.mipmapping;
+
+                return this.set(massText, texture);
+            }
+        }
+
+        /*
+         *  Still caches textures, but with a layer of abstraction in the SkinResource class for async render handling
+         *  There are lots of weird differences as a result, but essentially the caller (set skin) must get a
+         *  reference to the SkinResource to listen for its callback upon rendering its respective texture
+         */
+
+        class SkinCache extends TextureCache {
+            constructor(game) {
+                super(game);
+                this.mipmapping = this.game.settings.settings.textureMipmaps;
+            }
+
+            set(key, resource) {
+                this.entries.set(key, {
+                    resource,
+                    refs: 1,        // Caller always holds the resource
+                    clearAt: null,
+                });
+                this.hold(key);
+
+                return resource;
+            }
+
+            // Return a SkinResource, or null if it doesn't exist
+            get(key) {
+                const entry = this.entries.get(key);
+                if (!entry) return null;
+                this.hold(key);
+
+                return entry.resource;
+            }
+
+            create(skinName, isHighQuality) {
+                const resource = new SkinResource(
+                    this.game.skinURLFrom(skinName),
+                    isHighQuality,
+                    this.mipmapping
+                );
+
+                //console.debug(`Created SkinResource ${skinName}, SkinCache is now ${this.entries.size + 1} entries long`); 
+
+                return this.set(skinName, resource);
+            }
+
+            getTexture(entry) { return entry.texture ?? null; }; // Null if not loaded
+
+            destroyTexture(entry) { 
+                entry.pending = []; // Clear queue in case the texture hasn't rendered yet
+                if (entry.resource.texture) 
+                    entry.resource.texture.destroy(true); 
+            }
+        }
+
+        class SkinResource {
+            constructor(src, isHighQuality, mipmapped) {
+                this.mipmapped = mipmapped;
+                this.texture = null;
+                this.size = isHighQuality ? 1024 : 512;
+                this.pending = []; // Array of pending callbacks to run when image loads
+                this.image = new Image();
+                this.image.crossOrigin = 'anonymous';
+                this.image.onload = this.render.bind(this);
+                this.image.src = src;
+            }
+
+            onReady(cb) {
+                if (this.texture) {
+                    // Callback immediately if the texture already exists
+                    cb(this);
+                } else {
+                    // Or add it to the queue
+                    this.pending.push(cb);
+                }
+            }
+
+            async render() {
+                const canvas = document.createElement('canvas');
+                canvas.width = this.size;
+                canvas.height = this.size;
+
+                const ctx = canvas.getContext('2d');
+                ctx.beginPath();
+                ctx.arc(this.size / 2, this.size / 2, this.size / 2, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(this.image, 0, 0, this.size, this.size);
 
                 this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = mipmapped;
+                this.texture.source.autoGenerateMipmaps = this.mipmapped;
+
+                // Done rendering, callback those who're waiting
+                for (const cb of this.pending) 
+                    cb(this);
+
+                this.pending = [];
             }
         }
 
@@ -3519,127 +3736,144 @@ function modules(ks) {
             'Virus': 1,
             'Food': 2
         };
+
+        /**
+         *  Nodes are essentially just PIXI containers
+         *  They contain a cellSprite defined by each of its derivative classes
+         */
+
         class Node {
-            constructor(game, id, parent, type, x, y, size, _, lockedColor, lockedPosition, __, color, rgb) {
-                this.id = id;
-                this.parent = parent;
+            constructor(game, nodeData = {}) {
                 this.game = game;
-                this.type = type;
-                this.updateTime = this.game.updateTime;
-                this.created = this.game.updateTime;
-                this.lastMassUpdate = this.game.updateTime - 250 // -250 just to let first mass update to pass
-                this.lastMassValue = 0; // Mass value on last update
-                this.destroyed = false;
-                this.opacity = 1;
-                this.x = x;
-                this.y = y;
-                this.ox = x;
-                this.oy = y;
-                this.nx = x;
-                this.ny = y;
-                this.size = size;
-                this.oSize = size;
-                this.nSize = size;
-                this.color = color;
-                this.rgb = rgb;
-                this.lockedColor = lockedColor;
-                this.lockedPosition = lockedPosition;
+
                 this.root = new PIXI.Container();
                 this.root.sortableChildren = true;
-                this.calculateIndex();
-                switch (this.type) {
-                case nodeType.Virus:
-                    this.cellSize = this.game.virusSize;
-                    this.cellSprite = PIXI.Sprite.from(this.game.virusTexture);
-                    break;
-                case nodeType.Food:
-                    this.cellSize = this.game.foodSize;
-                    this.cellSprite = PIXI.Sprite.from(this.game.getRandomFoodTexture());
-                    break;
-                case nodeType.Player:
-                    this.cellSize = this.game.cellSize;
-                    this.cellSprite = PIXI.Sprite.from(this.game.cellTexture);
-                    break;
-                }
-                this.cellSprite.tint = this.color;
+
+                this.cellSprite = this.sprite;
                 this.cellSprite.anchor.set(0.5, 0.5);
-                if (this.type == nodeType.Food) {
-                    this.cellSprite.rotation = Math.random() * (2 * Math.PI);
-                }
+
                 this.root.addChild(this.cellSprite);
+                this.reset(nodeData);
+            }
+
+            reset(nodeData = {}) {
+                const { id = 0, parent = -1, x = 0, y = 0, size = 1, name = null, rgb = '', lockedPosition = null, lockedColor = null, skin = null, color = 0, isEjected = false } 
+                    = nodeData;
+
+                this.id = id;
+                this.parent = parent;
+
+                this.renderSize = size; 
+                this.renderX = x;
+                this.renderY = y;
+                this.x = x;
+                this.y = y;
+
+                this.lockedPosition = lockedPosition;
+                this.lockedColor = lockedColor;
+                this.color = color;
+                this.rgb = rgb;
+                this.isEjected = isEjected;
+
+                this.lastUpdate = this.game.updateTime;
+                this.created = this.game.updateTime;
+                this.eaten = false;
+                this.root.alpha = 1;
+                this.animationDelay = this.game.settings.settings.animationDelay;
+
+                this.name = name;
+                this.skin = skin;
+                this.size = size;
+
+                this.cellSprite.tint = color;
+                this.moveRoot();
                 this.game.cellContainer.addChild(this.root);
+                this.root.visible = true;
             }
+
+            getEatenBy(hunter) {
+                this.eaten = true;
+                this.size *= 0.5;
+
+                if (!hunter) return;
+
+                const dx = hunter.x - this.x;
+                const dy = hunter.y - this.y;
+
+                const dist = Math.hypot(dx, dy);
+
+                // Max travel distance relative to size
+                const maxDist = this.size * 2;
+
+                // Clamp distance
+                const moveDist = Math.min(dist, maxDist);
+
+                // Normalize direction
+                const invDist = dist > 0 ? 1 / dist : 0;
+
+                this.x += dx * invDist * moveDist;
+                this.y += dy * invDist * moveDist;
+            }
+
             destroy() {
-                if (document.hidden) {
-                    return this.game.removeNode(this);
-                }
-                this.destroyed = true;
-                if (this.type != nodeType.Player) {
-                    this.nSize = 1;
-                }
+                return this.game.removeNode(this);
             }
-            // reset() and clear() called by putNode() depending on whether its respective pool is at maximum capacity
-            reset() { // Going back into node pool
+
+            // Prepare node to return to pool
+            clean() {
                 this.root.visible = false;
-                // We're keeping sprites attached, as destroying them has proven more costly than just keeping them in memory
-                if (this.nameSprite) {
-                    this.root.removeChild(this.nameSprite);
-                    this.nameSprite.removeAllListeners();
-                    if (this.nameSprite.texture) this.nameSprite.texture = PIXI.Texture.EMPTY;
-                }
-                if (this.skinSprite) {
-                    this.root.removeChild(this.skinSprite);
-                    this.skinSprite.removeAllListeners();
-                    if (this.skinSprite.texture) this.skinSprite.texture = PIXI.Texture.EMPTY;
-                }
-                if (this.sizeText) {
-                    this.root.removeChild(this.sizeText);
-                    this.sizeText.removeAllListeners();
-                    if (this.sizeText.texture) this.sizeText.texture = PIXI.Texture.EMPTY;
-                }
-                this.name = null;
-                this.mass = null;
-                this.skin = null;
-                this.skinCache = null;
             }
-            clear() { // Deleting node
+
+            kill() { // Release the node back into the wild
+                this.clean();
                 this.game.cellContainer.removeChild(this.root);
-                this.root.destroy({ children: true }); // Don't see why I shouldn't do this
+                this.root.destroy({ // Textures are preserved by default
+                    children: true,
+                });
+                this.root = null;
             }
-            getScaleSize() {
-                return this.size / this.cellSize;
-            }
+
             moveRoot() {
-                this.root.x = this.x;
-                this.root.y = this.y;
-                this.root.scale.x = this.getScaleSize();
+                this.root.x = this.renderX;
+                this.root.y = this.renderY;
+                this.root.zIndex = this.renderSize + this.id * 0.00001;
+                this.root.scale.x = this.scaleSize;
                 this.root.scale.y = this.root.scale.x;
-                this.calculateIndex();
             }
-            calculateIndex() {
-                this.root.zIndex = this.size + this.id * 0.00001;
+
+            setState(x, y, size) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
             }
-            updatePos() {
-                this.delta = (this.game.updateTime - this.updateTime) / this.game.settings.settings.animationDelay;
-                if (this.delta > 1)
-                    this.delta = 1;
-                if (this.delta < 0)
-                    this.delta = 0;
-                this.x = mm()(this.ox, this.nx, this.delta);
-                this.y = mm()(this.oy, this.ny, this.delta);
-                this.size = mm()(this.oSize, this.nSize, this.delta);
-                //if (this.destroyed) this.opacity -= this.delta / 10;
-                if (this.skin && this.game.skins[this.skin]) {
-                    this.game.skins[this.skin].lastAccess = this.game.updateTime;
+
+            updateRender() {
+                let delta = Math.max(0, (Math.min(1,
+                    (this.game.updateTime - this.lastUpdate) / this.animationDelay
+                )));
+
+                this.lastUpdate = this.game.updateTime;
+
+                if (this.eaten) {
+                    // Cute eating animations
+                    this.renderX = lerp(this.renderX, this.x, delta);
+                    this.renderY = lerp(this.renderY, this.y, delta);
+
+                    this.root.alpha = Math.max(0, this.root.alpha - delta / 2);
+                    if (this.root.alpha <= 0.5) {
+                        this.game.removeNode(this);
+                        return;
+                    }
+                } else {
+                    this.renderX = lerp(this.renderX, this.x, delta);
+                    this.renderY = lerp(this.renderY, this.y, delta);
                 }
-                if (this.currentNameKey && this.game.names[this.currentNameKey]) {
-                    this.game.names[this.currentNameKey].lastAccess = this.game.updateTime;
-                }
-                if (this.currentMassKey && this.game.masses[this.currentMassKey]) {
-                    this.game.masses[this.currentMassKey].lastAccess = this.game.updateTime;
-                }
+
+                this.renderSize = lerp(this.renderSize, this.size, delta);
+
                 this.moveRoot();
             }
+
             setColor(color, rgb) {
                 if (this.color != color) {
                     this.color = color;
@@ -3648,118 +3882,146 @@ function modules(ks) {
                 if (this.rgb != rgb)
                     this.rgb = rgb;
             }
-            setSkin(key, hideSkin) {
-                if (this.skin != key || hideSkin) {
-                    this.skin = key;
-                    switch (this.game.settings.settings.showSkins) {
-                    case 'all':
-                        break;
-                    case 'party':
-                        if (this.game.party) {
-                            if (this.game.party.hasOwnProperty(this.parent) == true) {
-                                break;
-                            }
-                        }
-                    case 'self':
-                        if (this.game.myCells.has(this.id)) {
-                            break;
-                        }
-                    default:
-                        if (hideSkin && this.skinSprite) {
-                            this.root.removeChild(this.skinSprite);
-                            this.skinSprite.destroy();
-                            this.skinSprite = null;
-                            this.skinCache = null;
-                        }
-                        return;
-                    }
-                    if (key && key != '' && !this.game.settings.settings.blockedSkins.has(key)) {
-                        if (this.game.skins.hasOwnProperty(key) == false) {
-                            this.skinCache = new SkinTexture(this.game.getSkinURL(key),this.skinCheck.bind(this),this.game.settings.settings.highQualitySkins, this.game.settings.settings.textureMipmaps);
-                            this.game.skins[key] = this.skinCache;
-                        } else {
-                            this.skinCache = this.game.skins[key];
-                            this.skinCache.onReady(this.skinCheck.bind(this));
-                        }
-                        this.game.skins[key].lastAccess = this.game.updateTime;
+
+            decimalToRgb(num) {
+                var r = Math.floor(num / (256 * 256));
+                var g = Math.floor(num / 256) % 256;
+                var b = num % 256;
+                return {
+                    'r': r,
+                    'g': g,
+                    'b': b 
+                };
+            }
+
+            set size(size) {
+                this._size = size;
+            }
+
+            get size() { return this._size; }
+            get mass() { return Math.floor(this.size * this.size / 100); }
+            get scaleSize() { return this.renderSize / this.cellSize; }
+            get type() { console.error("No type override!"); }
+            get sprite() { console.error("No sprite override!"); }
+            get animationDelay() { return this._delay; }
+            set animationDelay(delay) { this._delay = delay; } 
+
+        }
+
+        /**
+         *  PlayerNodes can have names and skins
+         */
+
+        class PlayerNode extends Node {
+            clean() {
+                super.clean();
+                if (this.heldName) {
+                    this.game.names.release(this.heldName);
+                    this.heldName = null;
+                    this.nameSprite.removeAllListeners(); // TODO: Might only be necessary if textures are attached?
+                    this.nameSprite.texture = PIXI.Texture.EMPTY;
+                }
+                if (this.heldSkin) {
+                    this.game.skins.release(this.heldSkin);
+                    this.heldSkin = null;
+                    if (this.skinSprite) { // Texture may not have loaded yet
+                        this.skinSprite.removeAllListeners();
+                        this.skinSprite.texture = PIXI.Texture.EMPTY;
                     }
                 }
             }
-            skinCheck() {
-                if (this.skinCache && this.skinCache.texture != null) {
-                    const tex = this.skinCache.texture;
-                    if (!this.skinSprite) {
-                        this.skinSprite = new PIXI.Sprite(tex);
-                        this.skinSprite.zIndex = 0;
-                        this.skinSprite.anchor.set(0.5, 0.5);
-                        this.root.addChild(this.skinSprite);
-                        this.sort();
-                    } else {
-                        this.skinSprite.texture = tex;
-                        this.root.addChild(this.skinSprite);
-                    }
-                    this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(this.skin);
-                    this.skinSprite.scale.set(this.getSkinSize());
-                }
-            }
-            getSkinSize() {
-                this.skinSize = (this.type == nodeType.Player ? (this.game.settings.settings.borderlessCells ? 1 : 0.96) : 0.88) * (2 * this.cellSize / this.skinCache.size);
-                return this.skinSize;
-            }
-            getNameSize() {
-                return 140 - this.name.length * 3;
-            }
-            getMassSize() {
-                return this.game.settings.settings.shortenMass ? 75 : 60;
-            }
-            setName(name, dontShow) {
-                if (this.name === name && !dontShow)
-                    return;
-                this.name = name;
 
-                switch (this.game.settings.getItem('showNames')) {
-                case 'all':
-                    break;
-                case 'party':
-                    if (this.game.party?.hasOwnProperty(this.parent))
-                        break;
-                case 'self':
-                    if (this.game.myCells.has(this.id))
-                        break;
-                default:
-                    if (dontShow && this.nameSprite) {
-                        this.nameSprite.texture = PIXI.Texture.EMPTY;
-                    }
+            kill() {
+                super.kill();
+                this.cellSprite.destroy();
+                if (this.skinSprite) this.skinSprite.destroy();
+                if (this.nameSprite) this.nameSprite.destroy();
+            }
+
+            set skin(skin) {
+                this._skin = skin;
+
+                // Don't create a texture if the skin is empty
+                if (!skin || skin === '') return;
+
+                if (!this.canDisplay(this.game.settings.settings.showSkins)) {
+                    this.skinSprite.visible = false;
                     return;
                 }
 
-                if (!name || name.trim() === '')
-                    return;
+                // Set the new skin texture
+                let resource = this.game.skins.get(skin);
 
-                const cacheKey = name + (this.lockedColor ?? '');
-                this.currentNameKey = cacheKey;
+                if (!resource) {
+                    if (this.heldSkin)
+                        this.game.skins.release(this.heldSkin);
 
-                if (!this.game.names[cacheKey]) {
-                    this.game.names[cacheKey] = new NameTexture(
-                        name,
-                        this.getNameSize(),
-                        (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
-                        this.lockedColor !== null ? 10 : 15,
-                        this.lockedColor !== null ? 0.25 : 1,
-                        this.game.settings.settings.textMipmaps
+                    resource = this.game.skins.create(
+                        skin,
+                        this.game.settings.settings.highQualitySkins, 
                     );
                 }
 
-                this.game.names[cacheKey].lastAccess = this.game.updateTime;
-                if (!this.nameSprite) this.nameSprite = new PIXI.Sprite();
+                this.heldSkin = skin;
 
-                // Clear the old texture, as otherwise event listeners start to accumulate on pooled nodes and eventually nuke the main thread
-                if (this.nameSprite.texture && this.nameSprite.texture !== PIXI.Texture.EMPTY) {
-                    this.nameSprite.texture = PIXI.Texture.EMPTY;
+                resource.onReady(this.skinCheck.bind(this));
+            }
+
+            skinCheck(resource) {
+                const texture = resource.texture;
+                if (!texture) return;
+
+                if (!this.skinSprite) {
+                    this.skinSprite = new PIXI.Sprite(texture);
+                    this.skinSprite.zIndex = 0;
+                    this.skinSprite.anchor.set(0.5, 0.5);
+                    this.root.addChild(this.skinSprite);
+                } else {
+                    if (this.skinSprite.texture !== texture) 
+                        this.skinSprite.texture = texture;
                 }
-                this.nameSprite.texture = this.game.names[cacheKey].texture;
 
-                //this.nameSprite.position.y = this.cellSize;
+                this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(this.skin);
+                this.skinSprite.scale.set(this.skinSize * (2 * this.cellSize / resource.size));
+                return;
+            }
+
+            set name(name) {
+                this._name = name;
+
+                // Don't create a texture if it's an empty name
+                if (!name || !name.trim()) return;
+
+                if (!this.canDisplay(this.game.settings.settings.showNames)) {
+                    this.nameSprite.visible = false;
+                    return;
+                }
+
+                // Create the name texture if it doesn't exist
+                let texture = this.game.names.get(this.nameKey);
+                if (texture === null) {
+                    if (this.heldName)
+                        this.game.names.release(this.heldName);
+
+                    texture = this.game.names.create(
+                        this.nameKey,
+                        name,
+                        this.nameSize,
+                        (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
+                        this.lockedColor !== null ? 0.25 : 1,
+                    );
+                }
+
+                this.heldName = this.nameKey;
+
+                if (this.nameSprite) {
+                    this.nameSprite.visible = true;
+                    this.nameSprite.texture = texture;
+                } else {
+                    this.nameSprite = new PIXI.Sprite(texture);
+                    this.root.addChild(this.nameSprite);
+                }
+
                 this.nameSprite.zIndex = 1;
 
                 switch (this.lockedPosition) {
@@ -3775,64 +4037,128 @@ function modules(ks) {
                     this.nameSprite.anchor.set(0.5);
                     this.nameSprite.scale.set(1);
                 }
-
-                this.root.addChild(this.nameSprite);
             }
-            sort() {} // Useless, but referenced a lot
-            setSize(size) {
-                if (this.nSize === size) return;
-                this.nSize = size;
-                if (this.destroyed == true
-                    || this.type != nodeType.Player
-                    || this.game.settings.getItem('showMass') == false
-                    || (this.game.updateTime - this.lastMassUpdate < 100
-                        // Urgently update mass if it changes significantly
-                        && Math.abs(size - this.lastMassValue) < this.lastMassValue * 0.25))
+
+            canDisplay(preference) {
+                switch(preference) {
+                    case 'all':
+                        return true;
+                    case 'party':
+                        if (this.game.party?.hasOwnProperty(this.parent))
+                            return true;
+                    case 'self':
+                        if (this.game.myCells.has(this.id))
+                            return true;
+                    default:
+                        return false;
+                }
+            }
+
+            get nameSize() { return 140 - this.name.length * 3; }
+            get name() { return this._name; }
+            get skin() { return this._skin; }
+            get nameKey() { 
+                if (this.name === '') return null;
+                return this.name + (this.lockedColor ?? ''); 
+            }
+        }
+
+        /**
+         *  FoodNodes aren't special at all, except for its randomized sprite rotation and texture
+         */
+
+        class FoodNode extends Node {
+            reset(nodeData = {}) {
+                super.reset(nodeData);
+                this.cellSprite.rotation = Math.random() * Math.PI * 2;
+                this.root.visible = !this.game.settings.settings.hideFood;
+            }
+
+            get sprite() { return new PIXI.Sprite(this.game.randomFoodTexture); }
+            get cellSize() { return this.game.foodSize; }
+            get type() { return nodeType.Food; }
+        }
+
+        /** 
+         *  CellNodes can have mass labels
+         *  Viruses may have an option to do so too in the future 
+         */
+        
+        class CellNode extends PlayerNode {
+            clean() {
+                super.clean();
+                if (this.heldMass) {
+                    this.game.masses.release(this.heldMass);
+                    this.heldMass = null;
+                    this.massSprite.removeAllListeners();
+                    this.massSprite.texture = PIXI.Texture.EMPTY;
+                }
+            }
+
+            kill() {
+                super.kill();
+                if (this.massSprite) this.massSprite.destroy();
+            }
+
+            set size(size) {
+                this._size = size;
+
+                if (!this.game.settings.settings.showMass) return;
+                
+                // Clear the texture if...
+                if (size * this.game.camera.renderZoom < 50 || this.eaten) {
+                    if (this.massSprite) this.massSprite.visible = false;
+                    return;
+                }
+
+                // Skip updating mass sprite if...
+                if (this.game.updateTime - this.lastMassUpdate < 100)
                     return;
 
-                if (this.size * this.game.viewZoom < 50) return; // Might be too aggressive?
+                /**
+                 *  If you're wondering why we only sometimes update holdingMassTexture when textures are technically invisible, 
+                 *  it's because we only care about updating it when either one of two things happens:
+                 *
+                 *      1. The node gets put back into the pool or killed by putNode()
+                 *      2. The texture of the sprite changes
+                 *  
+                 *  Sprite visibility doesn't matter at all
+                 */
 
-                const massStr = this.game.settings.settings.shortenMass ? this.getShortMass() : String(this.getMass()); // Also serves as a cache key
-                this.currentMassKey = massStr;
+                let texture = this.game.masses.get(this.massKey);
 
-                if (!this.game.masses[massStr]) {
-                    this.game.masses[massStr] = new MassTexture(massStr, this.getMassSize(), this.game.settings.settings.shortenMass ? 13 : 10, this.game.settings.settings.textMipmaps);
+                if (texture === null) {
+                    // Remove held state for previous mass texture
+                    if (this.heldMass)
+                        this.game.masses.release(this.heldMass);
+
+                    // Create the new mass texture
+                    texture = this.game.masses.create(
+                        this.massKey, 
+                        this.game.settings.settings.shortenMass ? 75 : 60, 
+                    );
                 }
 
-                this.game.masses[massStr].lastAccess = this.game.updateTime;
-                this.lastMassUpdate = this.game.updateTime;
-                this.lastMassValue = size;
+                this.heldMass = this.massKey;
 
-                if (this.sizeText) { 
-                    this.sizeText.texture = PIXI.Texture.EMPTY;
-                    this.sizeText.texture = this.game.masses[massStr].texture;
+                // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
+                if (this.massSprite) { 
+                    this.massSprite.visible = true;
+                    if (this.massSprite.texture !== texture)
+                        this.massSprite.texture = texture;
                 } else {
-                    this.sizeText = new PIXI.Sprite(this.game.masses[massStr].texture);
-                    this.sizeText.anchor.set(0.5);
-                    this.sizeText.position.y = this.cellSize * 0.6;
-                    this.sizeText.zIndex = 1;
+                    this.massSprite = new PIXI.Sprite(texture);
+                    this.massSprite.anchor.set(0.5);
+                    this.massSprite.position.y = this.cellSize * 0.6;
+                    this.massSprite.zIndex = 1;
+                    this.root.addChild(this.massSprite);
                 }
-                this.root.addChild(this.sizeText);
+                this.lastMassUpdate = this.game.updateTime;
             }
-            getRadius() {
-                return this.size;
-            }
-            getMass() {
-                return Math.floor(this.nSize * this.nSize / 100);
-            }
-            decimalToRgb(mX) {
-                var mY = Math.floor(mX / (256 * 256));
-                var mZ = Math.floor(mX / 256) % 256;
-                var n0 = mX % 256;
-                return {
-                    'r': mY,
-                    'g': mZ,
-                    'b': n0
-                };
-            }
-            getShortMass() {
+
+            get shortMassString() {
                 // Return a string representing the shortened mass number
-                const mass = this.getMass();
+                const mass = this.mass;
                 if (mass >= 1000000)
                     return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
                 if (mass >= 1000)
@@ -3840,13 +4166,23 @@ function modules(ks) {
                 else
                     return mass.toString();
             }
+            get massString() { return this.mass.toString(); }
+            get massKey() { return this.game.settings.settings.shortenMass ? this.shortMassString : this.massString; }
+            get size() { return this._size; }
+            get sprite() { return new PIXI.Sprite(this.game.cellTexture); }
+            get cellSize() { return this.game.cellSize; }
+            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+            get type() { return nodeType.Player; }
         }
-        class PlayerNode extends Node {
-            constructor() {
-                super();
-            }
+
+        class VirusNode extends PlayerNode { // I'm only doing this because Stas plays as a virus node
+            get sprite() { return new PIXI.Sprite(this.game.virusTexture); }
+            get cellSize() { return this.game.virusSize; }
+            get skinSize() { return 0.88; }
+            get type() { return nodeType.Virus; }
         }
-        class n2 {
+
+        class Pool {
             constructor(n3) {
                 this.game = n3;
                 this.playerPool = [];
@@ -3856,116 +4192,85 @@ function modules(ks) {
                 this.maxVirusPoolSize = 128;
                 this.maxFoodPoolSize = 256;
             }
+
             populate(cb) {
-                for (let n5 = 0; n5 < 128; n5++) {
-                    this.putNode(new Node(this.game,0,-1,nodeType.Player,0,0,1,null,null,null,null,0,''));
+                for (let i = 0; i < 128; i++) {
+                    this.putNode(new CellNode(this.game));
                 }
-                for (let n6 = 0; n6 < 32; n6++) {
-                    this.putNode(new Node(this.game,0,-1,nodeType.Virus,0,0,1,null,null,null,null,0,''));
+                for (let i = 0; i < 32; i++) {
+                    this.putNode(new VirusNode(this.game));
                 }
-                for (let n7 = 0; n7 < 64; n7++) {
-                    this.putNode(new Node(this.game,0,-1,nodeType.Food,0,0,1,null,null,null,null,0,''));
+                for (let i = 0; i < 64; i++) {
+                    this.putNode(new FoodNode(this.game));
                 }
                 if (cb)
                     cb();
             }
-            getNode(id, parent, type, x, y, size, ne, lockedColor, lockedPosition, nh, color, rgb, nk) {
+
+            getNode(type, nodeData) {
                 let node = null;
+
                 switch (type) {
                 case nodeType.Player:
-                    if (this.playerPool.length > 0) {
-                        node = this.playerPool.shift();
+                    if (this.playerPool.length > 0) node = this.playerPool.pop();
+                    if (node == null) {
+                        node = new CellNode(this.game, nodeData);
+                    } else {
+                        node.reset(nodeData);
                     }
                     break;
                 case nodeType.Virus:
-                    if (this.virusPool.length > 0) {
-                        node = this.virusPool.shift();
+                    if (this.virusPool.length > 0) node = this.virusPool.pop();
+                    if (node == null) {
+                        node = new VirusNode(this.game, nodeData);
+                    } else {
+                        node.reset(nodeData);
                     }
                     break;
                 case nodeType.Food:
-                    if (this.foodPool.length > 0) {
-                        node = this.foodPool.shift();
+                    if (this.foodPool.length > 0) node = this.foodPool.pop();
+                    if (node == null) {
+                        node = new FoodNode(this.game, nodeData);
+                    } else {
+                        node.reset(nodeData);
                     }
                     break;
                 }
-                if (node == null) {
-                    node = new Node(this.game, id, parent, type, x, y, size, ne, lockedColor, lockedPosition, nh, color, rgb);
-                } else {
-                    node.id = id;
-                    node.parent = parent;
-                    node.x = x;
-                    node.y = y;
-                    node.ox = x;
-                    node.oy = y;
-                    node.nx = x;
-                    node.ny = y;
-                    node.size = size;
-                    node.oSize = size;
-                    node.nSize = size;
-                    node.lastMassUpdate = this.game.updateTime - 250;
-                    node.lastMassValue = 0;
-                    node.currentMassKey = null;
-                    node.currentNameKey = null;
-                    node.lockedColor = lockedColor;
-                    node.lockedPosition = lockedPosition;
-                    node.updateTime = this.game.updateTime;
-                    node.created = this.game.updateTime;
-                    node.color = color;
-                    node.rgb = rgb;
-                    node.cellSprite.tint = color;
-                    node.destroyed = false;
-                    node.opacity = 1;
-                    node.moveRoot();
-                    //node.root.alpha = 1; // Re-enable to fade cells out, as I think was originally intended
-                }
-                if (type != nodeType.Player && nk == false) {
-                    node.size = 1;
-                    node.oSize = 1;
-                }
-                if (type == nodeType.Food && nk == false && this.game.settings.getItem('hideFood') == true) {
-                    node.root.visible = false;
-                } else {
-                    node.root.visible = true;
-                }
-                if (type === nodeType.Player) {
-                    node.cellSprite.texture = this.game.cellTexture;
-                    node.skinCheck();
-                }
                 return node;
             }
-            putNode(nm) {
-                switch (nm.type) {
+
+            putNode(node) {
+                switch (node.type) {
                 case nodeType.Player:
                     if (this.playerPool.length < this.maxPlayerPoolSize) {
-                        nm.reset();
-                        this.playerPool.push(nm);
+                        node.clean();
+                        this.playerPool.push(node);
                     } else {
-                        nm.clear();
+                        node.kill();
                     }
                     break;
                 case nodeType.Virus:
                     if (this.virusPool.length < this.maxVirusPoolSize) {
-                        nm.reset();
-                        this.virusPool.push(nm);
+                        node.clean();
+                        this.virusPool.push(node);
                     } else {
-                        nm.clear();
+                        node.kill();
                     }
                     break;
                 case nodeType.Food:
                     if (this.foodPool.length < this.maxFoodPoolSize) {
-                        nm.reset();
-                        this.foodPool.push(nm);
+                        node.clean();
+                        this.foodPool.push(node);
                     } else {
-                        nm.clear();
+                        node.kill();
                     }
                     break;
                 default:
-                    nm.clear();
+                    node.kill();
                     break;
                 }
             }
         }
-        const nn = n2;
         // The following was initially stolen and obfuscated on Germs with a deliberate change from  
         // function to class structure.
         /*
@@ -4289,7 +4594,6 @@ function modules(ks) {
                     ow = this.findMode(mode);
                 }
                 this.game.settings.setItem('lastMode', mode);
-                //console.debug("Settings: " + this.game.settings.getItem('lastMode'));
                 var oz = ow[1];
                 this.mode = ow[0];
                 this.server = oz.name;
@@ -4518,61 +4822,54 @@ function modules(ks) {
                 let oY = new reader(oX.data);
                 let oZ = oY.readUInt8();
                 switch (oZ) {
-                case 16:
-                    this.handleNodes(oY);
-                    break;
-                case 0x11:
-                    this.handlePosition(oY);
-                    break;
-                case 0x12:
-                    this.handleClear(oY);
-                    break;
-                case 20:
-                    this.handleClear(oY);
-                    break;
-                case 0x15:
-                    this.handleDrawLine(oY);
-                    break;
-                case 0x16:
-                    this.handeDrawLines(oY);
-                    break;
-                case 0x18:
-                    break;
-                case 32:
-                    this.handleAddNode(oY);
-                    break;
-                case 0x31:
-                    this.handleLeaderboardFFA(oY);
-                    break;
-                case 0x32:
-                    this.handleLeaderboardText(oY);
-                    break;
-                case 0x41:
-                    this.handleBorder(oY);
-                    break;
-                case 0x55:
-                    this.handlePartyCode(oY);
-                    break;
-                case 0x56:
-                    this.handleChat(oY);
-                    break;
-                case 0x57:
-                    this.handleParty(oY);
-                    break;
-                case 0x58:
-                    this.handleLevel(oY);
-                    break;
-                case 100:
-                    this.handlePong(oY);
-                    break;
-                case 0x77:
-                    this.handleRadius(oY);
-                    break;
-                case 0xfe:
-                    this.handleRestart(oY);
-                    break;
+                    case 16:
+                        this.handleNodes(oY);
+                        break;
+                    case 0x11:
+                        this.handlePosition(oY);
+                        break;
+                    case 0x12:
+                        this.handleClear(oY);
+                        break;
+                    case 20:
+                        this.handleClear(oY);
+                        break;
+                    case 32:
+                        this.handleAddNode(oY);
+                        break;
+                    case 0x31:
+                        this.handleLeaderboardFFA(oY);
+                        break;
+                    case 0x32:
+                        this.handleLeaderboardText(oY);
+                        break;
+                    case 0x41:
+                        this.handleBorder(oY);
+                        break;
+                    case 0x55:
+                        this.handlePartyCode(oY);
+                        break;
+                    case 0x56:
+                        this.handleChat(oY);
+                        break;
+                    case 0x57:
+                        this.handleParty(oY);
+                        break;
+                    case 0x58:
+                        this.handleLevel(oY);
+                        break;
+                    case 100:
+                        this.handlePong(oY);
+                        break;
+                    case 0x77:
+                        this.handleRadius(oY);
+                        break;
+                    case 0xfe:
+                        this.handleRestart(oY);
+                        break;
                 }
             }
+
             onClose(p0) {
                 $('#resetCenter').hide();
                 this.game.log('Connection Closed! ' + (p0.reason ? p0.reason : ''));
@@ -4600,17 +4897,20 @@ function modules(ks) {
                 }
                 , p1);
             }
+
             handleLevel(p2) {
                 this.game.login.setXP(p2.readUInt32());
                 if (p2.readUInt8() == 1) {
                     this.game.login.setCoins(this.game.login.coins + p2.readUInt32());
                 }
             }
+
             handlePong(p3) {
                 var p4 = Date.now();
                 var p5 = p4 - this.ping;
                 this.game.ping = p5;
             }
+
             handlePartyCode(p6) {
                 var p7 = p6.readStringZeroUtf8();
                 if (p7 == 'invalid') {
@@ -4627,6 +4927,7 @@ function modules(ks) {
                 $('#partyMenu').show();
                 $('.partyCard').addClass('partyGlow');
             }
+
             handleParty(p8) {
                 let p9 = p8.readUInt16();
                 let pa = {};
@@ -4636,7 +4937,7 @@ function modules(ks) {
                     let pe = p8.readUInt8()
                       , pf = p8.readUInt8()
                       , pg = p8.readUInt8();
-                    let ph = '#' + ((1 << 0x18) + (pe << 16) + (pf << 8) + pg).toString(16).slice(0x1);
+                    let ph = '#' + ((1 << 0x18) + (pe << 16) + (pf << 8) + pg).toString(16).slice(1);
                     let pi = p8.readInt32();
                     let pj = p8.readInt32();
                     let pk = p8.readInt32();
@@ -4648,7 +4949,7 @@ function modules(ks) {
                         pl.targetX = pj;
                         pl.targetY = pk;
                     } else {
-                        pl = new mn(this.game,pc,pi,pj,pk,pd);
+                        pl = new PartyMember(this.game,pc,pi,pj,pk,pd);
                     }
                     pl.color = ph;
                     pl.name = pd;
@@ -4659,43 +4960,46 @@ function modules(ks) {
                 }
                 this.game.party = pa;
             }
-            handleDrawLine(pm) {}
-            handeDrawLines(pn) {}
+
             handleAddNode(po) {
                 if (this.game.myCells.size == 0) {
                     this.game.startTime = Date.now();
                 }
-                this.game.myCells.add(po.readUInt32());
+                const id = po.readUInt32();
+                this.game.myCells.add(id); // id of node owned by player
+
+                if (this.game.nodes.has(id)) {
+                    console.warn("!!!!! CAUGHT EXISTING NODE OWNED BY PLAYER !!!!!"); 
+                    if (!this.game.aliveCell) this.game.aliveCell = node;
+                    this.game.playerCells.add(this.game.nodes.get(id));
+                }
             }
+
             handleNodes(buffer) {
                 let now = performance.now();
                 this.game.updateTime = now;
 
                 let eatCount = buffer.readUInt16();
                 for (let i = 0; i < eatCount; i++) {
-                    let hunter = this.game.nodes[buffer.readUInt32()];
-                    let eaten = this.game.nodes[buffer.readUInt32()];
-                    if (eaten) {
-                        if (hunter) {
-                            eaten.hunter = hunter;
-                            eaten.nx = hunter.x;
-                            eaten.ny = hunter.y;
-                            if (this.game.playerCells.has(hunter)) {
-                                if (eaten.parent == -1) {
-                                    this.game.foodEaten++;
-                                } else {
-                                    this.game.cellsEaten++;
-                                }
-                            }
-                        }
-                        eaten.updateTime = now;
-                        eaten.destroy();
+                    let hunter = this.game.nodes.get(buffer.readUInt32());
+                    let eaten = this.game.nodes.get(buffer.readUInt32());
+
+                    if (!eaten) continue;
+
+                    eaten.getEatenBy(hunter);
+
+                    if (!hunter || !this.game.playerCells.has(hunter)) continue;
+
+                    if (eaten.parent == -1) { // No parent means it's not a player
+                        this.game.foodEaten++;
+                    } else {
+                        this.game.cellsEaten++;
                     }
                 }
 
                 while (true) {
-                    let nodeId = buffer.readUInt32();
-                    if (nodeId == 0)
+                    let id = buffer.readUInt32();
+                    if (id == 0)
                         break;
 
                     let x = buffer.readInt32();
@@ -4708,47 +5012,35 @@ function modules(ks) {
                     let hasColor = flags & 2;
                     let hasSkin = flags & 4;
                     let hasName = flags & 8;
-                    let hasPartyInfo = flags & 16;
+                    let hasLocked = flags & 16;
                     let isEjected = flags & 32;
                     let hasParent = flags & 64;
 
                     let skin = null;
                     let name = null;
-                    let hex = null;
+                    let color = null;
                     let rgb = null;
-                    let parentId = -1;
+                    let parent = -1;
                     let lockedColor = null;
                     let lockedPosition = null;
 
-                    if (hasPartyInfo) {
+                    if (hasLocked) {
                         lockedColor = buffer.readUInt32();
                         lockedPosition = buffer.readUInt8();
                     }
-                    if (hasParent) {
-                        parentId = buffer.readInt32();
-                    }
+                    if (hasParent) parent = buffer.readInt32();
                     if (hasColor) {
                         let r = buffer.readUInt8();
                         let g = buffer.readUInt8();
                         let b = buffer.readUInt8();
                         rgb = `rgb(${r}, ${g}, ${b})`;
-                        hex = (r << 16) + (g << 8) + b;
+                        color = (r << 16) + (g << 8) + b;
                     }
-                    if (hasSkin) {
-                        skin = buffer.readStringZeroUtf8().substr(1);
-                    }
-                    if (hasName) {
-                        name = buffer.readStringZeroUtf8().trim().removeWideChars();
-                    }
+                    if (hasSkin) skin = buffer.readStringZeroUtf8().substr(1);
+                    if (hasName) name = buffer.readStringZeroUtf8().trim().removeWideChars();
 
                     let node;
-                    if (this.game.nodes.hasOwnProperty(nodeId)) {
-                        // Existing node — save previous position for interpolation
-                        node = this.game.nodes[nodeId];
-                        node.ox = node.x;
-                        node.oy = node.y;
-                        node.oSize = node.size;
-                    } else {
+                    if (!this.game.nodes.has(id)) {
                         // New node — determine type from flags
                         let type = nodeType.Food;
                         if (hasParent && !isVirus && !isEjected) {
@@ -4756,53 +5048,67 @@ function modules(ks) {
                         } else if (isVirus) {
                             type = nodeType.Virus;
                         }
-                        node = this.game.pool.getNode(nodeId, parentId, type, x, y, size, name, lockedColor, lockedPosition, skin, hex, rgb, isEjected);
+
+                        const nodeData = {
+                            id: id,
+                            parent: parent,
+                            x: x,
+                            y: y,
+                            size: size,
+                            name: name,
+                            color: color,
+                            rgb: rgb,
+                            skin: skin,
+                            lockedColor: lockedColor,
+                            lockedPosition: lockedPosition,
+                            isEjected: isEjected
+                        };
+
+                        node = this.game.pool.getNode(type, nodeData);
                         this.game.addNode(node);
+                        
+                        continue; // Because state is clean
                     }
+                    
+                    // Since the node exists, update its position
+                    node = this.game.nodes.get(id);
 
-                    node.nx = x;
-                    node.ny = y;
-                    node.setSize(size);
-                    node.updateTime = now;
+                    node.x = x;
+                    node.y = y;
+                    node.size = size;
 
-                    if (hasPartyInfo) {
-                        node.lockedColor = lockedColor;
-                        node.lockedPosition = lockedPosition;
-                    }
+                    node.updateRender();
+
+                    // TODO: Move to each respective class
                     if (hasColor) {
                         switch (node.type) {
                             case nodeType.Food:
                                 if (this.game.customTheme.food !== null) {
-                                    hex = this.filterColor(hex, this.game.customTheme.food[0]);
+                                    color = this.filterColor(color, this.game.customTheme.food[0]);
                                     rgb = this.game.customTheme.food[1]; // Unfiltered
                                 }
                                 break;
                             case nodeType.Virus:
                                 if (this.game.customTheme.virus !== null) {
-                                    hex = this.game.customTheme.virus[0];
+                                    color = this.game.customTheme.virus[0];
                                     rgb = this.game.customTheme.virus[1];
                                 }
                                 break;
                             case nodeType.Player:
                                 if (this.game.customTheme.players !== null) {
-                                    hex = this.filterColor(hex, this.game.customTheme.players[0]);
+                                    color = this.filterColor(color, this.game.customTheme.players[0]);
                                     rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
                                 }
                                 break;
                         }
-                        
-                        node.setColor(hex, rgb);
+                        node.setColor(color, rgb);
                     }
-
-                    if (hasSkin && skin) node.setSkin(skin);
-                    if (hasName && name) node.setName(name);
                 }
 
                 let destroyCount = buffer.readUInt16();
                 for (let i = 0; i < destroyCount; i++) {
-                    let node = this.game.nodes[buffer.readUInt32()];
-                    if (node) {
-                        node.updateTime = now;
+                    let node = this.game.nodes.get(buffer.readUInt32());
+                    if (node && !node.eaten) {
                         node.destroy();
                     }
                 }
@@ -4856,7 +5162,7 @@ function modules(ks) {
                 this.game.clearNodes();
             }
             handlePosition(q6) {
-                this.game.updatePosition(q6.readFloat(), q6.readFloat(), q6.readFloat());
+                this.game.updateCameraPos(q6.readFloat(), q6.readFloat(), q6.readFloat());
             }
             handleRestart(q7) {
                 this.verified = true;
@@ -4949,7 +5255,7 @@ function modules(ks) {
                     $('#moreServersList').show();
                 }
             }
-            getServers(qv) {
+            fetchServers(qv) {
                 this.searching = true;
                 $('#regionNA, #regionEU, #regionAS, #regionTest').removeClass('btn-primary').addClass('btn-secondary');
                 $.getJSON('php/Servers.php' + (qv ? '?region=' + qv : ''), qw => {
@@ -4960,13 +5266,11 @@ function modules(ks) {
                     this.game.setRegion(this.region);
                     this.game.setModes(this.modes);
                     if (this.mode) {
-                        //console.debug("Connecting to " + this.mode);
                         this.connect(this.mode, true);
                     } else {
                         for (var qx in this.modes) {
                             var qy = this.modes[qx];
                             if (qy.default == true) {
-                                //console.debug("Connecting to default mode " + qx);
                                 this.connect(qx, true);
                             }
                         }
@@ -5046,11 +5350,9 @@ function modules(ks) {
                 }
                 for (var key in this.default.customTheme) {
                     if (this.settings.customTheme.hasOwnProperty(key) == false) {
-                        console.debug(`Setting ${key} to null`);
                         this.settings.customTheme[key] = this.default.customTheme[key];
                         this.save();
                     } else {
-                        //console.debug(`Found setting for ${key} with val ${this.settings.customTheme[key]}`);
                     }
                 }
                 this.settings.blockedSkins = new Set(this.settings.blockedSkins || []);
@@ -5088,45 +5390,65 @@ function modules(ks) {
             }
             setItem(key, value) {
                 this.settings[key] = value;
+
                 this.save();
-                if (key === "textureMipmaps" || key === "textMipmaps") {
-                    this.game.updateTextureMipmaps();
-                }
-                if (key === "customTheme") {
-                    // TODO: Update food in real time
-                    this.game.drawGrid();
-                }
-                if (key == 'hideBorder' || key == 'hideMapGrid') {
-                    if (this.game.grid)
+
+                switch (key) {
+                    case 'cameraDelay':
+                        this.game.camera.cameraDelay = value;
+                        break;
+                    case 'animationDelay':
+                        for (const node of this.game.nodes.values()) {
+                            node.animationDelay = value;
+                        }
+                        break;
+                    case 'textureMipmaps':
+                        this.skins.updateMipmaps(value);
+                        this.updateTextureMipmaps();
+                        break;
+                    case 'textMipmaps':
+                        this.names.updateMipmaps(value);
+                        this.masses.updateMipmaps(value);
+                        break;
+                    case 'customTheme':
                         this.game.drawGrid();
-                }
-                if (key == 'showNames') {
-                    for (const cell of this.game.cells) {
-                        if (cell.name && cell.name != '') {
-                            cell.setName(cell.name, true);
+                        break;
+                    case 'hideBorder':
+                    case 'hideMapGrid':
+                        if (this.game.grid)
+                            this.game.drawGrid();
+                        break;
+                    case 'highQualitySkins':
+                    case 'borderlessCells':
+                    case 'showSkins':
+                    case 'blockedSkins':
+                        this.game.updateCellsAppearance();
+                        break;
+                    case 'showNames':
+                        for (const cell of this.game.nodes.values()) {
+                            if (cell.name)
+                                cell.name = cell.name;
                         }
-                    }
-                }
-                if (key === 'highQualitySkins' || key === "borderlessCells" || key == 'showSkins' || key == 'blockedSkins') {
-                    this.game.updateCellsAppearance();
-                }
-                if (key == 'showMass') {
-                    for (const cell of this.game.cells) {
-                        if (!this.getItem('showMass') && cell.sizeText) {
-                            cell.root.removeChild(cell.sizeText);
-                            cell.sizeText.destroy();
-                            delete cell.sizeText;
-                        } else {
-                            cell.setSize(cell.nSize + 0.0001); // Just to update it
+                        break;
+                    case 'showMass':
+                        for (const cell of this.game.nodes.values()) {
+                            if (!value && cell.massSprite) {
+                                cell.massSprite.visible = false;
+                            } else {
+                                // Force label update if applicable
+                                cell.size = cell.size + 0.0001;
+                            }
                         }
-                    }
-                }
-                if (key == 'hideXP') {
-                    if (value) {
-                        $('#xpCenter').hide();
-                    } else {
-                        $('#xpCenter').show();
-                    }
+                        break;
+                    case 'hideFood':
+                        for (const cell of this.game.nodes.values()) {
+                            if (cell.type === nodeType.Food)
+                                cell.root.visible = !value;
+                        }
+                        break;
+                    case 'hideXP':
+                        $('#xpCenter').toggle(!value);
+                        break;
                 }
             }
             resetControls() {
@@ -5173,13 +5495,13 @@ function modules(ks) {
                     return alert(qM.error);
                 }
                 this.game.network.sendUUID(qM.uuid);
-                this.skins = qM['Skins'].indexOf(',') > -0x1 ? qM['Skins'].split(',') : qM['Skins'].length > 0 ? [qM['Skins']] : [];
-                this.levels = qM['Shop']['Levels'];
-                this['premium'] = qM['Shop']['Premium'];
-                this.locked = qM['Shop']['Locked'];
-                this.coinShop = qM['Shop'].Coins;
-                this.bucksShop = qM['Shop'].Bucks;
-                this['boostShop'] = qM['Shop']['Boosts'];
+                this.skins = qM.Skins.indexOf(',') > -1 ? qM.Skins.split(',') : qM.Skins.length > 0 ? [qM.Skins] : [];
+                this.levels = qM.Shop['Levels'];
+                this.premium = qM.Shop.Premium;
+                this.locked = qM.Shop['Locked'];
+                this.coinShop = qM.Shop.Coins;
+                this.bucksShop = qM.Shop.Bucks;
+                this['boostShop'] = qM.Shop['Boosts'];
                 this.uuid = qM.uuid;
                 this['customSkin'] = parseInt(qM['Custom Skin']) == 1;
                 this.lockedExpire = parseInt(qM['LockedExpire']);
@@ -5326,7 +5648,7 @@ function modules(ks) {
             }
             updatePremium() {
                 var rf = '<ul>';
-                var rg = this['premium'].sort( (rh, ri) => {
+                var rg = this.premium.sort( (rh, ri) => {
                     if (rh.Bucks > 0 && ri.Bucks > 0) {
                         return rh.Bucks - ri.Bucks;
                     }
@@ -5843,59 +6165,41 @@ function modules(ks) {
                 return sV;
             }
         }
-        ;class sW {
+        ;class Game {
             constructor() {
-                //this.skipNextCleanup = false;
-                this.viewZoom = 0;
-                this.newViewZoom = 0;
-                this.zoom = 0.25;
                 this.width = 800;
                 this.height = 600;
                 this.updateTime = performance.now();
-                this.specZoom = 0;
-                this.setupLimit = 0;
-                this.lastTime = performance.now(),
-                this.cacheCleanupDelta = 0;
-                this.delta = 1;
-                this.nodeX = 0;
-                this.nodeY = 0;
-                this.tick = 0;
-                this.splitTick = 0;
-                this.fps = 60;
-                this.setupLimit = 0;
-                this.pID = -1;
                 this.startTime = performance.now();
-                this.lastEject = performance.now();
-                this.ejectKey = false;
+                this.delta = 1;
+                this.fps = 60;
+                this.pID = -1;
                 this.hideUI = false;
                 this.freeze = false;
-                // Repurposed to freeze mouse, not cell
-                this.vertical = false;
+                this.linesplit = false;
                 this.chatHidden = false;
                 this.freeSpec = false;
                 this.mouse = {
                     'x': 0,
                     'y': 0
                 };
-                this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                this.nodes = {};                // Nodes are keyed by id
-                this.cells = new Set();         // Set of ALL player cell nodes
+                this.nodes = new Map();         // Map of all nodes
                 this.playerCells = new Set();   // Set of your cell nodes
                 this.myCells = new Set();       // Set of your cell IDs
                 this.leaderboard = [];
                 this.border = [-1000, -1000, 1000, 1000];
-                this.drawLines = [];
-                this.skins = {};
-                this.names = {};
-                this.masses = {};
-                this.sizes = {};
+                // Texture caches
+                // Game objects
                 this.settings = new Settings(this);
-                this.camera = new mu(this);
+                this.skins = new SkinCache(this);
+                this.names = new NameCache(this);
+                this.masses = new MassCache(this);
+                this.camera = new Camera(this);
                 this.network = new Network(this);
                 this.ui = new lC(this);
                 this.login = new qI(this);
-                this.chat = new l7(this);
-                this.pool = new nn(this);
+                this.chat = new Chat(this);
+                this.pool = new Pool(this);
                 this.foodEaten = 0;
                 this.highestMass = 0;
                 this.timeAlive = 0;
@@ -5906,8 +6210,6 @@ function modules(ks) {
                 this.controls = this.settings.getItem('controls');
                 this.customTheme = this.settings.getItem('customTheme'); // Reduce lookups
                 this.theme = 2;
-                this.ejectSpeed = 999;
-                this.maxCacheTime = 10000;
             }
             async waitForGermsfoxURL() {
                 while (!window.__germsfoxURL) {
@@ -5973,7 +6275,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.1.8.4 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.2 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -5998,12 +6300,7 @@ function modules(ks) {
                     ...this.foodTextures
                 ];
 
-                if (this.settings.settings.textureMipmaps) {
-                    for (const texture of this.gameTextures) {
-                        texture.source.autoGenerateMipmaps = true;
-                        texture.source.update();
-                    }              
-                }
+                this.updateTextureMipmaps();
 
                 this.cellSize = this.cellTexture.frame.width / 2;
                 this.virusSize = this.virusTexture.frame.width / 2;
@@ -6029,13 +6326,17 @@ function modules(ks) {
                         region = 'Test';
                     }
 
-                    this.network.getServers(region);
+                    this.network.fetchServers(region);
 
                     $('#loader').fadeOut();
 
                     setInterval(this.counter.bind(this), 1000);
                     setInterval(this.sendMouse.bind(this), 40);
                     setInterval(this.refreshMenuAds.bind(this), 120 * 1000);
+                    
+                    this.skins.startCleanupInterval(10000);
+                    this.names.startCleanupInterval(1000);
+                    this.masses.startCleanupInterval(500);
 
                     this.ticker = new PIXI.Ticker();
 
@@ -6048,14 +6349,14 @@ function modules(ks) {
             updateCellsAppearance() {
                 this.cellTexture = this.settings.settings.borderlessCells ? 
                     this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
-                for (const cell of this.cells) {
+                for (const cell of this.nodes.values()) {
                     if (cell.type === nodeType.Player) {
-                        cell.skinCheck();
+                        cell.skin = cell.skin;
                         cell.cellSprite.texture = this.cellTexture;
                     }
-                    if (cell.skin && cell.skin != '') {
-                        cell.setSkin(cell.skin, true);
-                        cell.setName(cell.name, true); // Gets hidden behind skin as skin redraws, so update
+                    if (cell.skin) {
+                        cell.skin = cell.skin;
+                        cell.name = cell.name; // Gets hidden behind skin as skin redraws, so update
                     }
                 }
                 for (const texture of this.gameTextures) {
@@ -6063,25 +6364,14 @@ function modules(ks) {
                 }
             }
 
+            skinURLFrom(skin) {
+                return skin.includes('i.imgur.com/') ? skin : skin.includes('.png') ? 'res/skins/' + skin : 'res/skins/' + skin + '.png';
+            }
+
             updateTextureMipmaps() {
                 for (const texture of this.gameTextures) {
                     texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;
                     texture.source.update();
-                }
-
-                for (const skin in this.skins) {
-                    this.skins[skin].texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;
-                    this.skins[skin].texture.source.update();
-                }
-
-                for (const mass in this.masses) {
-                    this.masses[mass].texture.source.autoGenerateMipmaps = this.settings.settings.textMipmaps;
-                    this.masses[mass].texture.source.update();
-                }
-
-                for (const name in this.names) {
-                    this.names[name].texture.source.autoGenerateMipmaps = this.settings.settings.textMipmaps;
-                    this.names[name].texture.source.update();
                 }
             }
             counter() {
@@ -6092,17 +6382,17 @@ function modules(ks) {
                     this.timeAlive++;
                 }
             }
-            getSkinURL(sY) {
+            urlFromSkin(sY) {
                 return sY.includes('i.imgur.com/') ? sY : sY.includes('.png') ? 'res/skins/' + sY : 'res/skins/' + sY + '.png';
             }
-            getRandomFoodTexture() {
+            get randomFoodTexture() {
                 return this.foodTextures[Math.floor(Math.random() * this.foodTextures.length)];
             }
             calcMouse() {
-                let newX = (this.rawMouseX - this.width / 2) / this.viewZoom + this.camera.x;
-                let newY = (this.rawMouseY - this.height / 2) / this.viewZoom + this.camera.y;
+                let newX = (this.rawMouseX - this.width / 2) / this.camera.renderZoom + this.camera.renderX;
+                let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.renderY;
 
-                if (!this.vertical) {
+                if (!this.linesplit) {
                     if (this.linesplitCell && this.linesplitCell.cellSprite.tint !== this.linesplitCell.color) {
                         this.linesplitCell.cellSprite.tint = this.linesplitCell.color;
                     }
@@ -6110,8 +6400,7 @@ function modules(ks) {
                     this.linesplitAxis = undefined;
                     this.linesplitOrigin = null;
                 } else {
-                    if (this.linesplitCell?.destroyed) {
-                        //console.debug("Linesplit cell was destroyed, preserving axis and origin");
+                    if (this.linesplitCell?.eaten) {
                         if (this.linesplitCell.cellSprite.tint !== this.linesplitCell.color)
                             this.linesplitCell.cellSprite.tint = this.linesplitCell.color;
                         this.linesplitCell = null;
@@ -6120,13 +6409,10 @@ function modules(ks) {
 
                     if (!this.linesplitCell) {
                         if (this.linesplitAxis !== undefined) {
-                            //console.debug("Cell does not exist, looking for one on existing axis...");
                             this.linesplitCell = this.getCellOnAxis(newX, newY);
                         } else {
-                            //console.debug("No cell or axis, finding new one...");
                             this.linesplitCell = this.getLinesplitCell(newX, newY);
                             if (!this.settings.settings.dynamicLinesplitAxis) {
-                                //console.debug("Fixing the linesplit axis");
                                 this.linesplitAxis = this.getLinesplitAxis(newX, newY);
                             }
                         }
@@ -6142,10 +6428,9 @@ function modules(ks) {
 
                         // Update axis and origin while waiting for first split if the user wants
                         if (this.splitPending || this.linesplitAxis === undefined) {
-                            //console.debug(this.splitPending ? "Waiting for split, calculating new origin and axis" : "No linesplit axis set, getting new one");
                             if (this.splitPending && this.settings.settings.dynamicLinesplitAxis)
                                 this.linesplitAxis = this.getLinesplitAxis(newX, newY);
-                            this.linesplitOrigin = { x: this.linesplitCell.nx, y: this.linesplitCell.ny };
+                            this.linesplitOrigin = { x: this.linesplitCell.x, y: this.linesplitCell.y };
                         }
 
                         // Constrain mouse to axis
@@ -6187,8 +6472,8 @@ function modules(ks) {
             getLinesplitAxis(mouseX, mouseY) {
                 if (!this.linesplitCell) return null;
 
-                const dx = mouseX - this.linesplitCell.nx;
-                const dy = mouseY - this.linesplitCell.ny;
+                const dx = mouseX - this.linesplitCell.x;
+                const dy = mouseY - this.linesplitCell.y;
 
                 if (this.settings.settings.diagonalLinesplits) {
                     return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 4) + 4) % 4;
@@ -6205,9 +6490,9 @@ function modules(ks) {
                 let bestDist = 99999; // The lower the better
             
                 for (const id of this.myCells) {
-                    const cell = this.nodes[id];
-                    if (!cell || cell.destroyed || !this.isOnLinesplitAxis(cell.nx, cell.ny)) continue;
-                    const dist = Math.sqrt((cell.nx - mouseX) ** 2 + (cell.ny - mouseY) ** 2);
+                    const cell = this.nodes.get(id);
+                    if (!cell || cell.eaten || !this.isOnLinesplitAxis(cell.x, cell.y)) continue;
+                    const dist = Math.sqrt((cell.x - mouseX) ** 2 + (cell.y - mouseY) ** 2);
                     if (dist < bestDist) { 
                         bestDist = dist;
                         bestCell = cell;
@@ -6218,17 +6503,17 @@ function modules(ks) {
                     this.linesplitAxis = undefined;
                 return bestCell;
             }
+
             getLinesplitCell(mouseX, mouseY) {
-                //console.debug("Looking for new cell since you haven't set an axis yet");
                 let largestSize = 0;
                 for (const cell of this.playerCells) {
-                    if (cell.nSize > largestSize) 
-                        largestSize = cell.nSize;
+                    if (cell.size > largestSize) 
+                        largestSize = cell.size;
                 }
                 let bestCell = null;
                 let bestScore = 99999; // The lower the better
                 if (this.myCells.size === 0) {
-                    this.vertical = false;
+                    this.linesplit = false;
                     this.linesplitCell = null;
                     this.linesplitAxis = undefined;
                     this.linesplitOrigin = null;
@@ -6236,10 +6521,10 @@ function modules(ks) {
                 }
             
                 for (const id of this.myCells) {
-                    const cell = this.nodes[id];
-                    if (!cell || cell.destroyed) continue;
-                    const dx = mouseX - cell.nx, dy = mouseY - cell.ny;
-                    const sizeFactor = largestSize / cell.nSize;
+                    const cell = this.nodes.get(id);
+                    if (!cell || cell.eaten) continue;
+                    const dx = mouseX - cell.x, dy = mouseY - cell.y;
+                    const sizeFactor = largestSize / cell.size;
                     const score = Math.sqrt(dx * dx + dy * dy) * (sizeFactor ** 2);
                     if (score < bestScore) { 
                         bestScore = score;
@@ -6272,257 +6557,107 @@ function modules(ks) {
                 this.updateTime = performance.now();
                 this.delta = Math.min(1, Math.max(0, t5.deltaTime));
 
-                this.lastTime = this.updateTime;
                 this.fps = this.ticker.FPS;
+
+                for (const node of this.nodes.values()) {
+                    node.updateRender();
+                }
+
                 if (this.playerCells.size > 0) {
-                    if (this.ejectKey) {
-                        this.network.send(new packet.Eject());
-                        this.lastEject = this.updateTime;
-                    }
+
+                    // Get alive player cells and base camera position off each cell's size relative to total size
                     let playerCellsAlive = 0;
+
                     let totalSize = 0;
-                    for (const cell of this.playerCells) {
-                        if (cell.destroyed)
-                            continue;
-                        playerCellsAlive++;
-                        totalSize += cell.nSize;
-                    }
-                    let t6 = 0;
-                    let t7 = 0;
-                    let t8 = 0;
+                    let cameraX = 0;
+                    let cameraY = 0;
 
                     for (const cell of this.playerCells) {
-                        if (cell.destroyed)
+
+                        if (cell.eaten)
                             continue;
-                        cell.updatePos();
-                        const weight = cell.nSize / totalSize;
-                        t6 += cell.x * weight;
-                        t7 += cell.y * weight;
-                        t8 = Math.max(t8, cell.size);
+
+                        playerCellsAlive++;
+
+                        totalSize += cell.size;
+
+                        cameraX += cell.renderX * cell.size;
+                        cameraY += cell.renderY * cell.size;
                     }
-                    if (this.settings.getItem('mouseArrow') == true || this.isMobile) {
-                        let ta = 0;
-                        if (!this.arrowContainer) {
-                            this.arrowContainer = new PIXI.Container();
-                            this.arrowSprite = new PIXI.Sprite(this.arrowTexture);
-                            this.arrowSprite.anchor.x = 0.5;
-                            this.arrowSprite.anchor.y = 0.5;
-                            this.arrowContainer.zIndex = 99999999;
-                            this.arrowContainer.addChild(this.arrowSprite);
-                            this.cellContainer.addChild(this.arrowContainer);
-                        }
-                        if (this.playerCells.size == 1) {
-                            ta = this.aliveCell.size * 1.5;
-                        } else {
-                            for (const cell of this.playerCells) {
-                                ta = Math.max(ta, Math.abs(cell.x - t6) + cell.size * 1.5);
-                                ta = Math.max(ta, Math.abs(cell.y - t7) + cell.size * 1.5);
-                            }
-                        }
-                        if (!this.vertical) {
-                            let tc = t6 - this.mouse.x;
-                            let td = t7 - this.mouse.y;
-                            let h = Math.sqrt(tc * tc + td * td);
-                            ta = Math.min(ta, h);
-                        }
-                        this.arrowSprite.scale.x = 0x28 / this.arrowTexture.width / this.viewZoom;
-                        this.arrowSprite.scale.y = this.arrowSprite.scale.x;
-                        this.arrowSprite.tint = this.aliveCell.color;
-                        this.arrowContainer.x = t6;
-                        this.arrowContainer.y = t7;
-                        this.arrowContainer.pivot.x = -ta;
-                        this.arrowContainer.rotation = Math.atan2(this.mouse.y - t7, this.mouse.x - t6);
-                    } else {
-                        if (this.arrowContainer) {
-                            this.stage.removeChild(this.arrowContainer);
-                            this.arrowContainer.destroy({
-                                'children': true,
-                                'texture': false,
-                                'baseTexture': false
-                            });
-                            delete this.arrowContainer;
-                        }
-                    }
-                    if (playerCellsAlive > 0) {
-                        this.camera.setPosition(t6, t7);
+
+                    if (playerCellsAlive > 0 && totalSize > 0) {
+                        this.camera.setPosition(
+                            cameraX / totalSize,
+                            cameraY / totalSize
+                        );
                     }
                 } else {
                     if (this.freeSpec && this.mouse) {
-                        let tf = Math.min(Math.max(this.mouse.x, this.border[0]), this.border[1]);
-                        let tg = Math.min(Math.max(this.mouse.y, this.border[2]), this.border[3]);
-                        this.camera.setPosition(tf, tg);
-                    }
-                    if (this.arrowContainer) {
-                        this.stage.removeChild(this.arrowContainer);
-                        this.arrowContainer.destroy({
-                            'children': true,
-                            'texture': false,
-                            'baseTexture': false
-                        });
-                        delete this.arrowContainer;
+                        this.camera.setPosition(
+                            Math.min(Math.max(this.mouse.x, this.border[0]), this.border[1]),
+                            Math.min(Math.max(this.mouse.y, this.border[2]), this.border[3])
+                        );
                     }
                 }
-                this.viewZoom = Math.max(0, mm()(this.viewZoom, this.calcViewZoom(), 10 * this.delta / this.settings.settings.cameraDelay));
-                
-                // Update all cells and removeNode() those which are destroyed and have faded away
-                for (const cell of this.cells) {
-                    cell.updatePos();
-                    if (cell.destroyed) {
 
-                        cell.opacity = Math.max(0, cell.opacity - this.delta);
-                        if (cell.opacity <= 0) {
-                            this.removeNode(cell);
-                        }
-                    }
-                }
+                this.camera.update();
 
                 if (this.party) {
-                    for (var ti in this.party) {
-                        this.party[ti].updatePos();
+                    for (const member in this.party) {
+                        this.party[member].updatePos();
                     }
                 }
+
                 this.cellContainer.sortChildren();
-                this.camera.update();
-                this.stage.x = this.width / 2 - this.camera.x * this.viewZoom;
-                this.stage.y = this.height / 2 - this.camera.y * this.viewZoom;
-                this.stage.scale.x = this.viewZoom;
-                this.stage.scale.y = this.viewZoom;
+
+                this.stage.x = this.width / 2 - this.camera.renderX * this.camera.renderZoom;
+                this.stage.y = this.height / 2 - this.camera.renderY * this.camera.renderZoom;
+
+                this.stage.scale.x = this.camera.renderZoom;
+                this.stage.scale.y = this.camera.renderZoom;
                 this.ui.loop();
                 try {
                     this.renderer.render(this.stage);
                 } catch(e) {
-                    console.error('Renderer crash:', e.message);
-                    console.debug('Names cache:', Object.keys(this.names).length, 'entries');
-                    console.debug('Masses cache:', Object.keys(this.masses).length, 'entries');
-                    console.debug('Skins cache:', Object.keys(this.skins).length, 'entries');
-                    for (var key in this.skins) {
-                        const skin = this.skins[key];
-                        console.debug(`Skin [${key}]:`,
-                            'texture:', skin.texture ? 'exists' : 'null',
-                            'source destroyed:', skin.texture?.source?.destroyed ?? 'n/a',
-                            'lastAccess:', this.updateTime - skin.lastAccess, 'ms ago'
-                        );
-                    }
-                    const cellsArr = [...this.cells];
-                    console.debug('Cells with destroyed skin source:', cellsArr.filter(c =>
-                        c.skinSprite?.texture?.source?.destroyed
-                    ).length);
-                    console.debug('Cells with destroyed mass source:', cellsArr.filter(c =>
-                        c.sizeText?.texture?.source?.destroyed
-                    ).length);
-                    console.debug('Masses with destroyed source:', Object.values(this.masses).filter(m =>
-                        m.texture?.source?.destroyed
-                    ).length);
-                    console.debug('Orphaned sizeText:', cellsArr.filter(c => {
-                        if (!c.sizeText) return false;
-                        return !Object.values(this.masses).some(m => m.texture === c.sizeText.texture);
-                    }).length);
-                    console.debug('Cells with nameSprite destroyed source:', cellsArr.filter(c =>
-                        c.nameSprite?.texture?.source?.destroyed
-                    ).length);
-                    console.debug('Cells with visible root but no parent:', cellsArr.filter(c =>
-                        c.root.visible && !c.root.parent
-                    ).length);
-                    console.debug('Cells with null mass source:', cellsArr.filter(c =>
-                        c.sizeText?.texture && c.sizeText.texture.source === null
-                    ).length);
-                    console.debug('Cells with null name source:', cellsArr.filter(c =>
-                        c.nameSprite?.texture && c.nameSprite.texture.source === null
-                    ).length);
-                    console.debug('Cells with null skin source:', cellsArr.filter(c =>
-                        c.skinSprite?.texture && c.skinSprite.texture.source === null
-                    ).length);
+                    console.debug('Names cache:', this.names.entries.size, 'entries');
+                    console.debug('Masses cache:', this.masses.entries.size, 'entries');
+                    console.debug('Skins cache:', this.skins.entries.size, 'entries');
                     throw e;
                 }
-
-                this.cacheCleanupDelta += t5.deltaMS;
-
-                if (this.cacheCleanupDelta >= 250) {
-                    this.cacheCleanupDelta %= 250; // Hopefully you don't stall your tab for too long.
-                    this.cleanUpCache();
-                }
             }
-            cleanUpCache() { // Leaky bucket :gsPuddle:
-                //const items = Object.keys(this.names).length + Object.keys(this.skins).length + Object.keys(this.masses).length;
-                //console.debug("Cleaning up 5 out of " + items + " items");
-                /*if (document.hidden) {
-                    this.skipNextCleanup = true;
-                    //console.debug("Document hidden, not cleaning up anything");
-                    return;
-                }               
-                if (this.skipNextCleanup) {
-                    this.skipNextCleanup = false;
-                    console.debug("Unhidden, skipping this cleanup cycle");
-                    return;
-                }*/
-                if (document.hidden) {
-                    console.warn("Document is hidden during a successful render call. This should not happen!");
-                }
-                let maxDestroys = 5; // Max per cycle 
-                let destroyed = 0;
-                for (var key in this.names) {
-                    if (destroyed >= maxDestroys) break;
-                    var name = this.names[key];
-                    if (this.updateTime - name.lastAccess > this.maxCacheTime) {
-                        name.texture.destroy(true);
-                        delete this.names[key];
-                        destroyed++;
-                    }
-                }
 
-                for (var key in this.skins) {
-                    if (destroyed >= maxDestroys) break;
-                    var skin = this.skins[key];
-                    if (this.updateTime - skin.lastAccess > this.maxCacheTime) {
-                        if (this.skins[key].texture) {
-                            this.skins[key].texture.destroy(true);
-                        }
-                        //console.debug("Deleting skin " + key);
-                        delete this.skins[key];
-                        destroyed++;
-                    }
-                }
+            changeSetting(key, value) {
+                this.settings.setItem(key, value);
+            }
 
-                for (var key in this.masses) {
-                    if (destroyed >= maxDestroys) break;
-                    var mass = this.masses[key];
-                    if (this.updateTime - mass.lastAccess > this.maxCacheTime) {
-                        mass.texture.destroy(true);
-                        delete this.masses[key];
-                        destroyed++;
-                    }
-                }
-                //console.debug("Destroyed: " + destroyed + "\nCached amount: " + (Object.keys(this.names).length + Object.keys(this.skins).length + Object.keys(this.masses).length));
-            }
-            changeSetting(tn, to) {
-                this.settings.setItem(tn, to);
-            }
             iframe() {
                 try {
-                    var tp = window === window.parent ? false : true;
-                    if (tp) {
+                    var hasParent = window === window.parent ? false : true;
+                    if (hasParent) {
                         window.parent.location.href = 'https://germs.io';
                         return;
                     }
-                } catch (tq) {}
+                } catch (error) {}
             }
+
             prerollComplete() {
                 if (this.playerCells.size == 0) {
                     this.network.sendNick(this.settings.getItem('nick'));
                 }
             }
-            setNick(tr) {
+
+            setNick(name) {
                 this.iframe();
                 this.network.sendLocked();
                 if (this.deathTimeout)
                     clearTimeout(this.deathTimeout);
                 this.hideMenu();
-                this.settings.setItem('nick', tr);
+                this.settings.setItem('nick', name);
                 this.deleteLastKiller();
                 this.freeSpec = false;
                 if (this.playerCells.size == 0) {
                     this.freeze = false;
-                    this.vertical = false;
+                    this.linesplit = false;
                     const ts = this.settings.getItem('deathCount');
                     if (ts % 5 == 0 && typeof adplayer !== 'undefined') {
                         try {
@@ -6538,31 +6673,30 @@ function modules(ks) {
                 }
             }
             setSkin(tu, tv) {
-                if (tu != '') {
-                    if (tu.includes('imgur') || tv) {
-                        if (tu.includes('i.imgur.com/')) {
-                            hideSkins();
-                            hideShop();
-                            this.settings.setItem('skin', tu);
-                            this.network.setSkin(tu);
-                            $('#skin').css('background-image', 'url(' + tu + ')');
-                            $('#skin').addClass('selected');
-                        } else {
-                            alert('Invalid Imgur Link\n(Must include i.imgur)');
-                        }
-                    } else {
+                if (tu === '') return;
+                if (tu.includes('imgur') || tv) {
+                    if (tu.includes('i.imgur.com/')) {
                         hideSkins();
                         hideShop();
                         this.settings.setItem('skin', tu);
                         this.network.setSkin(tu);
-                        if (tu == 'None') {
-                            $('#skin').css('background-image', 'url(res/noskin.png)');
-                            $('#skin').removeClass('selected');
-                        } else {
-                            var tw = 'res/skins/' + encodeURIComponent(tu) + '.png';
-                            $('#skin').css('background-image', 'url(' + tw + ')');
-                            $('#skin').addClass('selected');
-                        }
+                        $('#skin').css('background-image', 'url(' + tu + ')');
+                        $('#skin').addClass('selected');
+                    } else {
+                        alert('Invalid Imgur Link\n(Must include i.imgur)');
+                    }
+                } else {
+                    hideSkins();
+                    hideShop();
+                    this.settings.setItem('skin', tu);
+                    this.network.setSkin(tu);
+                    if (tu == 'None') {
+                        $('#skin').css('background-image', 'url(res/noskin.png)');
+                        $('#skin').removeClass('selected');
+                    } else {
+                        var tw = 'res/skins/' + encodeURIComponent(tu) + '.png';
+                        $('#skin').css('background-image', 'url(' + tw + ')');
+                        $('#skin').addClass('selected');
                     }
                 }
             }
@@ -6593,9 +6727,10 @@ function modules(ks) {
                 this.network.sendSpectate();
                 this.freeSpec = true;
             }
-            updatePosition(tB, tC, tD) {
+            updateCameraPos(unused1, unused2, zoom) {
+                console.debug(unused1, unused2, zoom);
                 if (this.playerCells.size == 0) {
-                    this.specZoom = tD;
+                    this.camera.specZoom = zoom;
                 }
             }
             setBorder(tE, tF, tG, tH) {
@@ -6610,24 +6745,6 @@ function modules(ks) {
                     this.border = tI;
                     this.drawGrid();
                 }
-            }
-            calcViewZoom() {
-                if (this.isMobile || this.settings.getItem('autoZoom') == true) {
-                    if (this.playerCells.size == 0 && this.specZoom) {
-                        return this.specZoom * this.viewRange();
-                    }
-                    this.newViewZoom = 0;
-                    for (const cell of this.playerCells) {
-                        this.newViewZoom += cell.size;
-                    }
-                    this.newViewZoom = Math.pow(Math.min(64 / this.newViewZoom, 2), 0.3) * this.viewRange();
-                } else {
-                    this.newViewZoom = this.viewRange() / 2;
-                }
-                return this.newViewZoom;
-            }
-            viewRange() {
-                return Math.max(this.width / 1080, this.height / 1920) * this.zoom;
             }
             drawGrid() {
                 $(window).trigger('resize');
@@ -6767,17 +6884,6 @@ function modules(ks) {
                 }
 
                 this.bgContainer.addChild(this.grid);
-
-                if (this.isMobile) {
-
-                    $('#mobile').show();
-
-                    const inverse = colorTheme === 'black';
-
-                    $('#btnEject img').attr('src', inverse ? 'res/eject inverse.png' : 'res/eject.png');
-
-                    $('#btnSplit img').attr('src', inverse ? 'res/split inverse.png' : 'res/split.png');
-                }
             }
             deleteLastKiller() {
                 if (this.lastKiller) {
@@ -6785,45 +6891,24 @@ function modules(ks) {
                 }
             }
             clearNodes() {
+                console.debug("Clearing nodes");
                 this.deleteLastKiller();
-                for (const id in this.nodes) {
-                    const node = this.nodes[id];
-                    this.pool.putNode(node);
-                }
-                this.nodes = {};
+                for (const node of this.nodes.values()) { this.pool.putNode(node); }
+                this.nodes.clear();
                 this.playerCells.clear();
-                this.aliveCell = null;
                 this.myCells.clear();
+                this.aliveCell = null;
                 this.leaderboard = [];
                 this.ui.score = 0;
-                this.drawLines = [];
                 this.party = null;
-                this.cells.clear();
                 this.camera.setPosition(0, 0);
                 this.ui.update();
-                for (var key in this.names) {
-                    //console.debug("Destroyed stale texture");
-                    this.names[key].texture.destroy(true);
-                    delete this.names[key];
-                }
-                this.names = {};
-
-                //console.debug("Deleting stale skins");
-                for (var key in this.skins) {
-                    if (this.skins[key].texture) {
-                        //console.debug("Destroyed stale texture");
-                        this.skins[key].texture.destroy(true);
-                    }
-                    delete this.skins[key];
-                }
-                this.skins = {};
-
-                for (var key in this.masses) {
-                    //console.debug("Destroyed stale texture");
-                    this.masses[key].texture.destroy(true);
-                    delete this.masses[key];
-                }
-                this.masses = {};
+                
+                // Clear texture caches
+                this.names.clear();
+                this.skins.clear();
+                this.masses.clear();
+                console.debug(this.names.entries.size, this.skins.entries.size, this.masses.entries.size);
             }
 
             refreshMenuAds() {
@@ -6878,51 +6963,22 @@ function modules(ks) {
                     }
                 }
                 if (this.playerCells.size === 1 && this.playerCells.has(node)) {
-                    this.deathTimeout = setTimeout(this.onDeath.bind(this), 500);
+                    this.freeSpec = true;
+                    this.deathTimeout = setTimeout(this.onDeath.bind(this), 1000);
                 }
-                delete this.nodes[node.id];
+                this.nodes.delete(node.id);
                 this.playerCells.delete(node);
                 this.myCells.delete(node.id);
-                this.cells.delete(node);
                 this.pool.putNode(node);
             }
             addNode(node) {
-                this.nodes[node.id] = node;
-                this.cells.add(node);
+                this.nodes.set(node.id, node);
+
+                // Do I own this cell?
                 if (this.myCells.has(node.id) && !this.playerCells.has(node)) {
-                    if (!this.aliveCell) this.aliveCell = node;
+                    if (!this.aliveCell) this.aliveCell = node
                     this.playerCells.add(node);
                 }
-            }
-            changeZoom(tX) {
-                this.zoom *= 1 + tX * 0.3;
-                0.01 > this.zoom && (this.zoom = 0.01);
-                this.zoom > 4 / this.viewZoom && (this.zoom = 4 / this.viewZoom);
-            }
-            onTouchButtonStart(tY) {
-                if (tY == 'eject') {
-                    if (this.playerCells.size == 0) {
-                        this.changeZoom(1);
-                    } else {
-                        this.sendMouse();
-                        this.network.send(new packet.Eject());
-                        this.ejectKey = true;
-                    }
-                }
-                if (tY == 'split') {
-                    if (this.playerCells.size == 0) {
-                        this.changeZoom(-1);
-                    } else {
-                        this.sendMouse();
-                        this.network.send(new packet.Split());
-                    }
-                }
-            }
-            onTouchButtonEnd(tZ) {
-                if (tZ == 'eject') {
-                    this.ejectKey = false;
-                }
-                if (tZ == 'split') {}
             }
             onKeyDown(event) {
 
@@ -6959,10 +7015,10 @@ function modules(ks) {
                         $('#chat_input').focus();
                         break;
                     case 38:
-                        this.changeZoom(1);
+                        this.camera.changeZoom(1);
                         break;
                     case 40:
-                        this.changeZoom(-1);
+                        this.camera.changeZoom(-1);
                         break;
                     case this.controls.Split[0]:
                         this.splitPending = false;
@@ -6975,10 +7031,15 @@ function modules(ks) {
                         }
                         break;*/
                     case this.controls.Feed[0]:
-                        if (event.repeat)
+                        if (event.repeat || this.feedInterval)
                             return;
+
                         this.network.send(new packet.Eject());
-                        this.ejectKey = true;
+
+                        this.feedInterval = setInterval(() => {
+                            this.network.send(new packet.Eject());
+                        }, 20);
+
                         break;
                     case this.controls.Hide[0]:
                         if (event.repeat)
@@ -6996,14 +7057,14 @@ function modules(ks) {
                         if (event.repeat)
                             return;
                         this.freeze = !this.freeze;
-                        this.vertical = false;
+                        this.linesplit = false;
                         this.ui.updateDebug();
                         break;
                     case this.controls.Vertical[0]:
                         if (event.repeat || this.freeSpec)
                             return;
                         this.splitPending = true;
-                        this.vertical = !this.vertical;
+                        this.linesplit = !this.linesplit;
                         this.freeze = false;
                         this.ui.updateDebug();
                         break;
@@ -7038,7 +7099,8 @@ function modules(ks) {
             }
             onKeyUp(event) {
                 if (event.keyCode === this.controls.Feed[0]) {
-                    this.ejectKey = false;
+                    clearInterval(this.feedInterval);
+                    this.feedInterval = null;
                 }
             }
             onDeath() {
@@ -7077,39 +7139,9 @@ function modules(ks) {
                 this.network.tryVerify();
                 this.network.tryVerifyCf();
             }
-            onTouchStart(u6) {
-                u6.preventDefault();
-                if (u6.target.id == 'btnEject' || u6.target.id == 'btnSplit') {
-                    return;
-                }
-                var u7 = u6.originalEvent.touches[0] || u6.originalEvent.changedTouches[0];
-                this.touchStartX = u7.clientX;
-                this.touchStartY = u7.clientY;
-                this.pageX = u7.pageX;
-                this.pageY = u7.pageY;
-            }
-            onTouchMove(u8) {
-                u8.preventDefault();
-                if (u8.target.id == 'btnEject' || u8.target.id == 'btnSplit') {
-                    return;
-                }
-                var u9 = u8.originalEvent.touches[0] || u8.originalEvent.changedTouches[0];
-                var ua = u9.clientX;
-                var ub = u9.clientY;
-                ua -= this.touchStartX;
-                ub -= this.touchStartY;
-                this.rawMouseX = ua * 3 + this.width / 2;
-                this.rawMouseY = ub * 3 + this.height / 2;
-                this.calcMouse();
-            }
             onMouseMove(uc) {
                 if (!uc.isTrusted) {
                     return;
-                }
-                if (this.isMobile) {
-                    if (uc.target.id == 'btnEject' || uc.target.id == 'btnSplit') {
-                        return;
-                    }
                 }
                 this.pageX = uc.pageX;
                 this.pageY = uc.pageY;
@@ -7129,10 +7161,9 @@ function modules(ks) {
                 ue.preventDefault();
                 var mouseX = this.mouse.realX;
                 var mouseY = this.mouse.realY;
-                for (const id in this.nodes) {
-                    const node = this.nodes[id];
-                    if (this.pointInCircle(mouseX, mouseY, node.x, node.y, node.size)
-                        && !this.myCells.has(node.id) 
+                for (const [id, node] of this.nodes) {
+                    if (this.pointInCircle(mouseX, mouseY, node.renderX, node.renderY, node.size)
+                        && !this.myCells.has(id) 
                         && node.parent > 0) {
                             return openUserMenu(node);
                     }
@@ -7148,7 +7179,6 @@ function modules(ks) {
                     const blockSkinText = document.getElementById("userMenuBlockSkinText");
 
                     if (uk?.skin) {
-                        //console.debug(uk.skin);
                         blockSkinItem.style.display = "";
 
                         if (this.settings.settings.blockedSkins.has(uk.skin)) {
@@ -7163,7 +7193,7 @@ function modules(ks) {
                     document.getElementById("userMenuBlockText").innerText = "Block Player";
                     $('#userMenuPlayerName').html(uk.name && uk.name !== "" ? uk.name.removeWideChars() : 'An unnamed cell');
                     if (uk.skinSprite?.texture != null && uk.skinSprite?.texture !== PIXI.Texture.EMPTY) {
-                        $('#userMenuPlayerSkin').css('background-image', 'url(' + this.getSkinURL(uk.skin) + ')');
+                        $('#userMenuPlayerSkin').css('background-image', 'url(' + this.skinURLFrom(uk.skin) + ')');
                     } else {
                         $('#userMenuPlayerSkin').css('background-image', 'none');
                     }
@@ -7195,15 +7225,12 @@ function modules(ks) {
                 const player = this.lastSelectedPlayer;
 
                 if (!player?.skin) {
-                    //console.debug("Player does not have a skin somehow");
                     $('#userMenu').hide();
                     return;
                 }
 
                 const blockedSkins = this.settings.getItem('blockedSkins');
 
-                //console.debug(blockedSkins.has(player.skin));
-                //console.debug(player.skin);
                 blockedSkins.has(player.skin)
                     ? blockedSkins.delete(player.skin)
                     : blockedSkins.add(player.skin);
@@ -7214,8 +7241,7 @@ function modules(ks) {
                 $('#userMenu').hide();
             }
             updateBlockedSkins() {
-                //console.debug("Updating blocked skins");
-                for (const cell of this.cells) {
+                for (const cell of this.nodes.values()) {
                     if (cell.skinSprite) {
                         cell.skinSprite.visible =
                             !this.settings.settings.blockedSkins.has(cell.skin);
@@ -7248,40 +7274,25 @@ function modules(ks) {
                 }
                 $('#userMenu').hide();
             }
-            userMenuScreenshot() {
-                $('#userMenu').hide();
-                html2canvas(document.getElementById('game'), {
-                    'backgroundColor': null
-                }).then(un => {
-                    let uo = PIXI.RenderTexture.create({
-                        width: this.width,
-                        height: this.height
-                    })
-                    this.renderer.render(this.stage, uo);
-                    let up = this.renderer['extract'].canvas(uo);
-                    let uq = document.createElement('canvas');
-                    let ur = uq.getContext('2d');
-                    uq.width = this.width;
-                    uq.height = this.height;
-                    ur.fillStyle = '#' + ('00000' + (this.renderer.backgroundColor | 0).toString(16)).substr(-6);
-                    ur.fillRect(0, 0, this.width, this.height);
-                    ur.drawImage(up, 0, 0);
-                    ur.drawImage(un, 0, 0);
-                    let us = this.login.createWindow('', 'Germs.io', this.width / 3, this.height / 3);
-                    us.document.body.innerHTML = '<img src="' + uq.toDataURL('image/png') + '" style="width:100%;height:auto;">';
-                }
-                );
-            }
+
+            userMenuScreenshot() {}
+
             pointInCircle(ut, uu, uv, uw, ux) {
                 return Math.sqrt((ut - uv) * (ut - uv) + (uu - uw) * (uu - uw)) < ux;
             }
-            onScroll(uy) {
-                if (uy.target.className == 'chatTab' || uy.target.className == 'chatMessage' || uy.target.parentElement.className == 'chatTab' || uy.target.parentElement.className == 'chatMessage' || uy.target.parentElement.parentElement.className == 'chatMessage' || uy.target.parentElement.id == 'emotes' || uy.target.parentElement.id == 'emotesList' || uy.target.id == 'emotesList' || uy.target.id == 'emotes' || uy.target.id == 'tabs' || uy.target.className == 'chatTab' || uy.target.parentElement.className == 'emotesEmote' || uy.target.className == 'emotesEmote')
-                    return;
-                this.zoom *= Math.pow(0.9, uy['wheelDelta'] / -120 || uy['detail'] || 0);
-                0.01 > this.zoom && (this.zoom = 0.01);
-                this.zoom > 4 / this.viewZoom && (this.zoom = 4 / this.viewZoom);
+
+            onScroll(event) {
+                if (event.target.id !== "gameMenu") return;
+
+                const amount =
+                    event.wheelDelta / -120 ||
+                    event.detail ||
+                    event.deltaY ||
+                    0;
+
+                this.camera.changeZoom(amount);
             }
+
             onResize(uz) {
                 this.width = $(window).width();
                 this.height = $(window).height();
@@ -7380,7 +7391,6 @@ function modules(ks) {
 
                     colorPicker.on('change', (color) => {
                         const pixiColor = new PIXI.Color('#' + color);
-                        //console.debug(pixiColor.toHex());
                         if (pixiColor.toHex() === "#ff0000" && theme[key] === null) return; // Terrible
                         theme[key] = [pixiColor.toNumber(), pixiColor.toRgbaString()];
                         this.changeSetting('customTheme', theme);
@@ -7461,7 +7471,7 @@ function modules(ks) {
             setRegion(uG) {
                 if (this.network.region != uG && this.network.searching == false) {
                     this.setConnecting(true);
-                    this.network.getServers(uG);
+                    this.network.fetchServers(uG);
                     this.settings.setItem('region', uG);
                     this.exitParty();
                 }
@@ -7512,8 +7522,8 @@ function modules(ks) {
                 $(uJ).addClass('active');
                 return false;
             }
-            log(uK) {
-                console.log('%cGerms:~$ %c ' + uK, 'color: #00fd00; font-weight: bold; font-size: 14px; font-family: Ubuntu;', 'color: white; font-size: 14px;text-shadow: rgb(0, 0, 0) 1px 0px 0px, rgb(0, 0, 0) 0.540302px 0.841471px 0px, rgb(0, 0, 0) -0.416147px 0.909297px 0px, rgb(0, 0, 0) -0.989992px 0.14112px 0px, rgb(0, 0, 0) -0.653644px -0.756802px 0px, rgb(0, 0, 0) 0.283662px -0.958924px 0px, rgb(0, 0, 0) 0.96017px -0.279415px 0px;');
+            log(message) {
+                console.log('%cGerms:~$ %c ' + message, 'color: #00fd00; font-weight: bold; font-size: 14px; font-family: Ubuntu;', 'color: white; font-size: 14px;text-shadow: rgb(0, 0, 0) 1px 0px 0px, rgb(0, 0, 0) 0.540302px 0.841471px 0px, rgb(0, 0, 0) -0.416147px 0.909297px 0px, rgb(0, 0, 0) -0.989992px 0.14112px 0px, rgb(0, 0, 0) -0.653644px -0.756802px 0px, rgb(0, 0, 0) 0.283662px -0.958924px 0px, rgb(0, 0, 0) 0.96017px -0.279415px 0px;');
             }
         }
         ;window.countFPS = function() {
@@ -7556,11 +7566,11 @@ function modules(ks) {
             ;
         });
         Date.prototype.addHours = function(uX) {
-            this['setTime'](this.getTime() + uX * 60 * 60 * 1000);
+            this.setTime(this.getTime() + uX * 60 * 60 * 1000);
             return this;
         }
         ;
-        String.prototype['toHHMMSS'] = function() {
+        String.prototype.toHHMMSS = function() {
             var uY = parseInt(this, 0xa);
             var uZ = Math.floor(uY / 3600);
             var v0 = Math.floor((uY - uZ * 3600) / 60);
@@ -7592,7 +7602,7 @@ function modules(ks) {
         }
         ;
 
-        var instance = new sW();
+        var instance = new Game();
         $('#play').click(function(v7) {
             if (v7.originalEvent === undefined) {
                 return;
@@ -7645,11 +7655,8 @@ function modules(ks) {
         self.buyLocked = instance.login.buyLocked.bind(instance.login);
         self.buySkin = instance.login.buySkin.bind(instance.login);
         self.buyCoins = instance.login.buyCoins.bind(instance.login);
-        self.onTouchButtonStart = instance.login.buyBoost.bind(instance.login);
         self.redeemCode = instance.login.redeemCode.bind(instance.login);
         self.buyBucks = instance.login.buyBucks.bind(instance.login);
-        self.onTouchButtonStart = instance.onTouchButtonStart.bind(instance);
-        self.onTouchButtonEnd = instance.onTouchButtonEnd.bind(instance);
         self.prerollComplete = instance.prerollComplete.bind(instance);
         self.openShop = function(v9) {
             $('#shop').show();
@@ -7808,6 +7815,9 @@ function modules(ks) {
             // Begin Render section ====================================
             const animationDelayLabel = document.getElementById("animationDelayLabel");
             animationDelayLabel.innerText = "Animation Delay";
+            const animationDelayInput = document.getElementById("animationDelay");
+            animationDelayInput.max = 200;
+            animationDelayInput.min = 10;
 
             const animationDelayClearfix = animationDelayLabel.parentElement;
 
@@ -7891,7 +7901,6 @@ function modules(ks) {
             for (const id of appearanceSettings) {
                 let row = document.getElementById(id).parentElement;
                 if (row.className === "switch") row = row.parentElement;
-                //console.debug(row);
                 appearanceBadge.after(row);
             }
 
@@ -7969,11 +7978,6 @@ function modules(ks) {
                 vz.onmousewheel = instance.onScroll.bind(instance);
             }
             window.onmousemove = instance.onMouseMove.bind(instance);
-            $(window).bind('touchstart', instance.onTouchStart.bind(instance));
-            $(window).bind('touchmove', instance.onTouchMove.bind(instance));
-            document.documentElement.addEventListener('touchmove', function(vA) {
-                vA.preventDefault();
-            }, false);
             $.ajax('js/adsbygoogle.js').fail(function(vB) {
                 console.debug("Please disable your adblocker!");
                 $('.blocker').each(function() {
@@ -7985,10 +7989,6 @@ function modules(ks) {
                 instance.chat.setChannel(vD);
             });
             $('#skinContainer').scroll(function() {});
-            if (instance.isMobile) {
-                $('#ad-top').hide();
-                $('#ad-bottom').hide();
-            }
             $('#gameMenu').click(function(vE) {
                 switch (vE.target.id) {
                 case 'btnChannel':

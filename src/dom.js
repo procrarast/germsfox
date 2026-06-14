@@ -538,7 +538,6 @@ function renderGermsfoxButton() {
             renderGeneralTabPane();
             renderControlsTabPane();
             renderBlocklistTabPane();
-            renderThemeTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
             germsfoxSettingsContainer.style.transform = settingsContainer.style.transform;
@@ -591,7 +590,7 @@ function renderGermsfoxSettings() {
     tabContent.id = "germsfoxSettingsTabsContent";
     tabContent.classList.add("tab-content");
 
-    const tabNames = ["General", "Controls", "Theme", "Blocklist"];
+    const tabNames = ["General", "Controls", "Blocklist"];
 
     tabNames.forEach((name, index) => {
         const tabId = `germsfox-settings-${name.toLowerCase()}`;
@@ -651,7 +650,6 @@ function renderGermsfoxSettings() {
     renderGeneralTabPane();
     renderControlsTabPane();
     renderBlocklistTabPane();
-    renderThemeTabPane();
 
     return overlay;
 }
@@ -846,18 +844,6 @@ function createDangerousButton(onClick, labelText, buttonText) {
 
     return buttonRow;
 }
-
-function renderThemeTabPane() {
-    const pane = document.getElementById("germsfox-settings-theme");
-    pane.replaceChildren();
-
-    const constructionLabel = document.createElement("p");
-    constructionLabel.innerText = "Theme stuff is being re-done. Please be patient!";
-    pane.appendChild(constructionLabel);
-
-    return pane;
-}
-
 
 function renderGeneralTabPane() {
     const pane = document.getElementById("germsfox-settings-general");

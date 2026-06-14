@@ -3496,7 +3496,7 @@ function modules(ks) {
                                 this.destroyTexture(entry);
                                 this.entries.delete(key);
                                 cleared++;
-                                console.debug("Cleared entry " + key);
+                                //console.debug("Cleared entry " + key);
                             }
                         } else {
                             // If attached texture was on a timer, clear the timer
@@ -4832,14 +4832,9 @@ function modules(ks) {
             }
             sendLocked() {
                 const now = Date.now() / 1000;
-                if (this.lastLocked && this.lastLocked - this.game.updateTime < 1000) {
-                    this.lastLocked = this.game.updateTime;
-                    return;
-                }
                 if (this.game.login.lockedExpire && 
                     this.game.login.lockedExpire - now > 0) {
                     this.send(new packet.Login('locked-' + this.game.settings.getItem('lockedColor') + '-' + this.game.settings.getItem('lockedPosition')));
-                    this.lastLocked = this.game.updateTime;
                 }
             }
             onMessage(oX) {
@@ -5059,6 +5054,30 @@ function modules(ks) {
                         let b = buffer.readUInt8();
                         rgb = `rgb(${r}, ${g}, ${b})`;
                         color = (r << 16) + (g << 8) + b;
+                        //
+                        // TODO: Move to each respective class
+                        if (hasColor) {
+                            switch (node.type) {
+                                case nodeType.Food:
+                                    if (this.game.customTheme.food !== null) {
+                                        color = this.filterColor(color, this.game.customTheme.food[0]);
+                                        rgb = this.game.customTheme.food[1]; // Unfiltered
+                                    }
+                                    break;
+                                case nodeType.Virus:
+                                    if (this.game.customTheme.virus !== null) {
+                                        color = this.game.customTheme.virus[0];
+                                        rgb = this.game.customTheme.virus[1];
+                                    }
+                                    break;
+                                case nodeType.Player:
+                                    if (this.game.customTheme.players !== null) {
+                                        color = this.filterColor(color, this.game.customTheme.players[0]);
+                                        rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
+                                    }
+                                    break;
+                            }
+                        }
                     }
                     if (hasSkin) skin = buffer.readStringZeroUtf8().substr(1);
                     if (hasName) name = buffer.readStringZeroUtf8().trim().removeWideChars();
@@ -5103,30 +5122,6 @@ function modules(ks) {
 
                     node.updateRender();
 
-                    // TODO: Move to each respective class
-                    if (hasColor) {
-                        switch (node.type) {
-                            case nodeType.Food:
-                                if (this.game.customTheme.food !== null) {
-                                    color = this.filterColor(color, this.game.customTheme.food[0]);
-                                    rgb = this.game.customTheme.food[1]; // Unfiltered
-                                }
-                                break;
-                            case nodeType.Virus:
-                                if (this.game.customTheme.virus !== null) {
-                                    color = this.game.customTheme.virus[0];
-                                    rgb = this.game.customTheme.virus[1];
-                                }
-                                break;
-                            case nodeType.Player:
-                                if (this.game.customTheme.players !== null) {
-                                    color = this.filterColor(color, this.game.customTheme.players[0]);
-                                    rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
-                                }
-                                break;
-                        }
-                        node.setColor(color, rgb);
-                    }
                 }
 
                 let destroyCount = buffer.readUInt16();

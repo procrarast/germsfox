@@ -3525,7 +3525,7 @@ function modules(ks) {
                 console.warn(`Tried to release nonexistent resource ${key}. This should never happen!`);
             }
 
-            destroyTexture(entry) { entry.texture.destroy(true); }
+            destroyTexture(entry) { entry.texture.destroy(); }
 
             updateMipmaps(isEnabled) {
                 this.mipmapping = isEnabled
@@ -3681,7 +3681,7 @@ function modules(ks) {
             destroyTexture(entry) { 
                 entry.pending = null; // Clear queue in case the texture hasn't rendered yet
                 if (entry.resource.texture) 
-                    entry.resource.texture.destroy(true); 
+                    entry.resource.texture.destroy(); 
             }
         }
 
@@ -7068,7 +7068,10 @@ function modules(ks) {
                         this.splitPending = false;
                         if (!event.repeat && this.settings.settings.bruhMode) {
                             this.bruh.pause();
-                            this.bruh.currentTime = 0.1;
+                            this.bruh.preservesPitch = false;
+                            const random = (Math.random() + Math.random()) / 2;
+                            this.bruh.playbackRate = 1 + (random - 0.5) * 0.5;
+                            this.bruh.currentTime = 0.15;
                             this.bruh.play();
                         }
                         this.network.send(new packet.Split());

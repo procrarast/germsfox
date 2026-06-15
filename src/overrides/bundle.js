@@ -3807,7 +3807,6 @@ function modules(ks) {
 
                 const dist = Math.hypot(dx, dy);
 
-
                 // Clamp distance
                 const moveDist = Math.min(dist, maxDist);
 
@@ -3859,8 +3858,8 @@ function modules(ks) {
 
                 if (this.eaten) {
                     // Cute eating animations
-                    this.renderX = lerp(this.renderX, this.x, delta);
-                    this.renderY = lerp(this.renderY, this.y, delta);
+                    this.renderX = lerp(this.renderX, this.x, delta / 5);
+                    this.renderY = lerp(this.renderY, this.y, delta / 5);
 
                     this.root.alpha = Math.max(0, this.root.alpha - delta / 5);
                     if (this.root.alpha <= 0.8) {
@@ -4127,7 +4126,11 @@ function modules(ks) {
                 if (!this.game.settings.settings.showMass) return;
                 
                 // Clear the texture if...
-                if (size * this.game.camera.renderZoom < 50 || this.eaten) {
+                let zoomThreshold = 50 + Math.sqrt(this.game.nodes.size)
+                
+                if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
+
+                if (size * this.game.camera.renderZoom < zoomThreshold || this.eaten) {
                     if (this.massSprite) this.massSprite.visible = false;
                     return;
                 }

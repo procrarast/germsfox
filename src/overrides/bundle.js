@@ -3525,7 +3525,15 @@ function modules(ks) {
                 console.warn(`Tried to release nonexistent resource ${key}. This should never happen!`);
             }
 
-            destroyTexture(entry) { entry.texture.destroy(); }
+            destroyTexture(entry) { 
+                console.debug("Destroying texture");
+                if (entry.texture) {
+                    console.debug("Destroyed texture");
+                    entry.texture.destroy(true); 
+                    return true;
+                }
+                console.warn("Could not find texture for deletion!");
+            }
 
             updateMipmaps(isEnabled) {
                 this.mipmapping = isEnabled
@@ -3679,9 +3687,14 @@ function modules(ks) {
             getTexture(entry) { return entry.texture ?? null; }; // Null if not loaded
 
             destroyTexture(entry) { 
+                console.debug("Destroying skin resource");
                 entry.pending = null; // Clear queue in case the texture hasn't rendered yet
-                if (entry.resource.texture) 
-                    entry.resource.texture.destroy(); 
+                if (entry.resource.texture) {
+                    console.debug("Destroyed skin texture");
+                    entry.resource.texture.destroy(true); 
+                    return true;
+                }
+                console.warn("Could not find texture for deletion!");
             }
         }
 
@@ -3793,6 +3806,8 @@ function modules(ks) {
             }
 
             getEatenBy(hunter) {
+                if (document.hidden) return this.destroy();
+
                 this.eaten = true;
                 
                 // Max travel distance relative to size
@@ -3871,7 +3886,7 @@ function modules(ks) {
                     this.renderY = lerp(this.renderY, this.y, delta);
                 }
 
-                this.renderSize = lerp(this.renderSize, this.size, delta);
+                this.renderSize = lerp(this.renderSize, this.size, delta * 1);
 
                 this.moveRoot();
             }

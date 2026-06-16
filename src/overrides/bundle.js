@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.2.2.1
+ * @version     1.3
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -3460,7 +3460,7 @@ function modules(ks) {
                 this.id = id;
                 this.parent = parent;
 
-                this.renderSize = size; 
+                this.renderSize = (isEjected || parent === -1) ? size / 2 : size; // Fed mass and viruses grow into size
                 this.renderX = x;
                 this.renderY = y;
                 this.x = x;
@@ -5315,11 +5315,7 @@ function modules(ks) {
                     this.source.style.background = '#' + qP;
                 });
 
-                this.picker.on('stop', function() {
-                    this.game.network.sendLocked();
-                });
-
-                this.picker.on('exit', function() {
+                this.picker.on('exit', () => {
                     this.game.network.sendLocked();
                 });
 
@@ -5328,21 +5324,6 @@ function modules(ks) {
 
                 lockedNamePositionSelect.value =
                     this.game.settings.getItem('lockedPosition');
-
-                let lockedNamePositionTimeout = null;
-
-                lockedNamePositionSelect.onchange = function() {
-                    clearTimeout(lockedNamePositionTimeout);
-
-                    lockedNamePositionTimeout = setTimeout(() => {
-                        changeSetting(
-                            'lockedPosition',
-                            this.options[this.selectedIndex].innerHTML
-                        );
-
-                        this.game.network.sendLocked();
-                    }, 200);
-                };
             }
             removeDuplicates(qS) {
                 var qT = {};
@@ -6047,7 +6028,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.2.2.1 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -6740,7 +6721,7 @@ function modules(ks) {
                 }
                 if (this.playerCells.size === 1 && this.playerCells.has(node)) {
                     if (this.settings.settings.deathFreecam) this.freeSpec = true;
-                    this.deathTimeout = setTimeout(this.onDeath.bind(this), 1000);
+                    this.deathTimeout = setTimeout(this.onDeath.bind(this), 100);
                 }
                 this.nodes.delete(node.id);
                 this.playerCells.delete(node);
@@ -6887,12 +6868,13 @@ function modules(ks) {
                 }
             }
             onDeath() {
-                $('.stats-food-eaten').text(this.foodEaten);
-                $('.stats-highest-mass').text(~~this.highestMass);
-                $('.stats-time-alive').text(this.timeAlive.toString().toMMSS());
-                $('.stats-leaderboard-time').text(this.leaderboardTime.toString().toMMSS());
-                $('.stats-cells-eaten').text(this.cellsEaten);
-                $('.stats-top-position').text(this.topPosition == 999 ? 'N/A' : this.topPosition + 1);
+                document.getElementsByClassName('stats-food-eaten')[0].innerText = this.foodEaten;
+                document.getElementsByClassName('stats-highest-mass')[0].innerText = ~~this.highestMass;
+                document.getElementsByClassName('stats-time-alive')[0].innerText = this.timeAlive.toString().toMMSS();
+                document.getElementsByClassName('stats-leaderboard-time')[0].innerText = this.leaderboardTime.toString().toMMSS();
+                document.getElementsByClassName('stats-cells-eaten')[0].innerText = this.cellsEaten;
+                document.getElementsByClassName('stats-top-position')[0].innerText = this.topPosition == 999 ? 'N/A' : this.topPosition + 1;
+
                 this.foodEaten = 0;
                 this.highestMass = 0;
                 this.timeAlive = 0;
@@ -6908,7 +6890,7 @@ function modules(ks) {
                         this.showDeath();
                     }
                 }
-                , 1500);
+                , 2000);
                 let u5 = this.settings.getItem('deathCount');
                 if (u5 >= 333) {
                     u5 = 0;

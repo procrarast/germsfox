@@ -3111,335 +3111,6 @@ function modules(ks) {
             set cameraDelay(cameraDelay) { this._delay = cameraDelay; }
         }
 
-        class JellyCellContainer extends PIXI.Container {
-            constructor(game, tint) {
-                super();
-
-                this.game = game;
-                this.tint = tint;
-
-                // cellQuality can be a value from 0 through 2, representing low, medium and high quality
-                this.maxPoints = 32 * (this.game.settings.settings.cellQuality + 1);
-                this.minPoints = 5 * (this.game.settings.settings.cellQuality + 1);
-
-                // All distance is relative to the center of the mesh, NOT to map coords or screen position
-                this.radius = 64;
-                this.activePoints = 16;
-
-                this.points = []; // Each wobbles around with respect to the center of the mesh
-
-                this.positions = null;
-                this.uvs = null;
-                this.indices = null;
-
-                this.geometry = null;
-
-                this.fillMesh = null;
-                this.skinMesh = null;
-
-                this.time = Math.random() * 1000;
-
-                this.initPoints();
-                this.initGeometry();
-                this.initMeshes();
-
-                this.updateImmediate();
-            }
-
-            initPoints() {
-                this.points.length = 0;
-
-                for (let i = 0; i < this.maxPoints; i++) {
-                    const angle = (i / this.maxPoints) * Math.PI * 2;
-
-                    this.points.push({
-                        angle,
-                        radius: this.radius,
-                        velocity: 0,
-                        noiseOffset: Math.random() * 1000
-                    });
-                }
-            }
-
-            initGeometry() {
-
-                // +1 for center vertex
-                const vertexCount = this.maxPoints + 1;
-
-                this.positions = new Float32Array(vertexCount * 2);
-                this.uvs = new Float32Array(vertexCount * 2);
-
-                const indices = [];
-
-                //
-                // CENTER VERTEX
-                //
-
-                this.positions[0] = 0;
-                this.positions[1] = 0;
-
-                this.uvs[0] = 0.5;
-                this.uvs[1] = 0.5;
-
-                //
-                // OUTER RING
-                //
-
-                for (let i = 0; i < this.maxPoints; i++) {
-
-                    const angle = (i / this.maxPoints) * Math.PI * 2;
-
-                    const vi = (i + 1) * 2;
-
-                    this.positions[vi] = 0;
-                    this.positions[vi + 1] = 0;
-
-                    this.uvs[vi] =
-                        0.5 + Math.cos(angle) * 0.5;
-
-                    this.uvs[vi + 1] =
-                        0.5 + Math.sin(angle) * 0.5;
-                }
-
-                //
-                // TRIANGLE FAN
-                //
-
-                for (let i = 1; i < this.maxPoints; i++) {
-                    indices.push(0, i, i + 1);
-                }
-
-                indices.push(0, this.maxPoints, 1);
-
-                this.indices = new Uint16Array(indices);
-
-                this.geometry = new PIXI.Geometry({
-                    attributes: {
-                        aPosition: this.positions,
-                        aUV: this.uvs
-                    },
-                    indexBuffer: this.indices
-                });
-
-                this.positionBuffer =
-                    this.geometry.getBuffer("aPosition");
-            }
-
-            initMeshes() {
-
-                //
-                // BASE COLOR
-                //
-
-                this.fillMesh = new PIXI.Mesh({
-                    geometry: this.geometry,
-                    texture: PIXI.Texture.WHITE
-                });
-
-                this.fillMesh.tint = this.tint;
-
-                this.addChild(this.fillMesh);
-
-                //
-                // OPTIONAL SKIN
-                //
-
-                this.skinMesh = new PIXI.Mesh({
-                    geometry: this.geometry,
-                    texture: PIXI.Texture.EMPTY
-                });
-
-                this.skinMesh.visible = false;
-
-                this.addChild(this.skinMesh);
-            }
-
-            setColor(color) {
-                this.fillMesh.tint = color;
-            }
-
-            setSkin(texture) {
-
-                if (!texture) {
-                    this.skinMesh.visible = false;
-                    return;
-                }
-
-                this.skinMesh.texture = texture;
-                this.skinMesh.visible = true;
-            }
-
-            updateLOD(screenRadius) {
-
-                let points;
-
-                if (screenRadius < 20) {
-                    points = 0;
-                }
-                else if (screenRadius < 40) {
-                    points = 8;
-                }
-                else if (screenRadius < 80) {
-                    points = 16;
-                }
-                else if (screenRadius < 140) {
-                    points = 24;
-                }
-                else {
-                    points = 32;
-                }
-
-                this.activePoints =
-                    Math.max(this.minPoints, points);
-            }
-
-            impulse(strength = 8) {
-
-                for (let i = 0; i < this.activePoints; i++) {
-
-                    this.points[i].velocity +=
-                        (Math.random() - 0.5) * strength;
-                }
-            }
-
-            update(dt = 1) {
-
-                this.time += dt;
-
-                const targetRadius = this.radius;
-
-                //
-                // POINT SIMULATION
-                //
-
-                for (let i = 0; i < this.activePoints; i++) {
-
-                    const p = this.points[i];
-
-                    //
-                    // COHERENT IDLE MOTION
-                    //
-
-                    const idle =
-                        Math.sin(
-                            this.time * 0.002 +
-                            p.noiseOffset
-                        ) * 0.15 * targetRadius;
-
-                    //
-                    // SPRING
-                    //
-
-                    const force =
-                        (targetRadius + idle - p.radius) * 0.12;
-
-                    p.velocity += force * dt;
-
-                    //
-                    // DAMPING
-                    //
-
-                    p.velocity *= Math.pow(0.88, dt);
-
-                    p.radius += p.velocity * dt;
-                }
-
-                //
-                // NEIGHBOR RELAXATION
-                //
-
-                for (let i = 0; i < this.activePoints; i++) {
-
-                    const p =
-                        this.points[i];
-
-                    const prev =
-                        this.points[
-                            (i - 1 + this.activePoints)
-                            % this.activePoints
-                        ];
-
-                    const next =
-                        this.points[
-                            (i + 1)
-                            % this.activePoints
-                        ];
-
-                    const avg =
-                        (prev.radius + next.radius) * 0.5;
-
-                    p.radius +=
-                        (avg - p.radius) * 0.18 * dt;
-                }
-
-                this.updateVertices();
-            }
-
-            updateImmediate() {
-
-                for (let i = 0; i < this.maxPoints; i++) {
-                    this.points[i].radius = this.radius;
-                    this.points[i].velocity = 0;
-                }
-
-                this.updateVertices();
-            }
-
-            updateVertices() {
-
-                //
-                // CENTER
-                //
-
-                this.positions[0] = 0;
-                this.positions[1] = 0;
-
-                //
-                // OUTER POINTS
-                //
-
-                for (let i = 0; i < this.maxPoints; i++) {
-
-                    const vi = (i + 1) * 2;
-
-                    //
-                    // UNUSED POINTS COLLAPSE
-                    //
-
-                    if (i >= this.activePoints) {
-                        this.positions[vi] = 0;
-                        this.positions[vi + 1] = 0;
-                        continue;
-                    }
-
-                    const p = this.points[i];
-
-                    const x =
-                        Math.cos(p.angle) * p.radius;
-
-                    const y =
-                        Math.sin(p.angle) * p.radius;
-
-                    this.positions[vi] = x;
-                    this.positions[vi + 1] = y;
-                }
-
-                this.positionBuffer.update();
-            }
-
-            setRadius(radius) {
-
-                this.radius = radius;
-            }
-
-            destroy(options) {
-
-                super.destroy(options);
-
-                this.geometry.destroy();
-            }
-        }
-
         /*
          *  TextureCache is just a Map with a bunch of helpers and maintanence functions
          *  TextureCache subclasses define how they create new textures or, in skins' case, what we call 'resources'
@@ -3526,9 +3197,9 @@ function modules(ks) {
             }
 
             destroyTexture(entry) { 
-                console.debug("Destroying texture");
+                //console.debug("Destroying texture");
                 if (entry.texture) {
-                    console.debug("Destroyed texture");
+                    //console.debug("Destroyed texture");
                     entry.texture.destroy(true); 
                     return true;
                 }
@@ -3538,18 +3209,19 @@ function modules(ks) {
             updateMipmaps(isEnabled) {
                 this.mipmapping = isEnabled
                 for (const entry of this.entries.values()) {
-                    const texture = this.getTexture(entry.value);
+                    const texture = this.getTexture(entry);
 
                     if (!texture)
                         continue;
 
+                    console.debug(texture);
+                    console.debug(texture.source);
                     texture.source.autoGenerateMipmaps = isEnabled;
                     texture.source.update();
                 }
             }
 
-            // Entry is the texture
-            getTexture(value) { return value; }
+            getTexture(entry) { return entry.texture ?? null; }
 
             clear() {
                 // Delete all textures so they don't leak all over the place
@@ -3601,8 +3273,12 @@ function modules(ks) {
                 ctx.fillStyle = `#${fill.toString(16).padStart(6, '0')}`;
                 lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, pad + i * lineHeight + lineHeight * 0.5));
 
-                let texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                texture.source.autoGenerateMipmaps = this.mipmapping;
+                let texture = new PIXI.Texture({ 
+                    source: new PIXI.CanvasSource({ 
+                        resource: canvas,
+                        autoGenerateMipmaps: this.mipmapping
+                    }) 
+                });
 
                 return this.set(key, texture);
             }
@@ -3637,8 +3313,12 @@ function modules(ks) {
                 ctx.fillStyle = 'white';
                 ctx.fillText(massText, pad, pad);
 
-                let texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                texture.source.autoGenerateMipmaps = this.mipmapping;
+                let texture = new PIXI.Texture({ 
+                    source: new PIXI.CanvasSource({ 
+                        resource: canvas,
+                        autoGenerateMipmaps: this.mipmapping
+                    }) 
+                });
 
                 return this.set(massText, texture);
             }
@@ -3684,13 +3364,13 @@ function modules(ks) {
                 return this.set(skinName, resource);
             }
 
-            getTexture(entry) { return entry.texture ?? null; }; // Null if not loaded
+            getTexture(entry) { return entry.resource.texture ?? null; }
 
             destroyTexture(entry) { 
-                console.debug("Destroying skin resource");
-                entry.pending = null; // Clear queue in case the texture hasn't rendered yet
+                //console.debug("Destroying skin resource");
+                entry.resource.pending = null; // Clear queue in case the texture hasn't rendered yet
                 if (entry.resource.texture) {
-                    console.debug("Destroyed skin texture");
+                    //console.debug("Destroyed skin texture");
                     entry.resource.texture.destroy(true); 
                     return true;
                 }
@@ -3735,8 +3415,12 @@ function modules(ks) {
                 ctx.clip();
                 ctx.drawImage(this.image, 0, 0, this.size, this.size);
 
-                this.texture = new PIXI.Texture({ source: new PIXI.ImageSource({ resource: canvas }) });
-                this.texture.source.autoGenerateMipmaps = this.mipmapped;
+                this.texture = new PIXI.Texture({ 
+                    source: new PIXI.CanvasSource({ 
+                        resource: canvas,
+                        autoGenerateMipmaps: this.mipmapped
+                    }) 
+                });
 
                 // Done rendering, callback those who're waiting
                 for (const cb of this.pending.values()) 
@@ -3942,6 +3626,10 @@ function modules(ks) {
                     this.heldName = null;
                     this.nameSprite.removeAllListeners(); // TODO: Might only be necessary if textures are attached?
                     this.nameSprite.texture = PIXI.Texture.EMPTY;
+                    // Can I just do this.nameSprite.texture.destroy(), even if other sprites reference the same texture?
+                    // Perhaps I should, instead of caching textures, cache texture sources, but I don't know.
+                    // I've already built an entire caching system and, if this isn't the actual problem leaking GPU memory,
+                    // I probably won't deal with that.
                 }
                 if (this.heldSkin) {
                     const resource = this.game.skins.get(this.heldSkin);
@@ -5370,6 +5058,7 @@ function modules(ks) {
                     'webGPU': true,
                     'textureMipmaps': true,
                     'textMipmaps': false,
+                    'deathFreecam': true,
                     'acidMode': false,
                     'bruhMode': false,
                     'blockedSkins': [],
@@ -5456,12 +5145,12 @@ function modules(ks) {
                         }
                         break;
                     case 'textureMipmaps':
-                        this.skins.updateMipmaps(value);
-                        this.updateTextureMipmaps();
+                        this.game.skins.updateMipmaps(value);
+                        this.game.updateTextureMipmaps();
                         break;
                     case 'textMipmaps':
-                        this.names.updateMipmaps(value);
-                        this.masses.updateMipmaps(value);
+                        this.game.names.updateMipmaps(value);
+                        this.game.masses.updateMipmaps(value);
                         break;
                     case 'customTheme':
                         this.game.drawGrid();
@@ -5594,12 +5283,15 @@ function modules(ks) {
                 qN += '<p id="lockedNamePosition" class="nodrag">Position:</p><select id="lockedNamePositionSelect"><option>Upper</option><option selected>Center</option><option>Lower</option></select>';
                 qN += '</div>';
                 qN += '</div>';
-                if (this['customSkin']) {
-                    $('#customSkin').show();
+
+                if (this.customSkin) {
+                    document.getElementById('customSkin').style.display = 'block';
                 }
-                $('#shopName').text(qM.Name);
-                $('#shopAvatar').prop('src', qM['Avatar']);
-                $('#login').html(qN);
+
+                document.getElementById('shopName').textContent = qM.Name;
+                document.getElementById('shopAvatar').src = qM.Avatar;
+                document.getElementById('login').innerHTML = qN;
+
                 this.updateSkins();
                 this.updateVeteran();
                 this.updatePremium();
@@ -5607,29 +5299,50 @@ function modules(ks) {
                 this.updateCoinShop();
                 this.updateBucksShop();
                 this.updateBoostShop();
+
                 this.refresh();
+
                 this.setXP(this.xp);
                 this.setCoins(this.coins);
                 this.setBucks(this.bucks);
-                var qO = this;
+
                 this.picker = new CP(document.getElementById('lockedNameColorPicker'));
+
                 this.picker.set(this.game.settings.getItem('lockedColor'));
+
                 this.picker.on('change', function(qP) {
                     changeSetting('lockedColor', '#' + qP);
-                    this['source'].style['background'] = '#' + qP;
+                    this.source.style.background = '#' + qP;
                 });
-                this.picker.on('stop', function(qQ) {
-                    qO.game.network.sendLocked();
+
+                this.picker.on('stop', function() {
+                    this.game.network.sendLocked();
                 });
-                this.picker.on('exit', function(qR) {
-                    qO.game.network.sendLocked();
+
+                this.picker.on('exit', function() {
+                    this.game.network.sendLocked();
                 });
-                $('#lockedNamePositionSelect').val(this.game.settings.getItem('lockedPosition'));
-                document.getElementById('lockedNamePositionSelect')['onchange'] = function() {
-                    changeSetting('lockedPosition', this['options'][this['selectedIndex']].innerHTML);
-                    qO.game.network.sendLocked();
-                }
-                ;
+
+                const lockedNamePositionSelect =
+                    document.getElementById('lockedNamePositionSelect');
+
+                lockedNamePositionSelect.value =
+                    this.game.settings.getItem('lockedPosition');
+
+                let lockedNamePositionTimeout = null;
+
+                lockedNamePositionSelect.onchange = function() {
+                    clearTimeout(lockedNamePositionTimeout);
+
+                    lockedNamePositionTimeout = setTimeout(() => {
+                        changeSetting(
+                            'lockedPosition',
+                            this.options[this.selectedIndex].innerHTML
+                        );
+
+                        this.game.network.sendLocked();
+                    }, 200);
+                };
             }
             removeDuplicates(qS) {
                 var qT = {};
@@ -7026,7 +6739,7 @@ function modules(ks) {
                     }
                 }
                 if (this.playerCells.size === 1 && this.playerCells.has(node)) {
-                    this.freeSpec = true;
+                    if (this.settings.settings.deathFreecam) this.freeSpec = true;
                     this.deathTimeout = setTimeout(this.onDeath.bind(this), 1000);
                 }
                 this.nodes.delete(node.id);
@@ -7989,6 +7702,7 @@ function modules(ks) {
             const gameplaySettings = [
                 ["dynamicLinesplitAxis", "Dynamic Linesplit Axis"],
                 ["diagonalLinesplits", "Diagonal Linesplits"],
+                ["deathFreecam", "Freecam on Death"],
                 ["bruhMode", "Bruh Mode"]
             ];
 

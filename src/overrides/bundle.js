@@ -5306,24 +5306,24 @@ function modules(ks) {
                 this.setCoins(this.coins);
                 this.setBucks(this.bucks);
 
+                const game = this.game;
+
                 this.picker = new CP(document.getElementById('lockedNameColorPicker'));
-
                 this.picker.set(this.game.settings.getItem('lockedColor'));
-
                 this.picker.on('change', function(qP) {
                     changeSetting('lockedColor', '#' + qP);
                     this.source.style.background = '#' + qP;
                 });
-
-                this.picker.on('exit', () => {
-                    this.game.network.sendLocked();
+                this.picker.on('exit', function() {
+                    game.network.sendLocked();
                 });
 
-                const lockedNamePositionSelect =
-                    document.getElementById('lockedNamePositionSelect');
-
-                lockedNamePositionSelect.value =
-                    this.game.settings.getItem('lockedPosition');
+                const lockedNamePositionSelect = document.getElementById('lockedNamePositionSelect');
+                lockedNamePositionSelect.value = game.settings.getItem('lockedPosition');
+                lockedNamePositionSelect.onchange = function() {
+                    changeSetting('lockedPosition', this.options[this.selectedIndex].innerHTML);
+                    game.network.sendLocked();
+                };
             }
             removeDuplicates(qS) {
                 var qT = {};

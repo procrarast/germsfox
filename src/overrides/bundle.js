@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.2.2.2
+ * @version     1.3
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -2594,42 +2594,51 @@ function modules(ks) {
                     "SKUL.png",
                     "trollskull.png",
                     "gsSmil.png",
-                    "colon33.png",
                     "NAILS.png",
                     "Idio.png",
                     "YIPPEE.png",
                     "sademoji.png",
                     "LOAL.png",
                     "steamhappy.png",
-                    "yippie.png",
                     "AGONY.png",
                     "HAHA.png",
-                    "fucker.png",
                     "rice_cat.png",
                     "shup.png",
                     "catAware.png",
                     "catQue.png",
                     "catOMG.png",
-                    "catBath.png",
                     "catHi.png",
+                    "catNod.gif",
                     "catnodwashingmachine.gif",
+                    "catYap.gif",
+                    "catPaw.gif",
                     "catResort.png",
-                    "flabbergastedMilly.png",
+                    "catOrb.gif",
                     "gg28.png",
                     "katameow.png",
-                    "pcRacc.png",
                     "pcStare.png",
                     "widekisser.png",
+                    "bkWave.gif",
                     "firTilt.gif",
                     "UIOHADFGIUOHDAVFB.png",
                     "catWhat.png",
                     "myhonesterection.png",
-                    "munch.png",
                     "choccy.png",
                     "yapyapyap.gif",
                     "gsPuddle.png",
                 ];
                 this.fetchEmotes();
+
+                this.germsfoxStickers = [
+                    "schizo.gif",
+                    "FAGTASTIC.gif",
+                    "catNekoAtsume.gif",
+                    "scanning.gif",
+                    "gsGM.gif",
+                    "MASS.png",
+                    "glokk40spazz.gif",
+                    "forward.gif"
+                ];
             }
             fetchEmotes() {
                 $.getJSON('php/Emotes.php', emotes => {
@@ -3111,7 +3120,7 @@ function modules(ks) {
             set cameraDelay(cameraDelay) { this._delay = cameraDelay; }
         }
 
-        /*
+        /**
          *  TextureCache is just a Map with a bunch of helpers and maintanence functions
          *  TextureCache subclasses define how they create new textures or, in skins' case, what we call 'resources'
          */
@@ -3339,7 +3348,7 @@ function modules(ks) {
             set(key, resource) {
                 this.entries.set(key, {
                     resource: resource,
-                    refs: 0,        // Caller always holds the resource
+                    refs: 0,
                     clearAt: null,
                 });
 
@@ -3437,32 +3446,415 @@ function modules(ks) {
         };
 
         /**
-         *  Nodes are essentially just PIXI containers
-         *  They contain a cellSprite defined by each of its derivative classes
+         *  'Renderer' has nothing to do with PIXI.Renderer, rather it's my implementation of allowing different ways for 
+         *  an attached Node to be displayed to the main container. Currently there are Sprite and Jelly renderers, but perhaps someday
+         *  there will be more. Composition (allegedly) will make appearance easy to extend and customize!
+         */
+
+        class Renderer {
+            constructor(game) {
+                this.game = game;
+            }
+            
+            attach(node) {
+                this.node = node;
+            }
+            
+            reset() {
+                // Ejected mass and viruses grow into size
+                this.size = (this.node.isEjected || this.node.parent === -1) 
+                    ? this.node.size / 2 
+                    : this.node.size;
+                this.x = this.node.x;
+                this.y = this.node.y;
+
+                this.root.alpha = 1;
+                this.root.visible = true;
+                this.animationDelay = this.game.settings.settings.animationDelay;
+            }
+           
+            /**
+             *  Update rendered position, alpha, and size of the displayed Node
+             */
+
+            update() {
+                // Framerate-agnostic delta
+                let delta = Math.max(0, (Math.min(1,
+                    (this.game.updateTime - this.lastUpdate) / this.animationDelay
+                )));
+
+                this.lastUpdate = this.game.updateTime;
+
+                // Update position
+                if (this.node.eaten) {
+                    // Cute eating animations
+                    this.x = lerp(this.x, this.node.x, delta / 5);
+                    this.y = lerp(this.y, this.node.y, delta / 5);
+
+                    // Update alpha
+                    this.root.alpha = Math.max(0, this.root.alpha - delta / 5);
+                    if (this.root.alpha <= 0.8) {
+                        this.game.removeNode(this.node);
+                        return;
+                    }
+                } else {
+                    this.x = lerp(this.x, this.node.x, delta);
+                    this.y = lerp(this.y, this.node.y, delta);
+                }
+
+                // Update size
+                this.size = lerp(this.size, this.node.size, delta * 1);
+
+                // Update root
+                this.root.x = this.x;
+                this.root.y = this.y;
+
+                this.root.zIndex = this.size + this.node.id * 0.00001;
+            }
+            
+            // Prepare for putNode()
+            clean() {
+                this.root.visible = false;
+            }
+
+            kill() {
+                this.game.cellContainer.removeChild(this.root);
+                this.root.destroy({ // Textures are preserved by default
+                    children: true,
+                });
+                this.root = null;
+            }
+
+            // Destroy sprites, not textures
+            destroy() {
+                this.node.destroy();
+            }
+
+            debug(...args) {
+                console.debug(`[Renderer ${this.node.id}]`, ...args);
+            }
+
+            get animationDelay() { return this._delay; }
+            set animationDelay(delay) { this._delay = delay; } 
+        }
+
+        class JellyRenderer extends Renderer {};
+
+        class PlayerJellyRenderer extends JellyRenderer {};
+
+        class CellJellyRenderer extends PlayerJellyRenderer {};
+
+        class VirusJellyRenderer extends PlayerJellyRenderer {};
+
+        class FoodJellyRenderer extends JellyRenderer {};
+
+        /**
+         *  SpriteRenderers are essentially just PIXI containers with a cellSprite. Each of its derivative
+         *  subclasses provide its respective texture and texture size.
+         */
+
+        class SpriteRenderer extends Renderer {
+            constructor(game) {
+                super(game);
+
+                this.sprite = this.createSprite();
+
+                this.root = new PIXI.Container();
+                this.root.sortableChildren = true;
+                this.root.addChild(this.sprite);
+
+                this.game.cellContainer.addChild(this.root);
+            }
+
+            reset() {
+                super.reset();
+                this.sprite.tint = this.node.color;
+            }
+
+            update() {
+                super.update();
+                this.root.scale.set(this.size / this.textureSize);
+            }
+
+            // Creates a Sprite with a texture defined by subclasses
+            createSprite() {
+                const sprite = new PIXI.Sprite(this.texture);
+                sprite.anchor.set(0.5, 0.5);
+                return sprite;
+            }
+        }
+
+        /**
+         *  Players can have skins and names
+         */
+
+        class PlayerSpriteRenderer extends SpriteRenderer {
+            setName(name, color, position) {
+                
+                // Release the old name texture
+                if (this.heldName) this.game.names.release(this.heldName);
+
+                const nameKey = name + (color ?? '') 
+                
+                // Set and hold the new name texture
+                let texture = this.game.names.get(nameKey);
+
+                if (texture === null) {
+                    texture = this.game.names.create(
+                        nameKey,
+                        name,
+                        140 - name.length,
+                        (color ?? 0xFFFFFF) & 0xFFFFFF,
+                        color !== null ? true : false
+                    );
+                }
+
+                this.game.names.hold(nameKey);
+                this.heldName = nameKey;
+
+                if (this.nameSprite) {
+                    this.nameSprite.visible = true;
+                    this.nameSprite.texture = texture;
+                } else {
+                    this.nameSprite = new PIXI.Sprite(texture);
+                    this.root.addChild(this.nameSprite);
+                }
+
+                this.nameSprite.zIndex = 1;
+
+                switch (position) {
+                case 1:
+                    this.nameSprite.anchor.set(0.5, 1);
+                    this.nameSprite.scale.set(0.8);
+                    break;
+                case 3:
+                    this.nameSprite.anchor.set(0.5, 0);
+                    this.nameSprite.scale.set(0.8);
+                    break;
+                default:
+                    this.nameSprite.anchor.set(0.5);
+                    this.nameSprite.scale.set(1);
+                }
+            }
+
+            setSkin(skin) {
+                this._skin = skin;
+
+                // Release old skin texture
+                if (this.heldSkin) this.game.skins.release(this.heldSkin);
+
+                // Set and hold the new skin texture
+                let resource = this.game.skins.get(skin);
+
+                if (resource === null) {
+                    resource = this.game.skins.create(
+                        skin,
+                        this.game.settings.settings.highQualitySkins, 
+                    );
+                }
+
+                this.game.skins.hold(skin);
+                this.heldSkin = skin;
+
+                resource.onReady(this.node.id, resource => {
+                    const texture = resource.texture;
+                    if (!texture) return; 
+
+                    if (!this.skinSprite) {
+                        this.skinSprite = new PIXI.Sprite(texture);
+                        this.skinSprite.zIndex = 0;
+                        this.skinSprite.anchor.set(0.5, 0.5);
+                        this.root.addChild(this.skinSprite);
+                    } else {
+                        this.skinSprite.texture = texture;
+                    }
+
+                    this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(skin);
+                    this.skinSprite.scale.set(this.skinSize * (2 * this.textureSize / resource.size));
+                });
+            }
+
+            removeName() {
+                if (this.heldName) {
+                    this.game.names.release(this.heldName);
+                    this.heldName = null;
+                    this.nameSprite.removeAllListeners(); // TODO: Might only be necessary if textures are attached?
+                    this.nameSprite.texture = PIXI.Texture.EMPTY;
+                    return true;
+                }
+                return false;
+            }
+            
+            removeSkin() {
+                if (this.heldSkin) {
+                    const resource = this.game.skins.get(this.heldSkin);
+                    
+                    // Check if the SkinResource is still waiting for a texture
+                    // If it is, remove this node from the queue so it doesn't get set later
+                    if (resource.pending) resource.pending.delete(this.node.id);
+
+                    this.game.skins.release(this.heldSkin);
+                    this.heldSkin = null;
+
+                    if (this.skinSprite) { // Texture may not have loaded yet
+                        this.skinSprite.removeAllListeners();
+                        this.skinSprite.texture = PIXI.Texture.EMPTY;
+                    }
+
+                    return true;
+                }
+                return false;
+            }
+
+            clean() {
+                this.removeName();
+                this.removeSkin();
+                super.clean();
+            }
+
+            get skinSize() { console.error("This node has no type!") };
+        }
+
+        /**
+         *  Cells can have mass labels
+         */
+
+        class CellSpriteRenderer extends PlayerSpriteRenderer {
+            setSize(size) {
+                if (!this.game.settings.settings.showMass) return;
+                
+                // Hide the texture if...
+                let zoomThreshold = 50 + Math.sqrt(this.game.nodes.size)
+                
+                if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
+
+                if (size * this.game.camera.renderZoom < zoomThreshold || this.node.eaten) {
+                    if (this.massSprite) this.massSprite.visible = false;
+                    return;
+                }
+
+                // Skip updating mass sprite if...
+                if (this.game.updateTime - this.lastMassUpdate < 100)
+                    return;
+
+                /**
+                 *  Just to note, we only care about updating heldMass/Size/Skin when either one of two things happens:
+                 *
+                 *      1. The node gets Pool.putNoded
+                 *      2. The texture of the sprite changes
+                 *  
+                 *  Sprite visibility doesn't matter at all for held textures
+                 */
+
+                // Release the old mass texture
+                if (this.heldMass) this.game.masses.release(this.heldMass);
+
+                const mass = Math.floor(size * size / 100);
+                const massKey = this.game.settings.settings.shortenMass ? this.toShortString(mass) : mass.toString();
+                // Set and hold the new mass texture
+                let texture = this.game.masses.get(massKey);
+
+                if (texture === null) {
+                    texture = this.game.masses.create(
+                        massKey, 
+                        this.game.settings.settings.shortenMass ? 75 : 60, 
+                    );
+                }
+
+                this.game.masses.hold(massKey);
+                this.heldMass = massKey;
+
+                // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
+                if (this.massSprite) { 
+                    this.massSprite.visible = true;
+                    this.massSprite.texture = texture;
+                } else {
+                    this.massSprite = new PIXI.Sprite(texture);
+                    this.massSprite.anchor.set(0.5, -0.8);
+                    this.massSprite.zIndex = 1;
+                    this.root.addChild(this.massSprite);
+                }
+                this.lastMassUpdate = this.game.updateTime;
+            }
+
+            removeMass() {
+                if (this.heldMass) {
+                    this.game.masses.release(this.heldMass);
+                    this.heldMass = null;
+                    this.massSprite.removeAllListeners();
+                    this.massSprite.texture = PIXI.Texture.EMPTY;
+                }
+            }
+
+            clean() {
+                this.removeMass();
+                super.clean();
+            }
+
+            /**
+             *  Note that Size and Mass semantically differ only by Mass being the ingame
+             *  representation of a cell's Size.
+             */
+
+            toShortString(mass) {
+                if (mass >= 1000000)
+                    return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
+                if (mass >= 1000)
+                    return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
+                else
+                    return mass.toString();
+            }
+
+            get texture() { return this.game.cellTexture };
+            get textureSize() { return this.game.cellSize; }
+            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+        }
+
+        class VirusSpriteRenderer extends PlayerSpriteRenderer {
+            get texture() { return this.game.virusTexture; }
+            get textureSize() { return this.game.virusSize; }
+            get skinSize() { return 0.88; }
+        }
+
+        class FoodSpriteRenderer extends SpriteRenderer {
+            reset() {
+                super.reset();
+                this.root.visible = !this.game.settings.settings.hideFood;
+            }
+
+            createSprite() { 
+                const sprite = super.createSprite();
+                sprite.rotation = Math.random() * Math.PI * 2; 
+                return sprite;
+            }
+
+            get texture() { return this.game.randomFoodTexture; }
+            get textureSize() { return this.game.foodSize; }
+        }
+
+        /**
+         *  The Node base class provides state. While it also provides the means of interpolating size/position for animations,
+         *  these animations may soon be moved to each respective Renderer.
+         *
+         *  Renderer is bound at construction.
          */
 
         class Node {
-            constructor(game, nodeData = {}) {
+            constructor(game, nodeData = {}, renderer) {
                 this.game = game;
-
-                this.root = new PIXI.Container();
-                this.cellSprite = this.sprite;
-                this.root.addChild(this.cellSprite);
-                this.root.sortableChildren = true;
-
+                this.renderer = renderer;
+                this.renderer.attach(this);
                 this.reset(nodeData);
             }
 
             reset(nodeData = {}) {
-                const { id = 0, parent = -1, x = 0, y = 0, size = 1, name = null, rgb = '', lockedPosition = null, lockedColor = null, skin = null, color = 0, isEjected = false } 
+                const { id = 0, parent = -1, x = 0, y = 0, size = 1, name = null, rgb = '', 
+                    lockedPosition = null, lockedColor = null, skin = null, color = 0, isEjected = false } 
                     = nodeData;
 
                 this.id = id;
                 this.parent = parent;
 
-                this.renderSize = (isEjected || parent === -1) ? size / 2 : size; // Fed mass and viruses grow into size
-                this.renderX = x;
-                this.renderY = y;
                 this.x = x;
                 this.y = y;
 
@@ -3481,12 +3873,8 @@ function modules(ks) {
                 this.skin = skin;
                 this.size = size;
 
-                this.moveRoot();
-                this.game.cellContainer.addChild(this.root);
-                this.cellSprite.tint = this.color;
-                this.cellSprite.texture = this.texture;
-                this.root.alpha = 1;
-                this.root.visible = true;
+                this.debug("Created");
+                this.renderer.reset();
             }
 
             getEatenBy(hunter) {
@@ -3495,6 +3883,7 @@ function modules(ks) {
                 this.eaten = true;
                 
                 // Max travel distance relative to size
+                // TODO: convert this.size to circumference before setting maxDist
                 const maxDist = this.size * 3;
 
                 this.size *= 0.5;
@@ -3503,7 +3892,6 @@ function modules(ks) {
 
                 const dx = hunter.x - this.x;
                 const dy = hunter.y - this.y;
-
                 const dist = Math.hypot(dx, dy);
 
                 // Clamp distance
@@ -3520,98 +3908,28 @@ function modules(ks) {
                 return this.game.removeNode(this);
             }
 
-            // Prepare node to return to pool
+            /**
+             *  Prepare node to return to its Pool.
+             *  Don't worry about cleaning up Node state, as it will be reset at Pool.pop() time. We only care about the Renderer.
+             */
+
             clean() {
-                this.root.visible = false;
+                this.renderer.clean();
             }
 
-            kill() { // Release the node back into the wild
-                this.clean();
-                this.game.cellContainer.removeChild(this.root);
-                this.root.destroy({ // Textures are preserved by default
-                    children: true,
-                });
-                this.root = null;
+            kill() { // Completely remove the node. Since Nodes are just state, we just pass the message to its renderer
+                this.debug("Killed");
             }
 
-            moveRoot() {
-                this.root.x = this.renderX;
-                this.root.y = this.renderY;
-                this.root.zIndex = this.renderSize + this.id * 0.00001;
-                this.root.scale.x = this.scaleSize;
-                this.root.scale.y = this.root.scale.x;
+            debug(...args) {
+                console.debug(`[Node ${this.id}]`, ...args);
             }
 
-            setState(x, y, size) {
-                this.x = x;
-                this.y = y;
-                this.size = size;
-            }
-
-            updateRender() {
-                let delta = Math.max(0, (Math.min(1,
-                    (this.game.updateTime - this.lastUpdate) / this.animationDelay
-                )));
-
-                this.lastUpdate = this.game.updateTime;
-
-                if (this.eaten) {
-                    // Cute eating animations
-                    this.renderX = lerp(this.renderX, this.x, delta / 5);
-                    this.renderY = lerp(this.renderY, this.y, delta / 5);
-
-                    this.root.alpha = Math.max(0, this.root.alpha - delta / 5);
-                    if (this.root.alpha <= 0.8) {
-                        this.game.removeNode(this);
-                        return;
-                    }
-                } else {
-                    this.renderX = lerp(this.renderX, this.x, delta);
-                    this.renderY = lerp(this.renderY, this.y, delta);
-                }
-
-                this.renderSize = lerp(this.renderSize, this.size, delta * 1);
-
-                this.moveRoot();
-            }
-
-            setColor(color, rgb) {
-                if (this.color != color) {
-                    this.color = color;
-                    this.cellSprite.tint = color;
-                }
-                if (this.rgb != rgb)
-                    this.rgb = rgb;
-            }
-
-            decimalToRgb(num) {
-                var r = Math.floor(num / (256 * 256));
-                var g = Math.floor(num / 256) % 256;
-                var b = num % 256;
-                return {
-                    'r': r,
-                    'g': g,
-                    'b': b 
-                };
-            }
-
-            set size(size) {
+            set size(size) { // Because some nodes set more stuff when size gets set
                 this._size = size;
             }
-
             get size() { return this._size; }
-            get mass() { return Math.floor(this.size * this.size / 100); }
-            get scaleSize() { return this.renderSize / this.cellSize; }
-            get type() { console.error("No type override!"); }
-            get sprite() {
-                const sprite = new PIXI.Sprite(this.texture);
-                sprite.anchor.set(0.5, 0.5);
-                return sprite;
-            }
-            get texture() { return null; }
-            get animationDelay() { return this._delay; }
-            set animationDelay(delay) { this._delay = delay; } 
-
+            get type() { console.error("This node has no type!"); }
         }
 
         /**
@@ -3619,143 +3937,22 @@ function modules(ks) {
          */
 
         class PlayerNode extends Node {
-            clean() {
-                super.clean();
-                if (this.heldName) {
-                    this.game.names.release(this.heldName);
-                    this.heldName = null;
-                    this.nameSprite.removeAllListeners(); // TODO: Might only be necessary if textures are attached?
-                    this.nameSprite.texture = PIXI.Texture.EMPTY;
-                    // Can I just do this.nameSprite.texture.destroy(), even if other sprites reference the same texture?
-                    // Perhaps I should, instead of caching textures, cache texture sources, but I don't know.
-                    // I've already built an entire caching system and, if this isn't the actual problem leaking GPU memory,
-                    // I probably won't deal with that.
-                }
-                if (this.heldSkin) {
-                    const resource = this.game.skins.get(this.heldSkin);
-                    
-                    // Check if its SkinResource is pending
-                    // If it is, remove this node from the queue
-                    if (resource.pending) resource.pending.delete(this.id);
-
-                    this.game.skins.release(this.heldSkin);
-                    this.heldSkin = null;
-                    if (this.skinSprite) { // Texture may not have loaded yet
-                        this.skinSprite.removeAllListeners();
-                        this.skinSprite.texture = PIXI.Texture.EMPTY;
-                    }
-                }
-            }
-
-            kill() {
-                super.kill();
-                this.cellSprite.destroy();
-                if (this.skinSprite) this.skinSprite.destroy();
-                if (this.nameSprite) this.nameSprite.destroy();
-            }
-
             set skin(skin) {
                 this._skin = skin;
 
-                // Don't create a texture if the skin is empty
-                if (!skin || skin === '') return;
-
-                if (!this.canDisplay(this.game.settings.settings.showSkins)) {
-                    if (this.skinSprite) this.skinSprite.visible = false;
-                    return;
-                }
-
-                // Set the new skin texture
-                if (this.heldSkin) this.game.skins.release(this.heldSkin);
-
-                let resource = this.game.skins.get(skin);
-
-                if (resource === null) {
-                    resource = this.game.skins.create(
-                        skin,
-                        this.game.settings.settings.highQualitySkins, 
-                    );
-                }
-
-                this.game.skins.hold(skin);
-                this.heldSkin = skin;
-
-                resource.onReady(this.id, this.skinCheck.bind(this));
-            }
-
-            skinCheck(resource) {
-                const texture = resource.texture;
-                if (!texture) return;
-
-                if (!this.skinSprite) {
-                    this.skinSprite = new PIXI.Sprite(texture);
-                    this.skinSprite.zIndex = 0;
-                    this.skinSprite.anchor.set(0.5, 0.5);
-                    this.root.addChild(this.skinSprite);
-                } else {
-                    if (this.skinSprite.texture !== texture) 
-                        this.skinSprite.texture = texture;
-                }
-
-                this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(this.skin);
-                this.skinSprite.scale.set(this.skinSize * (2 * this.cellSize / resource.size));
-                return;
+                // Don't create a texture if the skin is empty or the user doesn't want one
+                if (!skin || skin === '' || !this.canDisplay(this.game.settings.settings.showSkins)) return;
+                
+                this.renderer.setSkin(skin);
             }
 
             set name(name) {
                 this._name = name;
+                
+                // Don't create a texture if it's an empty name or the user doesn't want one
+                if (!name || !name.trim() || !this.canDisplay(this.game.settings.settings.showNames)) return;
 
-                // Don't create a texture if it's an empty name
-                if (!name || !name.trim()) return;
-
-                if (!this.canDisplay(this.game.settings.settings.showNames)) {
-                    if (this.nameSprite) this.nameSprite.visible = false;
-                    return;
-                }
-
-                // Create the name texture if it doesn't exist
-
-                if (this.heldName) this.game.names.release(this.heldName);
-
-                let texture = this.game.names.get(this.nameKey);
-
-                if (texture === null) {
-
-                    texture = this.game.names.create(
-                        this.nameKey,
-                        name,
-                        this.nameSize,
-                        (this.lockedColor ?? 0xFFFFFF) & 0xFFFFFF,
-                        this.lockedColor !== null ? true : false
-                    );
-                }
-
-                this.game.names.hold(this.nameKey);
-                this.heldName = this.nameKey;
-
-                if (this.nameSprite) {
-                    this.nameSprite.visible = true;
-                    this.nameSprite.texture = texture;
-                } else {
-                    this.nameSprite = new PIXI.Sprite(texture);
-                    this.root.addChild(this.nameSprite);
-                }
-
-                this.nameSprite.zIndex = 1;
-
-                switch (this.lockedPosition) {
-                case 1:
-                    this.nameSprite.anchor.set(0.5, 1);
-                    this.nameSprite.scale.set(0.8);
-                    break;
-                case 3:
-                    this.nameSprite.anchor.set(0.5, 0);
-                    this.nameSprite.scale.set(0.8);
-                    break;
-                default:
-                    this.nameSprite.anchor.set(0.5);
-                    this.nameSprite.scale.set(1);
-                }
+                this.renderer.setName(name, this.lockedColor, this.lockedPosition);
             }
 
             canDisplay(preference) {
@@ -3773,32 +3970,18 @@ function modules(ks) {
                 }
             }
 
-            get nameSize() { return 140 - this.name.length * 3; }
             get name() { return this._name; }
             get skin() { return this._skin; }
-            get nameKey() { 
-                if (this.name === '') return null;
-                return this.name + (this.lockedColor ?? ''); 
-            }
         }
 
         /**
-         *  FoodNodes aren't special at all, except for its randomized sprite rotation and texture
+         *  FoodNodes have a randomized sprite rotation and texture
          */
 
         class FoodNode extends Node {
             reset(nodeData = {}) {
                 super.reset(nodeData);
-                this.root.visible = !this.game.settings.settings.hideFood;
             }
-
-            get sprite() { 
-                const sprite = super.sprite;
-                sprite.rotation = Math.random() * Math.PI * 2; 
-                return sprite;
-            }
-            get texture() { return this.game.randomFoodTexture; }
-            get cellSize() { return this.game.foodSize; }
             get type() { return nodeType.Food; }
         }
 
@@ -3808,195 +3991,110 @@ function modules(ks) {
          */
         
         class CellNode extends PlayerNode {
-            clean() {
-                super.clean();
-                if (this.heldMass) {
-                    this.game.masses.release(this.heldMass);
-                    this.heldMass = null;
-                    this.massSprite.removeAllListeners();
-                    this.massSprite.texture = PIXI.Texture.EMPTY;
-                }
-            }
-
-            kill() {
-                super.kill();
-                if (this.massSprite) this.massSprite.destroy();
-            }
-
             set size(size) {
                 this._size = size;
 
-                if (!this.game.settings.settings.showMass) return;
-                
-                // Clear the texture if...
-                let zoomThreshold = 50 + Math.sqrt(this.game.nodes.size)
-                
-                if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
-
-                if (size * this.game.camera.renderZoom < zoomThreshold || this.eaten) {
-                    if (this.massSprite) this.massSprite.visible = false;
-                    return;
-                }
-
-                // Skip updating mass sprite if...
-                if (this.game.updateTime - this.lastMassUpdate < 100)
-                    return;
-
-                /**
-                 *  If you're wondering why we only sometimes update holdingMassTexture when textures are technically invisible, 
-                 *  it's because we only care about updating it when either one of two things happens:
-                 *
-                 *      1. The node gets put back into the pool or killed by putNode()
-                 *      2. The texture of the sprite changes
-                 *  
-                 *  Sprite visibility doesn't matter at all
-                 */
-
-                if (this.heldMass) this.game.masses.release(this.heldMass);
-
-                let texture = this.game.masses.get(this.massKey);
-
-                if (texture === null) {
-                    texture = this.game.masses.create(
-                        this.massKey, 
-                        this.game.settings.settings.shortenMass ? 75 : 60, 
-                    );
-                }
-
-                this.game.masses.hold(this.massKey);
-                this.heldMass = this.massKey;
-
-                // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
-                if (this.massSprite) { 
-                    this.massSprite.visible = true;
-                    this.massSprite.texture = texture;
-                } else {
-                    this.massSprite = new PIXI.Sprite(texture);
-                    this.massSprite.anchor.set(0.5);
-                    this.massSprite.position.y = this.cellSize * 0.6;
-                    this.massSprite.zIndex = 1;
-                    this.root.addChild(this.massSprite);
-                }
-                this.lastMassUpdate = this.game.updateTime;
+                this.renderer.setSize(size);
             }
 
-            get shortMassString() {
-                // Return a string representing the shortened mass number
-                const mass = this.mass;
-                if (mass >= 1000000)
-                    return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
-                if (mass >= 1000)
-                    return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
-                else
-                    return mass.toString();
-            }
-            get massString() { return this.mass.toString(); }
-            get massKey() { return this.game.settings.settings.shortenMass ? this.shortMassString : this.massString; }
             get size() { return this._size; }
-            get texture() { return this.game.cellTexture };
-            get cellSize() { return this.game.cellSize; }
-            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
             get type() { return nodeType.Player; }
         }
 
         class VirusNode extends PlayerNode { // I'm only doing this because Stas plays as a virus node
-            get texture() { return this.game.virusTexture; }
-            get cellSize() { return this.game.virusSize; }
-            get skinSize() { return 0.88; }
             get type() { return nodeType.Virus; }
         }
 
         class Pool {
-            constructor(n3) {
-                this.game = n3;
+            constructor(game) {
+                this.game = game;
                 this.playerPool = [];
                 this.virusPool = [];
                 this.foodPool = [];
-                this.maxPlayerPoolSize = 256;
-                this.maxVirusPoolSize = 128;
-                this.maxFoodPoolSize = 256;
+
+                this.config = {
+                    [nodeType.Player]: {
+                        pool: 'playerPool',
+                        maxSize: 256,
+                        size: 128,
+                        node: CellNode,
+                        spriteRenderer: CellSpriteRenderer,
+                        jellyRenderer: CellJellyRenderer,
+                    },
+                    [nodeType.Virus]: {
+                        pool: 'virusPool',
+                        maxSize: 128,
+                        size: 64,
+                        node: VirusNode,
+                        spriteRenderer: VirusSpriteRenderer,
+                        jellyRenderer: VirusJellyRenderer,
+                    },
+                    [nodeType.Food]: {
+                        pool: 'foodPool',
+                        maxSize: 256,
+                        size: 128,
+                        node: FoodNode,
+                        spriteRenderer: FoodSpriteRenderer,
+                        jellyRenderer: FoodJellyRenderer,
+                    }
+                }
+            };
+
+            createNode(type, nodeData = {}) {
+                const cfg = this.config[type];
+
+                const renderer = this.game.settings.settings.display === 'performance'
+                        ? cfg.spriteRenderer
+                        : cfg.jellyRenderer;
+
+                return new cfg.node(this.game, nodeData, new renderer(this.game));
             }
 
             populate(cb) {
-                for (let i = 0; i < 128; i++) {
-                    this.putNode(new CellNode(this.game));
+                for (const [type, cfg] of Object.entries(this.config)) {
+                    for (let i = 0; i < cfg.size; i++) {
+                        this.putNode(this.createNode(type));
+                    }
                 }
-                for (let i = 0; i < 32; i++) {
-                    this.putNode(new VirusNode(this.game));
-                }
-                for (let i = 0; i < 64; i++) {
-                    this.putNode(new FoodNode(this.game));
-                }
-                if (cb)
-                    cb();
+                cb?.();
             }
 
             getNode(type, nodeData) {
-                let node = null;
+                const cfg = this.config[type];
+                const pool = this[cfg.pool];
 
-                switch (type) {
-                case nodeType.Player:
-                    if (this.playerPool.length > 0) node = this.playerPool.pop();
-                    if (node == null) {
-                        node = new CellNode(this.game, nodeData);
-                    } else {
-                        node.reset(nodeData);
-                    }
-                    break;
-                case nodeType.Virus:
-                    if (this.virusPool.length > 0) node = this.virusPool.pop();
-                    if (node == null) {
-                        node = new VirusNode(this.game, nodeData);
-                    } else {
-                        node.reset(nodeData);
-                    }
-                    break;
-                case nodeType.Food:
-                    if (this.foodPool.length > 0) node = this.foodPool.pop();
-                    if (node == null) {
-                        node = new FoodNode(this.game, nodeData);
-                    } else {
-                        node.reset(nodeData);
-                    }
-                    break;
+                const node = pool.pop();
+
+                if (node) {
+                    node.reset(nodeData);
+                    return node;
                 }
-                return node;
+
+                return this.createNode(type, nodeData);
             }
 
             putNode(node) {
-                switch (node.type) {
-                case nodeType.Player:
-                    if (this.playerPool.length < this.maxPlayerPoolSize) {
-                        node.clean();
-                        this.playerPool.push(node);
-                    } else {
-                        node.kill();
-                    }
-                    break;
-                case nodeType.Virus:
-                    if (this.virusPool.length < this.maxVirusPoolSize) {
-                        node.clean();
-                        this.virusPool.push(node);
-                    } else {
-                        node.kill();
-                    }
-                    break;
-                case nodeType.Food:
-                    if (this.foodPool.length < this.maxFoodPoolSize) {
-                        node.clean();
-                        this.foodPool.push(node);
-                    } else {
-                        node.kill();
-                    }
-                    break;
-                default:
+                const cfg = this.config[node.type];
+
+                if (!cfg) {
                     node.kill();
-                    break;
+                    return;
+                }
+
+                const pool = this[cfg.pool];
+
+                if (pool.length < cfg.maxSize) {
+                    node.clean();
+                    pool.push(node);
+                } else {
+                    node.kill();
                 }
             }
         }
-        // The following was initially stolen and obfuscated on Germs with a deliberate change from  
+
+        // The following class was initially stolen and obfuscated on Germs with a deliberate change from  
         // function to class structure.
+        
         /*
          * Simple BinaryWriter is a minimal tool to write binary stream with unpredictable size.
          * Useful for binary serialization.
@@ -4813,6 +4911,7 @@ function modules(ks) {
                         };
 
                         node = this.game.pool.getNode(type, nodeData);
+
                         this.game.addNode(node);
                         
                         continue; // Because state is clean
@@ -4824,9 +4923,6 @@ function modules(ks) {
                     node.x = x;
                     node.y = y;
                     node.size = size;
-
-                    node.updateRender();
-
                 }
 
                 let destroyCount = buffer.readUInt16();
@@ -4837,6 +4933,7 @@ function modules(ks) {
                     }
                 }
             }
+
             filterColor(baseHex, filterHex) {
                 const baseR = (baseHex >> 16) & 0xFF;
                 const baseG = (baseHex >> 8) & 0xFF;
@@ -5061,6 +5158,7 @@ function modules(ks) {
                     'deathFreecam': true,
                     'acidMode': false,
                     'bruhMode': false,
+                    'display': 'performance',
                     'blockedSkins': [],
                 };
                 for (var key in this.default) {
@@ -5133,7 +5231,6 @@ function modules(ks) {
                         break;
                     case 'webGPU':
                         const acidModeInput = document.getElementById("acidMode").parentElement.parentElement;
-                        console.debug(acidModeInput);
                         acidModeInput.style.display = value ? "none" : "block";
                         break;
                     case 'cameraDelay':
@@ -5174,8 +5271,8 @@ function modules(ks) {
                         break;
                     case 'showMass':
                         for (const cell of this.game.nodes.values()) {
-                            if (!value && cell.massSprite) {
-                                cell.massSprite.visible = false;
+                            if (!value && cell.renderer.massSprite) {
+                                cell.renderer.massSprite.visible = false;
                             } else {
                                 // Force label update if applicable
                                 cell.size = cell.size + 0.0001;
@@ -5185,7 +5282,7 @@ function modules(ks) {
                     case 'hideFood':
                         for (const cell of this.game.nodes.values()) {
                             if (cell.type === nodeType.Food)
-                                cell.root.visible = !value;
+                                cell.renderer.root.visible = !value;
                         }
                         break;
                     case 'hideXP':
@@ -6028,7 +6125,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.2.2.2 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -6315,7 +6412,7 @@ function modules(ks) {
                 this.fps = this.ticker.FPS;
 
                 for (const node of this.nodes.values()) {
-                    node.updateRender();
+                    node.renderer.update();
                 }
 
                 if (this.playerCells.size > 0) {
@@ -6336,8 +6433,8 @@ function modules(ks) {
 
                         totalSize += cell.size;
 
-                        cameraX += cell.renderX * cell.size;
-                        cameraY += cell.renderY * cell.size;
+                        cameraX += cell.renderer.x * cell.size;
+                        cameraY += cell.renderer.y * cell.size;
                     }
 
                     if (playerCellsAlive > 0 && totalSize > 0) {
@@ -6706,7 +6803,9 @@ function modules(ks) {
                     this.log('Failed to refresh ads');
                 }
             }
+
             removeNode(node) {
+                node.debug("Removing");
                 if (node === this.aliveCell) { // Get new aliveCell if it's removed
                     if (this.playerCells.size === 1) {
                         this.aliveCell = null;
@@ -6728,6 +6827,7 @@ function modules(ks) {
                 this.myCells.delete(node.id);
                 this.pool.putNode(node);
             }
+
             addNode(node) {
                 this.nodes.set(node.id, node);
 
@@ -6737,6 +6837,7 @@ function modules(ks) {
                     this.playerCells.add(node);
                 }
             }
+
             onKeyDown(event) {
 
                 // Always close settings on Escape
@@ -7007,8 +7108,8 @@ function modules(ks) {
             }
             updateBlockedSkins() {
                 for (const cell of this.nodes.values()) {
-                    if (cell.skinSprite) {
-                        cell.skinSprite.visible =
+                    if (cell.renderer.skinSprite) {
+                        cell.renderer.skinSprite.visible =
                             !this.settings.settings.blockedSkins.has(cell.skin);
                     }
                 }

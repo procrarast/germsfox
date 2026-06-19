@@ -18,18 +18,10 @@
  */
 
 var moduleRegistry = {
-    badwords: badwordsArray => { // https://github.com/MauriceButler/badwords/blob/master/array.js
-        badwordsArray.exports = ["4r5e", "5h1t", "5hit", "a55", "anal", "anus", "ar5e", "arrse", "arse", "ass", "ass-fucker", "asses", "assfucker", "assfukka", "asshole", "assholes", "asswhole", "a_s_s", "b!tch", "b00bs", "b17ch", "b1tch", "ballbag", "balls", "ballsack", "bastard", "beastial", "beastiality", "bellend", "bestial", "bestiality", "bi+ch", "biatch", "bitch", "bitcher", "bitchers", "bitches", "bitchin", "bitching", "bloody", "blow job", "blowjob", "blowjobs", "boiolas", "bollock", "bollok", "boner", "boob", "boobs", "booobs", "boooobs", "booooobs", "booooooobs", "breasts", "buceta", "bugger", "bum", "bunny fucker", "butt", "butthole", "buttmuch", "buttplug", "c0ck", "c0cksucker", "carpet muncher", "cawk", "chink", "cipa", "cl1t", "clit", "clitoris", "clits", "cnut", "cock", "cock-sucker", "cockface", "cockhead", "cockmunch", "cockmuncher", "cocks", "cocksuck", "cocksucked", "cocksucker", "cocksucking", "cocksucks", "cocksuka", "cocksukka", "cok", "cokmuncher", "coksucka", "coon", "cox", "crap", "cum", "cummer", "cumming", "cums", "cumshot", "cunilingus", "cunillingus", "cunnilingus", "cunt", "cuntlick", "cuntlicker", "cuntlicking", "cunts", "cyalis", "cyberfuc", "cyberfuck", "cyberfucked", "cyberfucker", "cyberfuckers", "cyberfucking", "d1ck", "damn", "dick", "dickhead", "dildo", "dildos", "dink", "dinks", "dirsa", "dlck", "dog-fucker", "doggin", "dogging", "donkeyribber", "doosh", "duche", "dyke", "ejaculate", "ejaculated", "ejaculates", "ejaculating", "ejaculatings", "ejaculation", "ejakulate", "f u c k", "f u c k e r", "f4nny", "fag", "fagging", "faggitt", "faggot", "faggs", "fagot", "fagots", "fags", "fanny", "fannyflaps", "fannyfucker", "fanyy", "fatass", "fcuk", "fcuker", "fcuking", "feck", "fecker", "felching", "fellate", "fellatio", "fingerfuck", "fingerfucked", "fingerfucker", "fingerfuckers", "fingerfucking", "fingerfucks", "fistfuck", "fistfucked", "fistfucker", "fistfuckers", "fistfucking", "fistfuckings", "fistfucks", "flange", "fook", "fooker", "fuck", "fucka", "fucked", "fucker", "fuckers", "fuckhead", "fuckheads", "fuckin", "fucking", "fuckings", "fuckingshitmotherfucker", "fuckme", "fucks", "fuckwhit", "fuckwit", "fudge packer", "fudgepacker", "fuk", "fuker", "fukker", "fukkin", "fuks", "fukwhit", "fukwit", "fux", "fux0r", "f_u_c_k", "gangbang", "gangbanged", "gangbangs", "gaylord", "gaysex", "goatse", "God", "god-dam", "god-damned", "goddamn", "goddamned", "hardcoresex", "hell", "heshe", "hoar", "hoare", "hoer", "homo", "hore", "horniest", "horny", "hotsex", "jack-off", "jackoff", "jap", "jerk-off", "jism", "jiz", "jizm", "jizz", "kawk", "knob", "knobead", "knobed", "knobend", "knobhead", "knobjocky", "knobjokey", "kock", "kondum", "kondums", "kum", "kummer", "kumming", "kums", "kunilingus", "l3i+ch", "l3itch", "labia", "lust", "lusting", "m0f0", "m0fo", "m45terbate", "ma5terb8", "ma5terbate", "masochist", "master-bate", "masterb8", "masterbat*", "masterbat3", "masterbate", "masterbation", "masterbations", "masturbate", "mo-fo", "mof0", "mofo", "mothafuck", "mothafucka", "mothafuckas", "mothafuckaz", "mothafucked", "mothafucker", "mothafuckers", "mothafuckin", "mothafucking", "mothafuckings", "mothafucks", "mother fucker", "motherfuck", "motherfucked", "motherfucker", "motherfuckers", "motherfuckin", "motherfucking", "motherfuckings", "motherfuckka", "motherfucks", "muff", "mutha", "muthafecker", "muthafuckker", "muther", "mutherfucker", "n1gga", "n1gger", "nazi", "nigg3r", "nigg4h", "nigga", "niggah", "niggas", "niggaz", "nigger", "niggers", "nob", "nob jokey", "nobhead", "nobjocky", "nobjokey", "numbnuts", "nutsack", "orgasim", "orgasims", "orgasm", "orgasms", "p0rn", "pawn", "pecker", "penis", "penisfucker", "phonesex", "phuck", "phuk", "phuked", "phuking", "phukked", "phukking", "phuks", "phuq", "pigfucker", "pimpis", "piss", "pissed", "pisser", "pissers", "pisses", "pissflaps", "pissin", "pissing", "pissoff", "poop", "porn", "porno", "pornography", "pornos", "prick", "pricks", "pron", "pube", "pusse", "pussi", "pussies", "pussy", "pussys", "rectum", "retard", "rimjaw", "rimming", "s hit", "s.o.b.", "sadist", "schlong", "screwing", "scroat", "scrote", "scrotum", "semen", "sex", "sh!+", "sh!t", "sh1t", "shag", "shagger", "shaggin", "shagging", "shemale", "shi+", "shit", "shitdick", "shite", "shited", "shitey", "shitfuck", "shitfull", "shithead", "shiting", "shitings", "shits", "shitted", "shitter", "shitters", "shitting", "shittings", "shitty", "skank", "slut", "sluts", "smegma", "smut", "snatch", "son-of-a-bitch", "spac", "spunk", "s_h_i_t", "t1tt1e5", "t1tties", "teets", "teez", "testical", "testicle", "tit", "titfuck", "tits", "titt", "tittie5", "tittiefucker", "titties", "tittyfuck", "tittywank", "titwank", "tosser", "turd", "tw4t", "twat", "twathead", "twatty", "twunt", "twunter", "v14gra", "v1gra", "vagina", "viagra", "vulva", "w00se", "wang", "wank", "wanker", "wanky", "whoar", "whore", "willies", "willy", "xrated", "xxx"];
-    }
-    ,
-    moreBadwords: moreBadwordsArray => { // I have no idea where this comes from and I'm too afraid to keyword search
-        moreBadwordsArray.exports = ["ahole","anus","ash0le","ash0les","asholes","ass","Ass Monkey","Assface","assh0le","assh0lez","asshole","assholes","assholz","asswipe","azzhole","bassterds","bastard","bastards","bastardz","basterds","basterdz","Biatch","bitch","bitches","Blow Job","boffing","butthole","buttwipe","c0ck","c0cks","c0k","Carpet Muncher","cawk","cawks","Clit","cnts","cntz","cock","cockhead","cock-head","cocks","CockSucker","cock-sucker","crap","cum","cunt","cunts","cuntz","dick","dild0","dild0s","dildo","dildos","dilld0","dilld0s","dominatricks","dominatrics","dominatrix","dyke","enema","f u c k","f u c k e r","fag","fag1t","faget","fagg1t","faggit","faggot","fagg0t","fagit","fags","fagz","faig","faigs","fart","flipping the bird","fuck","fucker","fuckin","fucking","fucks","Fudge Packer","fuk","Fukah","Fuken","fuker","Fukin","Fukk","Fukkah","Fukken","Fukker","Fukkin","g00k","God-damned","h00r","h0ar","h0re","hells","hoar","hoor","hoore","jackoff","jap","japs","jerk-off","jisim","jiss","jizm","jizz","knob","knobs","knobz","kunt","kunts","kuntz","Lezzian","Lipshits","Lipshitz","masochist","masokist","massterbait","masstrbait","masstrbate","masterbaiter","masterbate","masterbates","Motha Fucker","Motha Fuker","Motha Fukkah","Motha Fukker","Mother Fucker","Mother Fukah","Mother Fuker","Mother Fukkah","Mother Fukker","mother-fucker","Mutha Fucker","Mutha Fukah","Mutha Fuker","Mutha Fukkah","Mutha Fukker","n1gr","nastt","nigger;","nigur;","niiger;","niigr;","orafis","orgasim;","orgasm","orgasum","oriface","orifice","orifiss","packi","packie","packy","paki","pakie","paky","pecker","peeenus","peeenusss","peenus","peinus","pen1s","penas","penis","penis-breath","penus","penuus","Phuc","Phuck","Phuk","Phuker","Phukker","polac","polack","polak","Poonani","pr1c","pr1ck","pr1k","pusse","pussee","pussy","puuke","puuker","qweir","recktum","rectum","retard","sadist","scank","schlong","screwing","semen","sex","sexy","Sh!t","sh1t","sh1ter","sh1ts","sh1tter","sh1tz","shit","shits","shitter","Shitty","Shity","shitz","Shyt","Shyte","Shytty","Shyty","skanck","skank","skankee","skankey","skanks","Skanky","slag","slut","sluts","Slutty","slutz","son-of-a-bitch","tit","turd","va1jina","vag1na","vagiina","vagina","vaj1na","vajina","vullva","vulva","w0p","wh00r","wh0re","whore","xrated","xxx","b!+ch","bitch","blowjob","clit","arschloch","fuck","shit","ass","asshole","b!tch","b17ch","b1tch","bastard","bi+ch","boiolas","buceta","c0ck","cawk","chink","cipa","clits","cock","cum","cunt","dildo","dirsa","ejakulate","fatass","fcuk","fuk","fux0r","hoer","hore","jism","kawk","l3itch","l3i+ch","masturbate","masterbat*","masterbat3","motherfucker","s.o.b.","mofo","nazi","nigga","nigger","nutsack","phuck","pimpis","pusse","pussy","scrotum","sh!t","shemale","shi+","sh!+","slut","smut","teets","tits","boobs","b00bs","teez","testical","testicle","titt","w00se","jackoff","wank","whoar","whore","*damn","*dyke","*fuck*","*shit*","@$$","amcik","andskota","arse*","assrammer","ayir","bi7ch","bitch*","bollock*","breasts","butt-pirate","cabron","cazzo","chraa","chuj","Cock*","cunt*","d4mn","daygo","dego","dick*","dike*","dupa","dziwka","ejackulate","Ekrem*","Ekto","enculer","faen","fag*","fanculo","fanny","feces","feg","Felcher","ficken","fitt*","Flikker","foreskin","Fotze","Fu(*","fuk*","futkretzn","gook","guiena","h0r","h4x0r","hell","helvete","hoer*","honkey","Huevon","hui","injun","jizz","kanker*","kike","klootzak","kraut","knulle","kuk","kuksuger","Kurac","kurwa","kusi*","kyrpa*","lesbo","mamhoon","masturbat*","merd*","mibun","monkleigh","mouliewop","muie","mulkku","muschi","nazis","nepesaurio","nigger*","orospu","paska*","perse","picka","pierdol*","pillu*","pimmel","piss*","pizda","poontsee","poop","porn","p0rn","pr0n","preteen","pula","pule","puta","puto","qahbeh","queef*","rautenberg","schaffer","scheiss*","schlampe","schmuck","screw","sh!t*","sharmuta","sharmute","shipal","shiz","skribz","skurwysyn","sphencter","spic","spierdalaj","splooge","suka","b00b*","testicle*","titt*","twat","vittu","wank*","wetback*","wichser","wop*","yed","zabourah"];
-    }
-    ,
     badwordsFilter: (filter, W, require) => {
         const badwords = require('badwords');
         const moreBadwords = require('moreBadwords');
-        class a0 {
+        class Filter {
             constructor(a1={}) {
                 Object.assign(this, {
                     'list': a1.emptyList && [] || Array.prototype.concat.apply(badwords, [moreBadwords, a1.list || []]),
@@ -70,7 +62,15 @@ var moduleRegistry = {
                 this.exclude.push(...Array.from(arguments).map(ab => ab.toLowerCase()));
             }
         }
-        filter.exports = a0;
+        filter.exports = Filter;
+    }
+    ,
+    badwords: badwordsArray => { // https://github.com/MauriceButler/badwords/blob/master/array.js
+        badwordsArray.exports = ["4r5e", "5h1t", "5hit", "a55", "anal", "anus", "ar5e", "arrse", "arse", "ass", "ass-fucker", "asses", "assfucker", "assfukka", "asshole", "assholes", "asswhole", "a_s_s", "b!tch", "b00bs", "b17ch", "b1tch", "ballbag", "balls", "ballsack", "bastard", "beastial", "beastiality", "bellend", "bestial", "bestiality", "bi+ch", "biatch", "bitch", "bitcher", "bitchers", "bitches", "bitchin", "bitching", "bloody", "blow job", "blowjob", "blowjobs", "boiolas", "bollock", "bollok", "boner", "boob", "boobs", "booobs", "boooobs", "booooobs", "booooooobs", "breasts", "buceta", "bugger", "bum", "bunny fucker", "butt", "butthole", "buttmuch", "buttplug", "c0ck", "c0cksucker", "carpet muncher", "cawk", "chink", "cipa", "cl1t", "clit", "clitoris", "clits", "cnut", "cock", "cock-sucker", "cockface", "cockhead", "cockmunch", "cockmuncher", "cocks", "cocksuck", "cocksucked", "cocksucker", "cocksucking", "cocksucks", "cocksuka", "cocksukka", "cok", "cokmuncher", "coksucka", "coon", "cox", "crap", "cum", "cummer", "cumming", "cums", "cumshot", "cunilingus", "cunillingus", "cunnilingus", "cunt", "cuntlick", "cuntlicker", "cuntlicking", "cunts", "cyalis", "cyberfuc", "cyberfuck", "cyberfucked", "cyberfucker", "cyberfuckers", "cyberfucking", "d1ck", "damn", "dick", "dickhead", "dildo", "dildos", "dink", "dinks", "dirsa", "dlck", "dog-fucker", "doggin", "dogging", "donkeyribber", "doosh", "duche", "dyke", "ejaculate", "ejaculated", "ejaculates", "ejaculating", "ejaculatings", "ejaculation", "ejakulate", "f u c k", "f u c k e r", "f4nny", "fag", "fagging", "faggitt", "faggot", "faggs", "fagot", "fagots", "fags", "fanny", "fannyflaps", "fannyfucker", "fanyy", "fatass", "fcuk", "fcuker", "fcuking", "feck", "fecker", "felching", "fellate", "fellatio", "fingerfuck", "fingerfucked", "fingerfucker", "fingerfuckers", "fingerfucking", "fingerfucks", "fistfuck", "fistfucked", "fistfucker", "fistfuckers", "fistfucking", "fistfuckings", "fistfucks", "flange", "fook", "fooker", "fuck", "fucka", "fucked", "fucker", "fuckers", "fuckhead", "fuckheads", "fuckin", "fucking", "fuckings", "fuckingshitmotherfucker", "fuckme", "fucks", "fuckwhit", "fuckwit", "fudge packer", "fudgepacker", "fuk", "fuker", "fukker", "fukkin", "fuks", "fukwhit", "fukwit", "fux", "fux0r", "f_u_c_k", "gangbang", "gangbanged", "gangbangs", "gaylord", "gaysex", "goatse", "God", "god-dam", "god-damned", "goddamn", "goddamned", "hardcoresex", "hell", "heshe", "hoar", "hoare", "hoer", "homo", "hore", "horniest", "horny", "hotsex", "jack-off", "jackoff", "jap", "jerk-off", "jism", "jiz", "jizm", "jizz", "kawk", "knob", "knobead", "knobed", "knobend", "knobhead", "knobjocky", "knobjokey", "kock", "kondum", "kondums", "kum", "kummer", "kumming", "kums", "kunilingus", "l3i+ch", "l3itch", "labia", "lust", "lusting", "m0f0", "m0fo", "m45terbate", "ma5terb8", "ma5terbate", "masochist", "master-bate", "masterb8", "masterbat*", "masterbat3", "masterbate", "masterbation", "masterbations", "masturbate", "mo-fo", "mof0", "mofo", "mothafuck", "mothafucka", "mothafuckas", "mothafuckaz", "mothafucked", "mothafucker", "mothafuckers", "mothafuckin", "mothafucking", "mothafuckings", "mothafucks", "mother fucker", "motherfuck", "motherfucked", "motherfucker", "motherfuckers", "motherfuckin", "motherfucking", "motherfuckings", "motherfuckka", "motherfucks", "muff", "mutha", "muthafecker", "muthafuckker", "muther", "mutherfucker", "n1gga", "n1gger", "nazi", "nigg3r", "nigg4h", "nigga", "niggah", "niggas", "niggaz", "nigger", "niggers", "nob", "nob jokey", "nobhead", "nobjocky", "nobjokey", "numbnuts", "nutsack", "orgasim", "orgasims", "orgasm", "orgasms", "p0rn", "pawn", "pecker", "penis", "penisfucker", "phonesex", "phuck", "phuk", "phuked", "phuking", "phukked", "phukking", "phuks", "phuq", "pigfucker", "pimpis", "piss", "pissed", "pisser", "pissers", "pisses", "pissflaps", "pissin", "pissing", "pissoff", "poop", "porn", "porno", "pornography", "pornos", "prick", "pricks", "pron", "pube", "pusse", "pussi", "pussies", "pussy", "pussys", "rectum", "retard", "rimjaw", "rimming", "s hit", "s.o.b.", "sadist", "schlong", "screwing", "scroat", "scrote", "scrotum", "semen", "sex", "sh!+", "sh!t", "sh1t", "shag", "shagger", "shaggin", "shagging", "shemale", "shi+", "shit", "shitdick", "shite", "shited", "shitey", "shitfuck", "shitfull", "shithead", "shiting", "shitings", "shits", "shitted", "shitter", "shitters", "shitting", "shittings", "shitty", "skank", "slut", "sluts", "smegma", "smut", "snatch", "son-of-a-bitch", "spac", "spunk", "s_h_i_t", "t1tt1e5", "t1tties", "teets", "teez", "testical", "testicle", "tit", "titfuck", "tits", "titt", "tittie5", "tittiefucker", "titties", "tittyfuck", "tittywank", "titwank", "tosser", "turd", "tw4t", "twat", "twathead", "twatty", "twunt", "twunter", "v14gra", "v1gra", "vagina", "viagra", "vulva", "w00se", "wang", "wank", "wanker", "wanky", "whoar", "whore", "willies", "willy", "xrated", "xxx"];
+    }
+    ,
+    moreBadwords: moreBadwordsArray => { // I have no idea where this comes from and I'm too afraid to keyword search
+        moreBadwordsArray.exports = ["ahole","anus","ash0le","ash0les","asholes","ass","Ass Monkey","Assface","assh0le","assh0lez","asshole","assholes","assholz","asswipe","azzhole","bassterds","bastard","bastards","bastardz","basterds","basterdz","Biatch","bitch","bitches","Blow Job","boffing","butthole","buttwipe","c0ck","c0cks","c0k","Carpet Muncher","cawk","cawks","Clit","cnts","cntz","cock","cockhead","cock-head","cocks","CockSucker","cock-sucker","crap","cum","cunt","cunts","cuntz","dick","dild0","dild0s","dildo","dildos","dilld0","dilld0s","dominatricks","dominatrics","dominatrix","dyke","enema","f u c k","f u c k e r","fag","fag1t","faget","fagg1t","faggit","faggot","fagg0t","fagit","fags","fagz","faig","faigs","fart","flipping the bird","fuck","fucker","fuckin","fucking","fucks","Fudge Packer","fuk","Fukah","Fuken","fuker","Fukin","Fukk","Fukkah","Fukken","Fukker","Fukkin","g00k","God-damned","h00r","h0ar","h0re","hells","hoar","hoor","hoore","jackoff","jap","japs","jerk-off","jisim","jiss","jizm","jizz","knob","knobs","knobz","kunt","kunts","kuntz","Lezzian","Lipshits","Lipshitz","masochist","masokist","massterbait","masstrbait","masstrbate","masterbaiter","masterbate","masterbates","Motha Fucker","Motha Fuker","Motha Fukkah","Motha Fukker","Mother Fucker","Mother Fukah","Mother Fuker","Mother Fukkah","Mother Fukker","mother-fucker","Mutha Fucker","Mutha Fukah","Mutha Fuker","Mutha Fukkah","Mutha Fukker","n1gr","nastt","nigger;","nigur;","niiger;","niigr;","orafis","orgasim;","orgasm","orgasum","oriface","orifice","orifiss","packi","packie","packy","paki","pakie","paky","pecker","peeenus","peeenusss","peenus","peinus","pen1s","penas","penis","penis-breath","penus","penuus","Phuc","Phuck","Phuk","Phuker","Phukker","polac","polack","polak","Poonani","pr1c","pr1ck","pr1k","pusse","pussee","pussy","puuke","puuker","qweir","recktum","rectum","retard","sadist","scank","schlong","screwing","semen","sex","sexy","Sh!t","sh1t","sh1ter","sh1ts","sh1tter","sh1tz","shit","shits","shitter","Shitty","Shity","shitz","Shyt","Shyte","Shytty","Shyty","skanck","skank","skankee","skankey","skanks","Skanky","slag","slut","sluts","Slutty","slutz","son-of-a-bitch","tit","turd","va1jina","vag1na","vagiina","vagina","vaj1na","vajina","vullva","vulva","w0p","wh00r","wh0re","whore","xrated","xxx","b!+ch","bitch","blowjob","clit","arschloch","fuck","shit","ass","asshole","b!tch","b17ch","b1tch","bastard","bi+ch","boiolas","buceta","c0ck","cawk","chink","cipa","clits","cock","cum","cunt","dildo","dirsa","ejakulate","fatass","fcuk","fuk","fux0r","hoer","hore","jism","kawk","l3itch","l3i+ch","masturbate","masterbat*","masterbat3","motherfucker","s.o.b.","mofo","nazi","nigga","nigger","nutsack","phuck","pimpis","pusse","pussy","scrotum","sh!t","shemale","shi+","sh!+","slut","smut","teets","tits","boobs","b00bs","teez","testical","testicle","titt","w00se","jackoff","wank","whoar","whore","*damn","*dyke","*fuck*","*shit*","@$$","amcik","andskota","arse*","assrammer","ayir","bi7ch","bitch*","bollock*","breasts","butt-pirate","cabron","cazzo","chraa","chuj","Cock*","cunt*","d4mn","daygo","dego","dick*","dike*","dupa","dziwka","ejackulate","Ekrem*","Ekto","enculer","faen","fag*","fanculo","fanny","feces","feg","Felcher","ficken","fitt*","Flikker","foreskin","Fotze","Fu(*","fuk*","futkretzn","gook","guiena","h0r","h4x0r","hell","helvete","hoer*","honkey","Huevon","hui","injun","jizz","kanker*","kike","klootzak","kraut","knulle","kuk","kuksuger","Kurac","kurwa","kusi*","kyrpa*","lesbo","mamhoon","masturbat*","merd*","mibun","monkleigh","mouliewop","muie","mulkku","muschi","nazis","nepesaurio","nigger*","orospu","paska*","perse","picka","pierdol*","pillu*","pimmel","piss*","pizda","poontsee","poop","porn","p0rn","pr0n","preteen","pula","pule","puta","puto","qahbeh","queef*","rautenberg","schaffer","scheiss*","schlampe","schmuck","screw","sh!t*","sharmuta","sharmute","shipal","shiz","skribz","skurwysyn","sphencter","spic","spierdalaj","splooge","suka","b00b*","testicle*","titt*","twat","vittu","wank*","wetback*","wichser","wop*","yed","zabourah"];
     }
     ,
     base64: (ai, exports) => { // https://github.com/beatgammit/base64-js
@@ -3079,7 +3079,7 @@ function modules(ks) {
                 this.cameraDelay = this.game.settings.settings.cameraDelay;
             }
 
-            update() {
+            tick() {
                 // Update position
                 const speed = this.game.freeSpec ? 25 : this.cameraDelay / 10;
                 this.renderX = lerp(this.renderX, this.targetX, this.game.delta / speed);
@@ -3333,10 +3333,8 @@ function modules(ks) {
             }
         }
 
-        /*
+        /**
          *  Still caches textures, but with a layer of abstraction in the SkinResource class for async render handling
-         *  There are lots of weird differences as a result, but essentially the caller (set skin) must get a
-         *  reference to the SkinResource to listen for its callback upon rendering its respective texture
          */
 
         class SkinCache extends TextureCache {
@@ -3395,7 +3393,7 @@ function modules(ks) {
                 this.pending = new Map(); // Map of pending callbacks to run when image loads
                 this.image = new Image();
                 this.image.crossOrigin = 'anonymous';
-                this.image.onload = this.render.bind(this);
+                this.image.onload = this.renderTexture.bind(this);
                 this.image.src = src;
             }
 
@@ -3413,7 +3411,7 @@ function modules(ks) {
                 }
             }
 
-            async render() {
+            async renderTexture() {
                 const canvas = document.createElement('canvas');
                 canvas.width = this.size;
                 canvas.height = this.size;
@@ -3460,7 +3458,9 @@ function modules(ks) {
                 this.node = node;
             }
             
-            reset() {
+            init() {
+                this.lastUpdate = this.game.updateTime;
+
                 // Ejected mass and viruses grow into size
                 this.size = (this.node.isEjected || this.node.parent === -1) 
                     ? this.node.size / 2 
@@ -3468,16 +3468,19 @@ function modules(ks) {
                 this.x = this.node.x;
                 this.y = this.node.y;
 
+                this.root.zIndex = this.size + this.node.id * 0.000001;
                 this.root.alpha = 1;
                 this.root.visible = true;
                 this.animationDelay = this.game.settings.settings.animationDelay;
             }
            
             /**
-             *  Update rendered position, alpha, and size of the displayed Node
+             *  Update rendered position, size and alpha of the displayed Node
+             *  Return true if rendering should continue after tick() returns
              */
 
-            update() {
+            tick() {
+                
                 // Framerate-agnostic delta
                 let delta = Math.max(0, (Math.min(1,
                     (this.game.updateTime - this.lastUpdate) / this.animationDelay
@@ -3495,7 +3498,7 @@ function modules(ks) {
                     this.root.alpha = Math.max(0, this.root.alpha - delta / 5);
                     if (this.root.alpha <= 0.8) {
                         this.game.removeNode(this.node);
-                        return;
+                        return false;
                     }
                 } else {
                     this.x = lerp(this.x, this.node.x, delta);
@@ -3503,13 +3506,14 @@ function modules(ks) {
                 }
 
                 // Update size
-                this.size = lerp(this.size, this.node.size, delta * 1);
-
+                this.size = lerp(this.size, this.node.size, delta);
+                this.root.zIndex = this.size + this.node.id * 0.000001;
+                
                 // Update root
                 this.root.x = this.x;
                 this.root.y = this.y;
 
-                this.root.zIndex = this.size + this.node.id * 0.00001;
+                return true;
             }
             
             // Prepare for putNode()
@@ -3517,18 +3521,12 @@ function modules(ks) {
                 this.root.visible = false;
             }
 
-            kill() {
+            destroy() {
                 this.game.cellContainer.removeChild(this.root);
-                this.root.destroy({ // Textures are preserved by default
-                    children: true,
-                });
+                this.root.destroy({ children: true });
                 this.root = null;
             }
 
-            // Destroy sprites, not textures
-            destroy() {
-                this.node.destroy();
-            }
 
             debug(...args) {
                 console.debug(`[Renderer ${this.node.id}]`, ...args);
@@ -3538,15 +3536,273 @@ function modules(ks) {
             set animationDelay(delay) { this._delay = delay; } 
         }
 
-        class JellyRenderer extends Renderer {};
+        /**
+         *  JellyRenderer base — builds a wobbly PIXI.Mesh fill + border instead of a
+         *  static Sprite. Point/velocity arrays drive a triangle-fan geometry that's
+         *  rebuilt each tick(). Subclasses provide textureSize the same way
+         *  SpriteRenderer subclasses do, for consistent scale math.
+         *
+         *  TODO before this is real:
+         *    - Mask child sprites (skin/name/mass) to the inner border edge
+         *    - LoD gate for point count / jelly-on-off, mirroring CellSpriteRenderer's
+         *      zoomThreshold trick
+         *    - Polygon seed profiles for food (pentagon/hexagon) instead of circle
+         */
 
-        class PlayerJellyRenderer extends JellyRenderer {};
+        const JELLY_POINTS_MIN = 12;
+        const JELLY_POINTS_MAX = 48;
+        const JELLY_BORDER_FRAC = 0.04;
+        const JELLY_DAMPING = 0.7;
+        const JELLY_SMOOTHING = 0.85;
 
-        class CellJellyRenderer extends PlayerJellyRenderer {};
+        class JellyRenderer extends Renderer {
+            constructor(game) {
+                super(game);
 
-        class VirusJellyRenderer extends PlayerJellyRenderer {};
+                this.points = [];
+                this.pointsVel = [];
+                this._numPoints = 0;
 
-        class FoodJellyRenderer extends JellyRenderer {};
+                this.root = new PIXI.Container();
+                this.root.sortableChildren = true;
+
+                this.fillMesh = null;
+                this.borderMesh = null;
+
+                this.game.cellContainer.addChild(this.root);
+            }
+
+            init() {
+                super.init();
+
+                this.points = [];
+                this.pointsVel = [];
+                this._numPoints = 0;
+                this._ensurePointCount(this._targetPointCount());
+
+                this._rebuildGeometry(true); // force = true, skip physics step on first build
+            }
+
+            tick() {
+                if (!super.tick()) return; // updates this.x/y/size, may early-return on eaten-fade-out
+
+                this._ensurePointCount(this._targetPointCount());
+                this._stepPhysics();
+                this._rebuildGeometry(false);
+
+                this.root.x = this.x;
+                this.root.y = this.y;
+            }
+
+            clean() {
+                super.clean();
+            }
+
+            destroy() {
+                this.fillMesh?.destroy();
+                this.borderMesh?.destroy();
+                this.fillMesh = null;
+                this.borderMesh = null;
+                super.destroy();
+            }
+
+            // -------------------------------------------------------------------
+            // Point management — direct port of the canvas-based wobble algorithm
+            // -------------------------------------------------------------------
+
+            _targetPointCount() {
+                // Mirrors the old jagged/jelly point-count formula, clamped
+                const raw = Math.max(this.size, 1) * 0.6 | 0;
+                return Math.min(Math.max(raw, JELLY_POINTS_MIN), JELLY_POINTS_MAX);
+            }
+
+            _ensurePointCount(target) {
+                if (target === this._numPoints) return;
+
+                while (this.points.length > target) {
+                    const i = Math.random() * this.points.length | 0;
+                    this.points.splice(i, 1);
+                    this.pointsVel.splice(i, 1);
+                }
+
+                if (this.points.length === 0 && target > 0) {
+                    this.points.push({ rl: this.size });
+                    this.pointsVel.push(0);
+                }
+
+                while (this.points.length < target) {
+                    const i = Math.random() * this.points.length | 0;
+                    this.points.splice(i, 0, { rl: this.points[i].rl });
+                    this.pointsVel.splice(i, 0, this.pointsVel[i]);
+                }
+
+                this._numPoints = target;
+            }
+
+            _stepPhysics() {
+                const n = this.points.length;
+                if (n === 0) return;
+
+                const prevVel = this.pointsVel.slice();
+
+                for (let i = 0; i < n; i++) {
+                    const prev = prevVel[(i - 1 + n) % n];
+                    const next = prevVel[(i + 1) % n];
+                    const jitter = (this.pointsVel[i] + Math.random() - 0.5) * JELLY_DAMPING;
+                    const clamped = Math.max(Math.min(jitter, 10), -10);
+                    this.pointsVel[i] = (prev + next + 8 * clamped) / 10;
+                }
+
+                for (let i = 0; i < n; i++) {
+                    let rl = this.points[i].rl + this.pointsVel[i];
+                    rl = Math.max(rl, 0);
+                    rl = rl * (1 - JELLY_SMOOTHING) + this.size * JELLY_SMOOTHING;
+
+                    const prevRl = this.points[(i - 1 + n) % n].rl;
+                    const nextRl = this.points[(i + 1) % n].rl;
+                    this.points[i].rl = (prevRl + nextRl + 8 * rl) / 10;
+                }
+            }
+
+            /**
+             *  Geometry — triangle fan fill + triangle strip border
+             */
+
+            _rebuildGeometry(isFirstBuild) {
+                const n = this.points.length;
+                if (n === 0) return;
+
+                const borderW = Math.max(this.size * JELLY_BORDER_FRAC, 2);
+
+                // --- Fill: center + rim + closing repeat ---
+                const fillPos = new Float32Array((n + 2) * 2);
+                for (let i = 0; i < n; i++) {
+                    const angle = (2 * Math.PI * i) / n;
+                    const rl = this.points[i].rl;
+                    fillPos[2 + i * 2] = Math.cos(angle) * rl;
+                    fillPos[2 + i * 2 + 1] = Math.sin(angle) * rl;
+                }
+                fillPos[2 + n * 2] = fillPos[2];
+                fillPos[2 + n * 2 + 1] = fillPos[3];
+
+                const fillIdx = new Uint16Array(n * 3);
+                for (let i = 0; i < n; i++) {
+                    fillIdx[i * 3] = 0;
+                    fillIdx[i * 3 + 1] = i + 1;
+                    fillIdx[i * 3 + 2] = i + 2;
+                }
+
+                // --- Border: interleaved outer/inner ring, triangle strip ---
+                const borderPos = new Float32Array((n + 1) * 4);
+                for (let i = 0; i <= n; i++) {
+                    const j = i % n;
+                    const angle = (2 * Math.PI * j) / n;
+                    const outerRl = this.points[j].rl;
+                    const innerRl = Math.max(outerRl - borderW, 0);
+                    borderPos[i * 4] = Math.cos(angle) * outerRl;
+                    borderPos[i * 4 + 1] = Math.sin(angle) * outerRl;
+                    borderPos[i * 4 + 2] = Math.cos(angle) * innerRl;
+                    borderPos[i * 4 + 3] = Math.sin(angle) * innerRl;
+                }
+
+                const borderIdx = new Uint16Array(n * 6);
+                for (let i = 0; i < n; i++) {
+                    const o = i * 2;
+                    borderIdx[i * 6] = o;
+                    borderIdx[i * 6 + 1] = o + 1;
+                    borderIdx[i * 6 + 2] = o + 2;
+                    borderIdx[i * 6 + 3] = o + 2;
+                    borderIdx[i * 6 + 4] = o + 1;
+                    borderIdx[i * 6 + 5] = o + 3;
+                }
+
+                if (!this.fillMesh) {
+                    const geo = new PIXI.MeshGeometry({ positions: fillPos, indices: fillIdx });
+                    this.fillMesh = new PIXI.Mesh({ geometry: geo });
+                    this.fillMesh.zIndex = -1;
+                    this.root.addChild(this.fillMesh);
+                } else {
+                    const buf = this.fillMesh.geometry.getBuffer('aPosition');
+                    buf.data = fillPos;
+                    buf.tick();
+                }
+
+                if (!this.borderMesh) {
+                    const geo = new PIXI.MeshGeometry({ positions: borderPos, indices: borderIdx });
+                    this.borderMesh = new PIXI.Mesh({ geometry: geo });
+                    this.borderMesh.zIndex = -1;
+                    this.root.addChild(this.borderMesh);
+                } else {
+                    const buf = this.borderMesh.geometry.getBuffer('aPosition');
+                    buf.data = borderPos;
+                    buf.tick();
+                }
+
+                this.fillMesh.tint = this.node.color;
+                this.borderMesh.tint = this._darken(this.node.color);
+            }
+
+            _darken(color) {
+                const r = ((color >> 16) & 0xff) * 0.8 | 0;
+                const g = ((color >> 8) & 0xff) * 0.8 | 0;
+                const b = (color & 0xff) * 0.8 | 0;
+                return (r << 16) | (g << 8) | b;
+            }
+        }
+
+        class PlayerJellyRenderer extends JellyRenderer {
+            // Names/skins reuse PlayerSpriteRenderer's logic verbatim — same Sprite
+            // children, just parented to a jelly root instead of a sprite root.
+            setName(name, color, position) {
+                PlayerSpriteRenderer.prototype.setName.call(this, name, color, position);
+            }
+            setSkin(skin) {
+                PlayerSpriteRenderer.prototype.setSkin.call(this, skin);
+            }
+            removeName() {
+                return PlayerSpriteRenderer.prototype.removeName.call(this);
+            }
+            removeSkin() {
+                return PlayerSpriteRenderer.prototype.removeSkin.call(this);
+            }
+            clean() {
+                this.removeName();
+                this.removeSkin();
+                super.clean();
+            }
+            get skinSize() { console.error("This node has no type!"); }
+        }
+
+        class CellJellyRenderer extends PlayerJellyRenderer {
+            setSize(size) {
+                CellSpriteRenderer.prototype.setSize.call(this, size);
+            }
+            removeMass() {
+                return CellSpriteRenderer.prototype.removeMass.call(this);
+            }
+            toShortString(mass) {
+                return CellSpriteRenderer.prototype.toShortString.call(this, mass);
+            }
+            clean() {
+                this.removeMass();
+                super.clean();
+            }
+            get textureSize() { return this.game.cellSize; }
+            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+        }
+
+        class VirusJellyRenderer extends PlayerJellyRenderer {
+            get textureSize() { return this.game.virusSize; }
+            get skinSize() { return 0.88; }
+        }
+
+        class FoodJellyRenderer extends JellyRenderer {
+            init() {
+                super.init();
+                this.root.visible = !this.game.settings.settings.hideFood;
+            }
+            get textureSize() { return this.game.foodSize; }
+        }
 
         /**
          *  SpriteRenderers are essentially just PIXI containers with a cellSprite. Each of its derivative
@@ -3566,13 +3822,13 @@ function modules(ks) {
                 this.game.cellContainer.addChild(this.root);
             }
 
-            reset() {
-                super.reset();
+            init() {
+                super.init();
                 this.sprite.tint = this.node.color;
             }
 
-            update() {
-                super.update();
+            tick() {
+                if (!super.tick()) return;
                 this.root.scale.set(this.size / this.textureSize);
             }
 
@@ -3589,7 +3845,16 @@ function modules(ks) {
          */
 
         class PlayerSpriteRenderer extends SpriteRenderer {
+            init() {
+                super.init();
+                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
+                this.setSkin(this.node.skin);
+            }
+
             setName(name, color, position) {
+                
+                // Don't create a texture if it's an empty name or the user doesn't want one
+                if (!name || !name.trim() || !this.canDisplay(this.game.settings.settings.showNames)) return;
                 
                 // Release the old name texture
                 if (this.heldName) this.game.names.release(this.heldName);
@@ -3638,8 +3903,10 @@ function modules(ks) {
             }
 
             setSkin(skin) {
-                this._skin = skin;
-
+                
+                // Don't create a texture if the skin is empty or the user doesn't want one
+                if (!skin || skin === '' || !this.canDisplay(this.game.settings.settings.showSkins)) return;
+                
                 // Release old skin texture
                 if (this.heldSkin) this.game.skins.release(this.heldSkin);
 
@@ -3672,6 +3939,27 @@ function modules(ks) {
                     this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(skin);
                     this.skinSprite.scale.set(this.skinSize * (2 * this.textureSize / resource.size));
                 });
+            }
+
+            canDisplay(preference) {
+                switch(preference) {
+                    case 'all':
+                        return true;
+                    case 'party':
+                        if (this.game.party?.hasOwnProperty(this.parent))
+                            return true;
+                    case 'self':
+                        if (this.game.myCells.has(this.id))
+                            return true;
+                    default:
+                        return false;
+                }
+            }
+
+            destroy() {
+                this.removeName();
+                this.removeSkin();
+                super.destroy();
             }
 
             removeName() {
@@ -3720,6 +4008,11 @@ function modules(ks) {
          */
 
         class CellSpriteRenderer extends PlayerSpriteRenderer {
+            init() {
+                super.init();
+                this.setSize(this.node.size);
+            }
+
             setSize(size) {
                 if (!this.game.settings.settings.showMass) return;
                 
@@ -3751,6 +4044,7 @@ function modules(ks) {
 
                 const mass = Math.floor(size * size / 100);
                 const massKey = this.game.settings.settings.shortenMass ? this.toShortString(mass) : mass.toString();
+                
                 // Set and hold the new mass texture
                 let texture = this.game.masses.get(massKey);
 
@@ -3786,6 +4080,11 @@ function modules(ks) {
                 }
             }
 
+            destroy() {
+                this.removeMass();
+                super.destroy();
+            }
+
             clean() {
                 this.removeMass();
                 super.clean();
@@ -3817,8 +4116,8 @@ function modules(ks) {
         }
 
         class FoodSpriteRenderer extends SpriteRenderer {
-            reset() {
-                super.reset();
+            init() {
+                super.init();
                 this.root.visible = !this.game.settings.settings.hideFood;
             }
 
@@ -3842,12 +4141,22 @@ function modules(ks) {
         class Node {
             constructor(game, nodeData = {}, renderer) {
                 this.game = game;
+
+                /**
+                 *  We never reference the renderer anywhere except at init and destruction.
+                 *  Their relationship is one-way, as the Renderer references the Node and (ideally) never the other way around.
+                 */
+                
                 this.renderer = renderer;
+                
+                // Pass renderer a reference to Node
                 this.renderer.attach(this);
-                this.reset(nodeData);
+                
+                // Init Node state
+                this.init(nodeData);
             }
 
-            reset(nodeData = {}) {
+            init(nodeData = {}) {
                 const { id = 0, parent = -1, x = 0, y = 0, size = 1, name = null, rgb = '', 
                     lockedPosition = null, lockedColor = null, skin = null, color = 0, isEjected = false } 
                     = nodeData;
@@ -3858,6 +4167,9 @@ function modules(ks) {
                 this.x = x;
                 this.y = y;
 
+                this.name = name;
+                this.skin = skin;
+                this.size = size;
                 this.lockedPosition = lockedPosition;
                 this.lockedColor = lockedColor;
                 this.color = color;
@@ -3865,21 +4177,20 @@ function modules(ks) {
                 this.isEjected = isEjected;
 
                 this.lastUpdate = this.game.updateTime;
-                this.created = this.game.updateTime;
+                this.created = this.lastUpdate;
+
                 this.eaten = false;
                 this.animationDelay = this.game.settings.settings.animationDelay;
 
-                this.name = name;
-                this.skin = skin;
-                this.size = size;
-
-                this.debug("Created");
-                this.renderer.reset();
+                this.renderer.init();
             }
 
-            getEatenBy(hunter) {
-                if (document.hidden) return this.destroy();
+            /**
+             *  Prepare node to return to its Pool.
+             *  Don't worry about cleaning up Node state, as it will be re-initialized at Pool.pop() time. 
+             */
 
+            getEatenBy(hunter) {
                 this.eaten = true;
                 
                 // Max travel distance relative to size
@@ -3904,104 +4215,27 @@ function modules(ks) {
                 this.y += dy * invDist * moveDist;
             }
 
-            destroy() {
-                return this.game.removeNode(this);
-            }
-
-            /**
-             *  Prepare node to return to its Pool.
-             *  Don't worry about cleaning up Node state, as it will be reset at Pool.pop() time. We only care about the Renderer.
-             */
-
-            clean() {
-                this.renderer.clean();
-            }
-
-            kill() { // Completely remove the node. Since Nodes are just state, we just pass the message to its renderer
-                this.debug("Killed");
-            }
-
             debug(...args) {
                 console.debug(`[Node ${this.id}]`, ...args);
             }
-
-            set size(size) { // Because some nodes set more stuff when size gets set
-                this._size = size;
-            }
-            get size() { return this._size; }
             get type() { console.error("This node has no type!"); }
         }
 
-        /**
-         *  PlayerNodes can have names and skins
-         */
-
-        class PlayerNode extends Node {
-            set skin(skin) {
-                this._skin = skin;
-
-                // Don't create a texture if the skin is empty or the user doesn't want one
-                if (!skin || skin === '' || !this.canDisplay(this.game.settings.settings.showSkins)) return;
-                
-                this.renderer.setSkin(skin);
-            }
-
-            set name(name) {
-                this._name = name;
-                
-                // Don't create a texture if it's an empty name or the user doesn't want one
-                if (!name || !name.trim() || !this.canDisplay(this.game.settings.settings.showNames)) return;
-
-                this.renderer.setName(name, this.lockedColor, this.lockedPosition);
-            }
-
-            canDisplay(preference) {
-                switch(preference) {
-                    case 'all':
-                        return true;
-                    case 'party':
-                        if (this.game.party?.hasOwnProperty(this.parent))
-                            return true;
-                    case 'self':
-                        if (this.game.myCells.has(this.id))
-                            return true;
-                    default:
-                        return false;
-                }
-            }
-
-            get name() { return this._name; }
-            get skin() { return this._skin; }
-        }
-
-        /**
-         *  FoodNodes have a randomized sprite rotation and texture
-         */
+        // Since the decoupling of each Node and Renderer type, all Node types have wrapped back around to being essentially the same thing state-wise.
+        // I'm keeping it around in case, say, we wanted to make pass only relevant state fields to each constructor
+        //
+        // Ex. lockedColor ---> CellNode
+        //     lockedColor -X-> FoodNode
 
         class FoodNode extends Node {
-            reset(nodeData = {}) {
-                super.reset(nodeData);
-            }
             get type() { return nodeType.Food; }
         }
 
-        /** 
-         *  CellNodes can have mass labels
-         *  Viruses may have an option to do so too in the future 
-         */
-        
-        class CellNode extends PlayerNode {
-            set size(size) {
-                this._size = size;
-
-                this.renderer.setSize(size);
-            }
-
-            get size() { return this._size; }
+        class CellNode extends Node {
             get type() { return nodeType.Player; }
         }
 
-        class VirusNode extends PlayerNode { // I'm only doing this because Stas plays as a virus node
+        class VirusNode extends Node {
             get type() { return nodeType.Virus; }
         }
 
@@ -4053,6 +4287,7 @@ function modules(ks) {
             populate(cb) {
                 for (const [type, cfg] of Object.entries(this.config)) {
                     for (let i = 0; i < cfg.size; i++) {
+                        console.debug("Creating pooled node");
                         this.putNode(this.createNode(type));
                     }
                 }
@@ -4066,7 +4301,7 @@ function modules(ks) {
                 const node = pool.pop();
 
                 if (node) {
-                    node.reset(nodeData);
+                    node.init(nodeData);
                     return node;
                 }
 
@@ -4075,19 +4310,13 @@ function modules(ks) {
 
             putNode(node) {
                 const cfg = this.config[node.type];
-
-                if (!cfg) {
-                    node.kill();
-                    return;
-                }
-
                 const pool = this[cfg.pool];
 
                 if (pool.length < cfg.maxSize) {
-                    node.clean();
+                    node.renderer.clean();
                     pool.push(node);
                 } else {
-                    node.kill();
+                    node.renderer.destroy();
                 }
             }
         }
@@ -4799,15 +5028,17 @@ function modules(ks) {
             }
 
             handleNodes(buffer) {
-                let now = performance.now();
-                this.game.updateTime = now;
-
                 let eatCount = buffer.readUInt16();
                 for (let i = 0; i < eatCount; i++) {
                     let hunter = this.game.nodes.get(buffer.readUInt32());
                     let eaten = this.game.nodes.get(buffer.readUInt32());
 
                     if (!eaten) continue;
+
+                    if (document.hidden) {
+                        this.game.removeNode(eaten);
+                        continue;
+                    }
 
                     eaten.getEatenBy(hunter);
 
@@ -4863,8 +5094,8 @@ function modules(ks) {
                     if (hasSkin) skin = buffer.readStringZeroUtf8().substr(1);
                     if (hasName) name = buffer.readStringZeroUtf8().trim().removeWideChars();
 
-                    let node;
-                    if (!this.game.nodes.has(id)) {
+                    let node = this.game.nodes.get(id);
+                    if (!node) {
                         // New node — determine type from flags
                         let type = nodeType.Food;
                         if (hasParent && !isVirus && !isEjected) {
@@ -4917,19 +5148,20 @@ function modules(ks) {
                         continue; // Because state is clean
                     }
                     
-                    // Since the node exists, update its position
-                    node = this.game.nodes.get(id);
-
+                    // Since the node exists, just update its state 
                     node.x = x;
                     node.y = y;
                     node.size = size;
+
+                    // ...And its rendered mass sprite, I suppose?
+                    if (node.type === nodeType.Player) node.renderer.setSize(size);
                 }
 
                 let destroyCount = buffer.readUInt16();
                 for (let i = 0; i < destroyCount; i++) {
                     let node = this.game.nodes.get(buffer.readUInt32());
                     if (node && !node.eaten) {
-                        node.destroy();
+                       this.game.removeNode(node); 
                     }
                 }
             }
@@ -6159,6 +6391,7 @@ function modules(ks) {
                 this.foodSize = this.foodTextures[0].frame.width / 2;
 
                 this.pool.populate( () => {
+                    console.debug("Done populating");
 
                     let region = this.settings.getItem('region');
 
@@ -6412,7 +6645,7 @@ function modules(ks) {
                 this.fps = this.ticker.FPS;
 
                 for (const node of this.nodes.values()) {
-                    node.renderer.update();
+                    node.renderer.tick();
                 }
 
                 if (this.playerCells.size > 0) {
@@ -6452,7 +6685,7 @@ function modules(ks) {
                     }
                 }
 
-                this.camera.update();
+                this.camera.tick();
 
                 if (this.party) {
                     for (const member in this.party) {
@@ -6805,7 +7038,6 @@ function modules(ks) {
             }
 
             removeNode(node) {
-                node.debug("Removing");
                 if (node === this.aliveCell) { // Get new aliveCell if it's removed
                     if (this.playerCells.size === 1) {
                         this.aliveCell = null;
@@ -7028,7 +7260,7 @@ function modules(ks) {
                 var mouseX = this.mouse.realX;
                 var mouseY = this.mouse.realY;
                 for (const [id, node] of this.nodes) {
-                    if (this.pointInCircle(mouseX, mouseY, node.renderX, node.renderY, node.size)
+                    if (this.pointInCircle(mouseX, mouseY, node.renderer.x, node.renderer.y, node.size)
                         && !this.myCells.has(id) 
                         && node.parent > 0) {
                             return openUserMenu(node);

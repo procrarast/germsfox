@@ -5509,7 +5509,7 @@ function modules(ks) {
                         for (const node of this.game.nodes.values()) {
                             if (node.type !== nodeType.Player) continue;
                             if (node.renderer.canDisplay(value)) {
-                                node.renderer.setName(node.name);
+                                node.renderer.setName(node.name, node.lockedColor, node.lockedPosition);
                             } else {
                                 node.renderer.removeName();
                             }

@@ -3859,7 +3859,7 @@ function modules(ks) {
                 // Release the old name texture
                 if (this.heldName) this.game.names.release(this.heldName);
 
-                const nameKey = name + (color ?? '') 
+                const nameKey = name + this.node.parent;
                 
                 // Set and hold the new name texture
                 let texture = this.game.names.get(nameKey);
@@ -3868,7 +3868,7 @@ function modules(ks) {
                     texture = this.game.names.create(
                         nameKey,
                         name,
-                        140 - name.length,
+                        140 - name.length * 3,
                         (color ?? 0xFFFFFF) & 0xFFFFFF,
                         color !== null ? true : false
                     );
@@ -3984,7 +3984,9 @@ function modules(ks) {
                     this.game.skins.release(this.heldSkin);
                     this.heldSkin = null;
 
+                    this.debug("Trying to remove skin texture");
                     if (this.skinSprite) { // Texture may not have loaded yet
+                        this.debug("Removing skin texture");
                         this.skinSprite.removeAllListeners();
                         this.skinSprite.texture = PIXI.Texture.EMPTY;
                     }
@@ -4287,7 +4289,6 @@ function modules(ks) {
             populate(cb) {
                 for (const [type, cfg] of Object.entries(this.config)) {
                     for (let i = 0; i < cfg.size; i++) {
-                        console.debug("Creating pooled node");
                         this.putNode(this.createNode(type));
                     }
                 }
@@ -5491,30 +5492,43 @@ function modules(ks) {
                         break;
                     case 'highQualitySkins':
                     case 'borderlessCells':
-                    case 'showSkins':
                     case 'blockedSkins':
                         this.game.updateCellsAppearance();
                         break;
+                    case 'showSkins':
+                        for (const node of this.game.nodes.values()) {
+                            if (node.type !== nodeType.Player) continue;
+                            if (node.renderer.canDisplay(value)) {
+                                node.renderer.setSkin(node.skin);
+                            } else {
+                                node.renderer.removeSkin();
+                            }
+                        }
+                        break;
                     case 'showNames':
-                        for (const cell of this.game.nodes.values()) {
-                            if (cell.name)
-                                cell.name = cell.name;
+                        for (const node of this.game.nodes.values()) {
+                            if (node.type !== nodeType.Player) continue;
+                            if (node.renderer.canDisplay(value)) {
+                                node.renderer.setName(node.name);
+                            } else {
+                                node.renderer.removeName();
+                            }
                         }
                         break;
                     case 'showMass':
-                        for (const cell of this.game.nodes.values()) {
-                            if (!value && cell.renderer.massSprite) {
-                                cell.renderer.massSprite.visible = false;
+                        for (const node of this.game.nodes.values()) {
+                            if (node.type !== nodeType.Player) continue;
+                            if (value) {
+                                node.renderer.setSize(node.size);
                             } else {
-                                // Force label update if applicable
-                                cell.size = cell.size + 0.0001;
+                                node.renderer.removeMass();
                             }
                         }
                         break;
                     case 'hideFood':
-                        for (const cell of this.game.nodes.values()) {
-                            if (cell.type === nodeType.Food)
-                                cell.renderer.root.visible = !value;
+                        for (const node of this.game.nodes.values()) {
+                            if (node.type === nodeType.Food)
+                                node.renderer.root.visible = !value;
                         }
                         break;
                     case 'hideXP':
@@ -6436,12 +6450,8 @@ function modules(ks) {
                     this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
                 for (const cell of this.nodes.values()) {
                     if (cell.type === nodeType.Player) {
-                        cell.skin = cell.skin;
-                        cell.cellSprite.texture = this.cellTexture;
-                    }
-                    if (cell.skin) {
-                        cell.skin = cell.skin;
-                        cell.name = cell.name; // Gets hidden behind skin as skin redraws, so update
+                        cell.renderer.setSkin(cell.skin);
+                        cell.renderer.sprite.texture = this.cellTexture;
                     }
                 }
                 for (const texture of this.gameTextures) {
@@ -6478,16 +6488,16 @@ function modules(ks) {
                 let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.renderY;
 
                 if (!this.linesplit) {
-                    if (this.linesplitCell && this.linesplitCell.cellSprite.tint !== this.linesplitCell.color) {
-                        this.linesplitCell.cellSprite.tint = this.linesplitCell.color;
+                    if (this.linesplitCell && this.linesplitCell.renderer.sprite.tint !== this.linesplitCell.color) {
+                        this.linesplitCell.renderer.sprite.tint = this.linesplitCell.color;
                     }
                     this.linesplitCell = null;
                     this.linesplitAxis = undefined;
                     this.linesplitOrigin = null;
                 } else {
                     if (this.linesplitCell?.eaten) {
-                        if (this.linesplitCell.cellSprite.tint !== this.linesplitCell.color)
-                            this.linesplitCell.cellSprite.tint = this.linesplitCell.color;
+                        if (this.linesplitCell.renderer.sprite.tint !== this.linesplitCell.color)
+                            this.linesplitCell.renderer.sprite.tint = this.linesplitCell.color;
                         this.linesplitCell = null;
                         // axis and origin intentionally preserved
                     }
@@ -6508,8 +6518,8 @@ function modules(ks) {
                         const r = (((this.linesplitCell.color >> 16) & 0xff) + 255) >> 1;
                         const g = (((this.linesplitCell.color >> 8) & 0xff) + 255) >> 1;
                         const b = ((this.linesplitCell.color & 0xff) + 255) >> 1;
-                        if (this.linesplitCell.cellSprite.tint !== (r << 16) | (g << 8) | b)
-                            this.linesplitCell.cellSprite.tint = (r << 16) | (g << 8) | b;
+                        if (this.linesplitCell.renderer.sprite.tint !== (r << 16) | (g << 8) | b)
+                            this.linesplitCell.renderer.sprite.tint = (r << 16) | (g << 8) | b;
 
                         // Update axis and origin while waiting for first split if the user wants
                         if (this.splitPending || this.linesplitAxis === undefined) {
@@ -6979,7 +6989,6 @@ function modules(ks) {
                 }
             }
             clearNodes() {
-                console.debug("Clearing nodes");
                 this.deleteLastKiller();
                 for (const node of this.nodes.values()) { this.pool.putNode(node); }
                 this.nodes.clear();

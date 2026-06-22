@@ -3447,6 +3447,10 @@ function modules(ks) {
          *  'Renderer' has nothing to do with PIXI.Renderer, rather it's my implementation of allowing different ways for 
          *  an attached Node to be displayed to the main container. Currently there are Sprite and Jelly renderers, but perhaps someday
          *  there will be more. Composition (allegedly) will make appearance easy to extend and customize!
+         *
+         *  This base class provides:
+         *      - The means of moving and setting the radius (size) of any Node, including basic animations like eating
+         *      - Destruction, sanitization and resetting (destroy, clean, init respectively)
          */
 
         class Renderer {
@@ -3480,7 +3484,6 @@ function modules(ks) {
              */
 
             tick() {
-                
                 // Framerate-agnostic delta
                 let delta = Math.max(0, (Math.min(1,
                     (this.game.updateTime - this.lastUpdate) / this.animationDelay
@@ -3536,38 +3539,33 @@ function modules(ks) {
             set animationDelay(delay) { this._delay = delay; } 
         }
 
-        /**
-         *  JellyRenderer base — builds a wobbly PIXI.Mesh fill + border instead of a
-         *  static Sprite. Point/velocity arrays drive a triangle-fan geometry that's
-         *  rebuilt each tick(). Subclasses provide textureSize the same way
-         *  SpriteRenderer subclasses do, for consistent scale math.
-         *
-         *  TODO before this is real:
-         *    - Mask child sprites (skin/name/mass) to the inner border edge
-         *    - LoD gate for point count / jelly-on-off, mirroring CellSpriteRenderer's
-         *      zoomThreshold trick
-         *    - Polygon seed profiles for food (pentagon/hexagon) instead of circle
-         */
-
-        const JELLY_POINTS_MIN = 12;
-        const JELLY_POINTS_MAX = 48;
-        const JELLY_BORDER_FRAC = 0.04;
-        const JELLY_DAMPING = 0.7;
-        const JELLY_SMOOTHING = 0.85;
+        const JELLY_DAMPING = 0.8;
+        const JELLY_SMOOTHING = 0.1;
+        const JELLY_BORDER_WIDTH = 10;
+        const JELLY_PPU = 0.5; // The multiplier which specifies the amount of points to draw per unit of distance on the circumference of cell
 
         class JellyRenderer extends Renderer {
             constructor(game) {
                 super(game);
 
-                this.points = [];
-                this.pointsVel = [];
-                this._numPoints = 0;
+                this.points = new Map();
+
+                /**
+                 *  Perhaps best implemented as a Map() or Set() of objects?
+                 *  Each entry could be a Point, which has velocity and position
+                 *  To aid in building mesh geometry, setting the index to idx would be cool. Otherwise, a Set() is probably best
+                 *  Perhaps also angle, but maybe that's included in the velocity object?
+                 *  Example Map entry: 
+                 *      idx : { pos: {x: x, y: y}, vel
+                 */
+
+                this.pointsMin = 5;
 
                 this.root = new PIXI.Container();
                 this.root.sortableChildren = true;
 
-                this.fillMesh = null;
-                this.borderMesh = null;
+                this.borderMesh = null; // The outer border
+                this.fillMesh = null; // The inner border, same as borderMesh but the outermost vector length -= JELLY_BORDER_WIDTH
 
                 this.game.cellContainer.addChild(this.root);
             }
@@ -3575,112 +3573,92 @@ function modules(ks) {
             init() {
                 super.init();
 
-                this.points = [];
-                this.pointsVel = [];
-                this._numPoints = 0;
-                this._ensurePointCount(this._targetPointCount());
+                this.points.clear();
+                this.updatePoints();
 
-                this._rebuildGeometry(true); // force = true, skip physics step on first build
+                this.rebuildGeometry();
             }
 
             tick() {
-                if (!super.tick()) return; // updates this.x/y/size, may early-return on eaten-fade-out
+                if (!super.tick()) return false;
 
-                this._ensurePointCount(this._targetPointCount());
-                this._stepPhysics();
-                this._rebuildGeometry(false);
+                this.updatePoints();
+                this.stepPhysics();
+                this.rebuildGeometry();
 
-                this.root.x = this.x;
-                this.root.y = this.y;
-            }
-
-            clean() {
-                super.clean();
+                return true;
             }
 
             destroy() {
                 this.fillMesh?.destroy();
-                this.borderMesh?.destroy();
                 this.fillMesh = null;
-                this.borderMesh = null;
                 super.destroy();
             }
 
-            // -------------------------------------------------------------------
-            // Point management — direct port of the canvas-based wobble algorithm
-            // -------------------------------------------------------------------
-
-            _targetPointCount() {
-                // Mirrors the old jagged/jelly point-count formula, clamped
-                const raw = Math.max(this.size, 1) * 0.6 | 0;
-                return Math.min(Math.max(raw, JELLY_POINTS_MIN), JELLY_POINTS_MAX);
-            }
-
-            _ensurePointCount(target) {
-                if (target === this._numPoints) return;
-
-                while (this.points.length > target) {
-                    const i = Math.random() * this.points.length | 0;
-                    this.points.splice(i, 1);
-                    this.pointsVel.splice(i, 1);
-                }
-
-                if (this.points.length === 0 && target > 0) {
-                    this.points.push({ rl: this.size });
-                    this.pointsVel.push(0);
-                }
-
-                while (this.points.length < target) {
-                    const i = Math.random() * this.points.length | 0;
-                    this.points.splice(i, 0, { rl: this.points[i].rl });
-                    this.pointsVel.splice(i, 0, this.pointsVel[i]);
-                }
-
-                this._numPoints = target;
-            }
-
-            _stepPhysics() {
-                const n = this.points.length;
-                if (n === 0) return;
-
-                const prevVel = this.pointsVel.slice();
-
-                for (let i = 0; i < n; i++) {
-                    const prev = prevVel[(i - 1 + n) % n];
-                    const next = prevVel[(i + 1) % n];
-                    const jitter = (this.pointsVel[i] + Math.random() - 0.5) * JELLY_DAMPING;
-                    const clamped = Math.max(Math.min(jitter, 10), -10);
-                    this.pointsVel[i] = (prev + next + 8 * clamped) / 10;
-                }
-
-                for (let i = 0; i < n; i++) {
-                    let rl = this.points[i].rl + this.pointsVel[i];
-                    rl = Math.max(rl, 0);
-                    rl = rl * (1 - JELLY_SMOOTHING) + this.size * JELLY_SMOOTHING;
-
-                    const prevRl = this.points[(i - 1 + n) % n].rl;
-                    const nextRl = this.points[(i + 1) % n].rl;
-                    this.points[i].rl = (prevRl + nextRl + 8 * rl) / 10;
-                }
-            }
-
             /**
-             *  Geometry — triangle fan fill + triangle strip border
+             *  
              */
 
-            _rebuildGeometry(isFirstBuild) {
+            updatePoints() {
+                const amount = this.targetPointsAmount;
+                if (amount === this.numPoints) return;
+
+                while (this.points.size > amount) {
+                    this.points.remove();
+                }
+
+                if (this.points.size === 0 && amount > 0) {
+                    this.points.add({ length: this.size, velocity: 0 });
+                }
+
+                while (this.points.size < amount) {
+                    // To fill new points, we just clone random points for init
+                    const i = Math.random() * this.points.size | 0;
+                    const randomLength = this.points.get(i).length;
+                    const randomVelocity = this.points.get(i).velocity;
+
+                    this.points.add({ length: randomLength, velocity: randomVelocity });
+                }
+            }
+
+            stepPhysics() {
+                if (this.points.size === 0) return; // Is this check necessary?
+
+                const oldPoints = this.points; // Temp copy this.points (also not necessary?)
+
+                for (let i = 0; i < this.points.size; i++) {
+                    const point = this.points.get(i);
+                    const prevPoint = this.oldPoints.get((i - 1 + n) % n);
+                    const nextPoint = this.oldPoints.get((i + 1) % n);
+
+                    const jitter = Math.max(Math.min(
+                        point.velocity + Math.random() - 0.5,
+                        10), -10);
+
+                    let length = Math.max(
+                        point.length + point.velocity,
+                        0);
+
+                    // Set length to the new length plus the radius of the cell
+                    length = length * (1 - JELLY_SMOOTHING) + this.size * JELLY_SMOOTHING;
+
+                    point.length = (prevPoint.length + nextPoint.length + 8 * length) / 10;
+                    point.velocity = (prev + next + 8 * clamped) / 10;
+
+                    this.points.set(i, point);
+                }
+            }
+
+            rebuildGeometry() {
                 const n = this.points.length;
                 if (n === 0) return;
 
-                const borderW = Math.max(this.size * JELLY_BORDER_FRAC, 2);
-
-                // --- Fill: center + rim + closing repeat ---
                 const fillPos = new Float32Array((n + 2) * 2);
                 for (let i = 0; i < n; i++) {
                     const angle = (2 * Math.PI * i) / n;
-                    const rl = this.points[i].rl;
-                    fillPos[2 + i * 2] = Math.cos(angle) * rl;
-                    fillPos[2 + i * 2 + 1] = Math.sin(angle) * rl;
+                    const length = this.points[i].length;
+                    fillPos[2 + i * 2] = Math.cos(angle) * length;
+                    fillPos[2 + i * 2 + 1] = Math.sin(angle) * length;
                 }
                 fillPos[2 + n * 2] = fillPos[2];
                 fillPos[2 + n * 2 + 1] = fillPos[3];
@@ -3692,30 +3670,6 @@ function modules(ks) {
                     fillIdx[i * 3 + 2] = i + 2;
                 }
 
-                // --- Border: interleaved outer/inner ring, triangle strip ---
-                const borderPos = new Float32Array((n + 1) * 4);
-                for (let i = 0; i <= n; i++) {
-                    const j = i % n;
-                    const angle = (2 * Math.PI * j) / n;
-                    const outerRl = this.points[j].rl;
-                    const innerRl = Math.max(outerRl - borderW, 0);
-                    borderPos[i * 4] = Math.cos(angle) * outerRl;
-                    borderPos[i * 4 + 1] = Math.sin(angle) * outerRl;
-                    borderPos[i * 4 + 2] = Math.cos(angle) * innerRl;
-                    borderPos[i * 4 + 3] = Math.sin(angle) * innerRl;
-                }
-
-                const borderIdx = new Uint16Array(n * 6);
-                for (let i = 0; i < n; i++) {
-                    const o = i * 2;
-                    borderIdx[i * 6] = o;
-                    borderIdx[i * 6 + 1] = o + 1;
-                    borderIdx[i * 6 + 2] = o + 2;
-                    borderIdx[i * 6 + 3] = o + 2;
-                    borderIdx[i * 6 + 4] = o + 1;
-                    borderIdx[i * 6 + 5] = o + 3;
-                }
-
                 if (!this.fillMesh) {
                     const geo = new PIXI.MeshGeometry({ positions: fillPos, indices: fillIdx });
                     this.fillMesh = new PIXI.Mesh({ geometry: geo });
@@ -3724,22 +3678,10 @@ function modules(ks) {
                 } else {
                     const buf = this.fillMesh.geometry.getBuffer('aPosition');
                     buf.data = fillPos;
-                    buf.tick();
-                }
-
-                if (!this.borderMesh) {
-                    const geo = new PIXI.MeshGeometry({ positions: borderPos, indices: borderIdx });
-                    this.borderMesh = new PIXI.Mesh({ geometry: geo });
-                    this.borderMesh.zIndex = -1;
-                    this.root.addChild(this.borderMesh);
-                } else {
-                    const buf = this.borderMesh.geometry.getBuffer('aPosition');
-                    buf.data = borderPos;
-                    buf.tick();
+                    buf.update();
                 }
 
                 this.fillMesh.tint = this.node.color;
-                this.borderMesh.tint = this._darken(this.node.color);
             }
 
             _darken(color) {
@@ -3748,60 +3690,8 @@ function modules(ks) {
                 const b = (color & 0xff) * 0.8 | 0;
                 return (r << 16) | (g << 8) | b;
             }
-        }
 
-        class PlayerJellyRenderer extends JellyRenderer {
-            // Names/skins reuse PlayerSpriteRenderer's logic verbatim — same Sprite
-            // children, just parented to a jelly root instead of a sprite root.
-            setName(name, color, position) {
-                PlayerSpriteRenderer.prototype.setName.call(this, name, color, position);
-            }
-            setSkin(skin) {
-                PlayerSpriteRenderer.prototype.setSkin.call(this, skin);
-            }
-            removeName() {
-                return PlayerSpriteRenderer.prototype.removeName.call(this);
-            }
-            removeSkin() {
-                return PlayerSpriteRenderer.prototype.removeSkin.call(this);
-            }
-            clean() {
-                this.removeName();
-                this.removeSkin();
-                super.clean();
-            }
-            get skinSize() { console.error("This node has no type!"); }
-        }
-
-        class CellJellyRenderer extends PlayerJellyRenderer {
-            setSize(size) {
-                CellSpriteRenderer.prototype.setSize.call(this, size);
-            }
-            removeMass() {
-                return CellSpriteRenderer.prototype.removeMass.call(this);
-            }
-            toShortString(mass) {
-                return CellSpriteRenderer.prototype.toShortString.call(this, mass);
-            }
-            clean() {
-                this.removeMass();
-                super.clean();
-            }
-            get textureSize() { return this.game.cellSize; }
-            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
-        }
-
-        class VirusJellyRenderer extends PlayerJellyRenderer {
-            get textureSize() { return this.game.virusSize; }
-            get skinSize() { return 0.88; }
-        }
-
-        class FoodJellyRenderer extends JellyRenderer {
-            init() {
-                super.init();
-                this.root.visible = !this.game.settings.settings.hideFood;
-            }
-            get textureSize() { return this.game.foodSize; }
+            get targetPointsAmount() { return 2 * Math.PI * this.size; }
         }
 
         /**
@@ -3838,6 +3728,80 @@ function modules(ks) {
                 sprite.anchor.set(0.5, 0.5);
                 return sprite;
             }
+        }
+
+        class PlayerJellyRenderer extends JellyRenderer {
+            init() {
+                super.init();
+                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
+                this.setSkin(this.node.skin);
+            }
+
+            setName(name, color, position) {
+                PlayerSpriteRenderer.prototype.setName.call(this, name, color, position);
+            }
+            setSkin(skin) {
+                PlayerSpriteRenderer.prototype.setSkin.call(this, skin);
+            }
+            canDisplay(preference) {
+                return PlayerSpriteRenderer.prototype.canDisplay.call(this, preference);
+            }
+            removeName() {
+                return PlayerSpriteRenderer.prototype.removeName.call(this);
+            }
+            removeSkin() {
+                return PlayerSpriteRenderer.prototype.removeSkin.call(this);
+            }
+            clean() {
+                this.removeName();
+                this.removeSkin();
+                super.clean();
+            }
+            destroy() {
+                this.removeName();
+                this.removeSkin();
+                super.destroy();
+            }
+            get skinSize() { console.error("This node has no type!"); }
+        }
+
+        class CellJellyRenderer extends PlayerJellyRenderer {
+            init() {
+                super.init();
+                this.setSize(this.node.size);
+            }
+            setSize(size) {
+                CellSpriteRenderer.prototype.setSize.call(this, size);
+            }
+            removeMass() {
+                return CellSpriteRenderer.prototype.removeMass.call(this);
+            }
+            toShortString(mass) {
+                return CellSpriteRenderer.prototype.toShortString.call(this, mass);
+            }
+            clean() {
+                this.removeMass();
+                super.clean();
+            }
+            destroy() {
+                this.removeMass();
+                super.destroy();
+            }
+            get textureSize() { return this.game.cellSize; }
+            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+        }
+
+        class VirusJellyRenderer extends PlayerJellyRenderer {
+            get textureSize() { return this.game.virusSize; }
+            get skinSize() { return 0.88; }
+        }
+
+        class FoodJellyRenderer extends JellyRenderer {
+            init() {
+                super.init();
+                this.root.visible = !this.game.settings.settings.hideFood;
+            }
+            get textureSize() { return this.game.foodSize; }
         }
 
         /**
@@ -3984,9 +3948,7 @@ function modules(ks) {
                     this.game.skins.release(this.heldSkin);
                     this.heldSkin = null;
 
-                    this.debug("Trying to remove skin texture");
                     if (this.skinSprite) { // Texture may not have loaded yet
-                        this.debug("Removing skin texture");
                         this.skinSprite.removeAllListeners();
                         this.skinSprite.texture = PIXI.Texture.EMPTY;
                     }
@@ -4019,7 +3981,7 @@ function modules(ks) {
                 if (!this.game.settings.settings.showMass) return;
                 
                 // Hide the texture if...
-                let zoomThreshold = 50 + Math.sqrt(this.game.nodes.size)
+                let zoomThreshold = 32 + Math.sqrt(this.game.nodes.size)
                 
                 if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
 
@@ -4279,9 +4241,9 @@ function modules(ks) {
             createNode(type, nodeData = {}) {
                 const cfg = this.config[type];
 
-                const renderer = this.game.settings.settings.display === 'performance'
-                        ? cfg.spriteRenderer
-                        : cfg.jellyRenderer;
+                const renderer = this.game.settings.settings.jellyPhysics
+                        ? cfg.jellyRenderer
+                        : cfg.spriteRenderer
 
                 return new cfg.node(this.game, nodeData, new renderer(this.game));
             }
@@ -5391,6 +5353,7 @@ function modules(ks) {
                     'deathFreecam': true,
                     'acidMode': false,
                     'bruhMode': false,
+                    'jellyPhysics': true,
                     'display': 'performance',
                     'blockedSkins': [],
                 };
@@ -5593,7 +5556,7 @@ function modules(ks) {
                 this.xp = parseInt(qM.XP);
                 this.coins = parseInt(qM.Coins);
                 this.bucks = parseInt(qM.Bucks);
-                this['lastReward'] = parseInt(qM['LastReward']);
+                this.lastReward = parseInt(qM['LastReward']);
                 this['original'] = $('#login').html();
                 this.massBoost = qM['Mass Boost'];
                 this.xpBoost = qM['XP Boost'];
@@ -5668,17 +5631,7 @@ function modules(ks) {
                     game.network.sendLocked();
                 };
             }
-            removeDuplicates(qS) {
-                var qT = {};
-                var qU = [];
-                for (var qV = 0; qV < qS.length; qV++) {
-                    qT[qS[qV]] = true;
-                }
-                for (var qW in qT) {
-                    qU.push(qW);
-                }
-                return qU;
-            }
+
             updateCoinShop() {
                 var qX = '<ul>';
                 var qY = this.coinShop.sort( (qZ, r0) => {
@@ -5845,7 +5798,7 @@ function modules(ks) {
             }
             updateSkins() {
                 $('#paidSkinList').html(`<li>\n                                    <img onclick="setSkin('None');" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">\n                                    <p>None</p>\n                                </li>`);
-                this.skins = this.removeDuplicates(this.skins);
+                this.skins = Array.from(new Set(this.skins));
                 if (this.skins.length > 0) {
                     $('#paidSkinList').show();
                     $('#paidSkinBadge').show();
@@ -6146,7 +6099,7 @@ function modules(ks) {
             redeemGift() {
                 var st = 3600;
                 var su = Date.now() / 1000;
-                if (su - this['lastReward'] < st) {
+                if (su - this.lastReward < st) {
                     return false;
                 }
                 $('#loginGift').addClass('disabled');
@@ -6159,7 +6112,7 @@ function modules(ks) {
                     }
                     this.setCoins(this.coins + sv.coins);
                     this.setBucks(this.bucks + sv.bucks);
-                    this['lastReward'] = sv['\x74\x69\x6d\x65'];
+                    this.lastReward = sv['\x74\x69\x6d\x65'];
                     this.refresh();
                 }
                 );
@@ -6168,12 +6121,12 @@ function modules(ks) {
                 var sw = Date.now() / 1000;
                 if ($('#menu').is(':visible')) {
                     var sx = 3600 * 24;
-                    if (sw - this['lastReward'] >= sx) {
+                    if (sw - this.lastReward >= sx) {
                         $('#loginGift').removeClass('disabled');
                         $('#giftTimer').text('Free Gift!');
                     } else {
                         $('#loginGift').addClass('disabled');
-                        var sy = new Date(this['lastReward'] * 1000);
+                        var sy = new Date(this.lastReward * 1000);
                         sy.addHours(24);
                         $('#giftTimer').text(this.timeUntil(sy));
                     }
@@ -6267,13 +6220,12 @@ function modules(ks) {
                 this.hideUI = false;
                 this.freeze = false;
                 this.linesplit = false;
-                this.chatHidden = false;
                 this.freeSpec = false;
                 this.mouse = {
                     'x': 0,
                     'y': 0
                 };
-                this.nodes = new Map();         // Map of all nodes
+                this.nodes = new Map();         // Map of all nodes by ID
                 this.playerCells = new Set();   // Set of your cell nodes
                 this.myCells = new Set();       // Set of your cell IDs
                 this.leaderboard = [];
@@ -6448,12 +6400,17 @@ function modules(ks) {
             updateCellsAppearance() {
                 this.cellTexture = this.settings.settings.borderlessCells ? 
                     this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
-                for (const cell of this.nodes.values()) {
-                    if (cell.type === nodeType.Player) {
-                        cell.renderer.setSkin(cell.skin);
-                        cell.renderer.sprite.texture = this.cellTexture;
+                for (const node of this.pool.playerPool) {
+                    node.renderer.sprite.texture = this.cellTexture;
+                }
+
+                for (const node of this.nodes.values()) {
+                    if (node.type === nodeType.Player) {
+                        node.renderer.setSkin(node.skin);
+                        node.renderer.sprite.texture = this.cellTexture;
                     }
                 }
+
                 for (const texture of this.gameTextures) {
                     texture.source.update();
                 }
@@ -7950,6 +7907,7 @@ function modules(ks) {
 
             // New Render Options
             const renderSettings = [
+                ["jellyPhysics", "Jelly Physics"],
                 ["webGPU", "Use WebGPU"],
                 ["highQualitySkins", "Hi-Res Skins"],
                 ["borderlessCells", "Borderless Cells"],

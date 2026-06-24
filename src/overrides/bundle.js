@@ -3443,12 +3443,19 @@ function modules(ks) {
             'Food': 2
         };
 
+        const foodShape = {
+            'Pentagon': 0,
+            'Hexagon': 1,
+            'Circle': 2
+        }
+
         /**
          *  'Renderer' has nothing to do with PIXI.Renderer, rather it's my implementation of allowing different ways for 
          *  an attached Node to be displayed to the main container. Currently there are Sprite and Jelly renderers, but perhaps someday
          *  there will be more. Composition (allegedly) will make appearance easy to extend and customize!
          *
          *  This base class provides:
+         *      - Root container
          *      - The means of moving and setting the radius (size) of any Node, including basic animations like eating
          *      - Destruction, sanitization and resetting (destroy, clean, init respectively)
          */
@@ -3456,6 +3463,11 @@ function modules(ks) {
         class Renderer {
             constructor(game) {
                 this.game = game;
+
+                this.root = new PIXI.Container();
+                this.root.sortableChildren = true;
+
+                this.game.cellContainer.addChild(this.root);
             }
             
             attach(node) {
@@ -3476,6 +3488,7 @@ function modules(ks) {
                 this.root.alpha = 1;
                 this.root.visible = true;
                 this.animationDelay = this.game.settings.settings.animationDelay;
+                this.game.cellContainer.addChild(this.root);
             }
            
             /**
@@ -3485,7 +3498,7 @@ function modules(ks) {
 
             tick() {
                 // Framerate-agnostic delta
-                let delta = Math.max(0, (Math.min(1,
+                this.delta = Math.max(0, (Math.min(1,
                     (this.game.updateTime - this.lastUpdate) / this.animationDelay
                 )));
 
@@ -3494,23 +3507,23 @@ function modules(ks) {
                 // Update position
                 if (this.node.eaten) {
                     // Cute eating animations
-                    this.x = lerp(this.x, this.node.x, delta / 5);
-                    this.y = lerp(this.y, this.node.y, delta / 5);
+                    this.x = lerp(this.x, this.node.x, this.delta / 5);
+                    this.y = lerp(this.y, this.node.y, this.delta / 5);
 
                     // Update alpha
-                    this.root.alpha = Math.max(0, this.root.alpha - delta / 5);
+                    this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
                     if (this.root.alpha <= 0.8) {
                         this.game.removeNode(this.node);
                         return false;
                     }
                 } else {
-                    this.x = lerp(this.x, this.node.x, delta);
-                    this.y = lerp(this.y, this.node.y, delta);
+                    this.x = lerp(this.x, this.node.x, this.delta);
+                    this.y = lerp(this.y, this.node.y, this.delta);
                 }
-
-                // Update size
-                this.size = lerp(this.size, this.node.size, delta);
-                this.root.zIndex = this.size + this.node.id * 0.000001;
+                
+                // Update renderer size (not node size!)
+                this.size = lerp(this.size, this.node.size, this.delta);
+                this.root.zIndex = this.size + this.node.id * 0.00001;
                 
                 // Update root
                 this.root.x = this.x;
@@ -3521,6 +3534,7 @@ function modules(ks) {
             
             // Prepare for putNode()
             clean() {
+                this.game.cellContainer.removeChild(this.root);
                 this.root.visible = false;
             }
 
@@ -3528,291 +3542,6 @@ function modules(ks) {
                 this.game.cellContainer.removeChild(this.root);
                 this.root.destroy({ children: true });
                 this.root = null;
-            }
-
-
-            debug(...args) {
-                console.debug(`[Renderer ${this.node.id}]`, ...args);
-            }
-
-            get animationDelay() { return this._delay; }
-            set animationDelay(delay) { this._delay = delay; } 
-        }
-
-        const JELLY_DAMPING = 0.8;
-        const JELLY_SMOOTHING = 0.1;
-        const JELLY_BORDER_WIDTH = 10;
-        const JELLY_PPU = 0.5; // The multiplier which specifies the amount of points to draw per unit of distance on the circumference of cell
-
-        class JellyRenderer extends Renderer {
-            constructor(game) {
-                super(game);
-
-                this.points = new Map();
-
-                /**
-                 *  Perhaps best implemented as a Map() or Set() of objects?
-                 *  Each entry could be a Point, which has velocity and position
-                 *  To aid in building mesh geometry, setting the index to idx would be cool. Otherwise, a Set() is probably best
-                 *  Perhaps also angle, but maybe that's included in the velocity object?
-                 *  Example Map entry: 
-                 *      idx : { pos: {x: x, y: y}, vel
-                 */
-
-                this.pointsMin = 5;
-
-                this.root = new PIXI.Container();
-                this.root.sortableChildren = true;
-
-                this.borderMesh = null; // The outer border
-                this.fillMesh = null; // The inner border, same as borderMesh but the outermost vector length -= JELLY_BORDER_WIDTH
-
-                this.game.cellContainer.addChild(this.root);
-            }
-
-            init() {
-                super.init();
-
-                this.points.clear();
-                this.updatePoints();
-
-                this.rebuildGeometry();
-            }
-
-            tick() {
-                if (!super.tick()) return false;
-
-                this.updatePoints();
-                this.stepPhysics();
-                this.rebuildGeometry();
-
-                return true;
-            }
-
-            destroy() {
-                this.fillMesh?.destroy();
-                this.fillMesh = null;
-                super.destroy();
-            }
-
-            /**
-             *  
-             */
-
-            updatePoints() {
-                const amount = this.targetPointsAmount;
-                if (amount === this.numPoints) return;
-
-                while (this.points.size > amount) {
-                    this.points.remove();
-                }
-
-                if (this.points.size === 0 && amount > 0) {
-                    this.points.add({ length: this.size, velocity: 0 });
-                }
-
-                while (this.points.size < amount) {
-                    // To fill new points, we just clone random points for init
-                    const i = Math.random() * this.points.size | 0;
-                    const randomLength = this.points.get(i).length;
-                    const randomVelocity = this.points.get(i).velocity;
-
-                    this.points.add({ length: randomLength, velocity: randomVelocity });
-                }
-            }
-
-            stepPhysics() {
-                if (this.points.size === 0) return; // Is this check necessary?
-
-                const oldPoints = this.points; // Temp copy this.points (also not necessary?)
-
-                for (let i = 0; i < this.points.size; i++) {
-                    const point = this.points.get(i);
-                    const prevPoint = this.oldPoints.get((i - 1 + n) % n);
-                    const nextPoint = this.oldPoints.get((i + 1) % n);
-
-                    const jitter = Math.max(Math.min(
-                        point.velocity + Math.random() - 0.5,
-                        10), -10);
-
-                    let length = Math.max(
-                        point.length + point.velocity,
-                        0);
-
-                    // Set length to the new length plus the radius of the cell
-                    length = length * (1 - JELLY_SMOOTHING) + this.size * JELLY_SMOOTHING;
-
-                    point.length = (prevPoint.length + nextPoint.length + 8 * length) / 10;
-                    point.velocity = (prev + next + 8 * clamped) / 10;
-
-                    this.points.set(i, point);
-                }
-            }
-
-            rebuildGeometry() {
-                const n = this.points.length;
-                if (n === 0) return;
-
-                const fillPos = new Float32Array((n + 2) * 2);
-                for (let i = 0; i < n; i++) {
-                    const angle = (2 * Math.PI * i) / n;
-                    const length = this.points[i].length;
-                    fillPos[2 + i * 2] = Math.cos(angle) * length;
-                    fillPos[2 + i * 2 + 1] = Math.sin(angle) * length;
-                }
-                fillPos[2 + n * 2] = fillPos[2];
-                fillPos[2 + n * 2 + 1] = fillPos[3];
-
-                const fillIdx = new Uint16Array(n * 3);
-                for (let i = 0; i < n; i++) {
-                    fillIdx[i * 3] = 0;
-                    fillIdx[i * 3 + 1] = i + 1;
-                    fillIdx[i * 3 + 2] = i + 2;
-                }
-
-                if (!this.fillMesh) {
-                    const geo = new PIXI.MeshGeometry({ positions: fillPos, indices: fillIdx });
-                    this.fillMesh = new PIXI.Mesh({ geometry: geo });
-                    this.fillMesh.zIndex = -1;
-                    this.root.addChild(this.fillMesh);
-                } else {
-                    const buf = this.fillMesh.geometry.getBuffer('aPosition');
-                    buf.data = fillPos;
-                    buf.update();
-                }
-
-                this.fillMesh.tint = this.node.color;
-            }
-
-            _darken(color) {
-                const r = ((color >> 16) & 0xff) * 0.8 | 0;
-                const g = ((color >> 8) & 0xff) * 0.8 | 0;
-                const b = (color & 0xff) * 0.8 | 0;
-                return (r << 16) | (g << 8) | b;
-            }
-
-            get targetPointsAmount() { return 2 * Math.PI * this.size; }
-        }
-
-        /**
-         *  SpriteRenderers are essentially just PIXI containers with a cellSprite. Each of its derivative
-         *  subclasses provide its respective texture and texture size.
-         */
-
-        class SpriteRenderer extends Renderer {
-            constructor(game) {
-                super(game);
-
-                this.sprite = this.createSprite();
-
-                this.root = new PIXI.Container();
-                this.root.sortableChildren = true;
-                this.root.addChild(this.sprite);
-
-                this.game.cellContainer.addChild(this.root);
-            }
-
-            init() {
-                super.init();
-                this.sprite.tint = this.node.color;
-            }
-
-            tick() {
-                if (!super.tick()) return;
-                this.root.scale.set(this.size / this.textureSize);
-            }
-
-            // Creates a Sprite with a texture defined by subclasses
-            createSprite() {
-                const sprite = new PIXI.Sprite(this.texture);
-                sprite.anchor.set(0.5, 0.5);
-                return sprite;
-            }
-        }
-
-        class PlayerJellyRenderer extends JellyRenderer {
-            init() {
-                super.init();
-                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
-                this.setSkin(this.node.skin);
-            }
-
-            setName(name, color, position) {
-                PlayerSpriteRenderer.prototype.setName.call(this, name, color, position);
-            }
-            setSkin(skin) {
-                PlayerSpriteRenderer.prototype.setSkin.call(this, skin);
-            }
-            canDisplay(preference) {
-                return PlayerSpriteRenderer.prototype.canDisplay.call(this, preference);
-            }
-            removeName() {
-                return PlayerSpriteRenderer.prototype.removeName.call(this);
-            }
-            removeSkin() {
-                return PlayerSpriteRenderer.prototype.removeSkin.call(this);
-            }
-            clean() {
-                this.removeName();
-                this.removeSkin();
-                super.clean();
-            }
-            destroy() {
-                this.removeName();
-                this.removeSkin();
-                super.destroy();
-            }
-            get skinSize() { console.error("This node has no type!"); }
-        }
-
-        class CellJellyRenderer extends PlayerJellyRenderer {
-            init() {
-                super.init();
-                this.setSize(this.node.size);
-            }
-            setSize(size) {
-                CellSpriteRenderer.prototype.setSize.call(this, size);
-            }
-            removeMass() {
-                return CellSpriteRenderer.prototype.removeMass.call(this);
-            }
-            toShortString(mass) {
-                return CellSpriteRenderer.prototype.toShortString.call(this, mass);
-            }
-            clean() {
-                this.removeMass();
-                super.clean();
-            }
-            destroy() {
-                this.removeMass();
-                super.destroy();
-            }
-            get textureSize() { return this.game.cellSize; }
-            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
-        }
-
-        class VirusJellyRenderer extends PlayerJellyRenderer {
-            get textureSize() { return this.game.virusSize; }
-            get skinSize() { return 0.88; }
-        }
-
-        class FoodJellyRenderer extends JellyRenderer {
-            init() {
-                super.init();
-                this.root.visible = !this.game.settings.settings.hideFood;
-            }
-            get textureSize() { return this.game.foodSize; }
-        }
-
-        /**
-         *  Players can have skins and names
-         */
-
-        class PlayerSpriteRenderer extends SpriteRenderer {
-            init() {
-                super.init();
-                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
-                this.setSkin(this.node.skin);
             }
 
             setName(name, color, position) {
@@ -3846,7 +3575,7 @@ function modules(ks) {
                     this.nameSprite.texture = texture;
                 } else {
                     this.nameSprite = new PIXI.Sprite(texture);
-                    this.root.addChild(this.nameSprite);
+                    this.uiRoot.addChild(this.nameSprite);
                 }
 
                 this.nameSprite.zIndex = 1;
@@ -3895,7 +3624,7 @@ function modules(ks) {
                         this.skinSprite = new PIXI.Sprite(texture);
                         this.skinSprite.zIndex = 0;
                         this.skinSprite.anchor.set(0.5, 0.5);
-                        this.root.addChild(this.skinSprite);
+                        this.uiRoot.addChild(this.skinSprite);
                     } else {
                         this.skinSprite.texture = texture;
                     }
@@ -3906,24 +3635,82 @@ function modules(ks) {
             }
 
             canDisplay(preference) {
-                switch(preference) {
-                    case 'all':
-                        return true;
-                    case 'party':
-                        if (this.game.party?.hasOwnProperty(this.parent))
-                            return true;
-                    case 'self':
-                        if (this.game.myCells.has(this.id))
-                            return true;
-                    default:
-                        return false;
-                }
+                if (preference === 'all') return true;
+                if (preference === 'party') return !!this.game.party?.hasOwnProperty(this.parent);
+                if (preference === 'self') return this.game.myCells.has(this.id);
+                return false;
             }
 
-            destroy() {
-                this.removeName();
-                this.removeSkin();
-                super.destroy();
+            setSize(size) {
+                if (!this.game.settings.settings.showMass) return;
+                
+                // Hide the texture if...
+                let zoomThreshold = 32 + Math.sqrt(this.game.nodes.size)
+                
+                if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
+
+                if (size * this.game.camera.renderZoom < zoomThreshold || this.node.eaten) {
+                    if (this.massSprite) this.massSprite.visible = false;
+                    return;
+                }
+
+                // Skip updating mass sprite if...
+                if (this.game.updateTime - this.lastMassUpdate < 100)
+                    return;
+
+                // Release the old mass texture
+                if (this.heldMass) this.game.masses.release(this.heldMass);
+
+                const mass = Math.floor(size * size / 100);
+                const massKey = this.game.settings.settings.shortenMass ? this.toShortString(mass) : mass.toString();
+                
+                // Set and hold the new mass texture
+                let texture = this.game.masses.get(massKey);
+
+                if (texture === null) {
+                    texture = this.game.masses.create(
+                        massKey, 
+                        this.game.settings.settings.shortenMass ? 75 : 60, 
+                    );
+                }
+
+                this.game.masses.hold(massKey);
+                this.heldMass = massKey;
+
+                // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
+                if (this.massSprite) { 
+                    this.massSprite.visible = true;
+                    this.massSprite.texture = texture;
+                } else {
+                    this.massSprite = new PIXI.Sprite(texture);
+                    this.massSprite.anchor.set(0.5, -0.8);
+                    this.massSprite.zIndex = 1;
+                    this.uiRoot.addChild(this.massSprite);
+                }
+                this.lastMassUpdate = this.game.updateTime;
+            }
+
+            /**
+             *  Note that Size and Mass semantically differ only by Mass being the ingame
+             *  representation of a cell's Size.
+             */
+
+            toShortString(mass) {
+                if (mass >= 1000000)
+                    return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
+                if (mass >= 1000)
+                    return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
+                else
+                    return mass.toString();
+            }
+
+            removeMass() {
+                if (this.heldMass) {
+                    this.game.masses.release(this.heldMass);
+                    this.heldMass = null;
+                    this.massSprite.removeAllListeners();
+                    this.massSprite.texture = PIXI.Texture.EMPTY;
+                }
             }
 
             removeName() {
@@ -3958,6 +3745,456 @@ function modules(ks) {
                 return false;
             }
 
+            debug(...args) {
+                console.debug(`[Renderer ${this.node.id}]`, ...args);
+            }
+
+            get uiRoot() { return this.root; } // Where names, skins, and mass are appended
+            get animationDelay() { return this._delay; }
+            set animationDelay(delay) { this._delay = delay; } 
+        }
+
+        const JELLY_DAMPING = 1;
+        const JELLY_SMOOTHING = 0.4;
+        const JELLY_PPU = 0.1;
+        const JELLY_POINTS_MIN = 5;
+        const LOD_THRESHOLD = 20;
+
+
+        class JellyRenderer extends Renderer {
+            init() {
+                super.init();
+
+                this.initPoints(this.targetPointsAmount);
+                this.rebuildGeometry();
+            }
+
+            tick() {
+                if (!super.tick()) return false;
+
+                const LOD = this.size * this.game.camera.renderZoom < LOD_THRESHOLD;
+
+                if (LOD !== this.LOD) {
+                    console.debug("Setting LOD " + LOD);
+                    this.setLOD(LOD);
+                }
+
+                this.resizePoints(this.targetPointsAmount);
+                if (!this.LOD) {
+                    this.stepPhysics();
+                }
+                this.rebuildGeometry();
+
+                if (this.uiRoot) this.uiRoot.scale.set(this.size / this.textureSize);
+
+                return true;
+            }
+
+            setLOD(LOD) {
+                this.LOD = LOD;
+            }
+
+            destroy() {
+                this.fillMesh?.destroy();
+                this.fillMesh = null;
+
+                this.borderMesh?.destroy();
+                this.borderMesh = null;
+
+                this.skinMask?.destroy();
+                this.skinMask = null;
+
+                super.destroy();
+            }
+
+            initPoints(target) {
+                // offsets: wobble relative to this.size, starts flat at 0
+                this.offsets    = new Float64Array(target);
+                this.velocities  = new Float64Array(target);
+                this.offsetsTmp  = new Float64Array(target);
+                this.velocityTmp = new Float64Array(target);
+                this.fillVerts = new Float32Array((target + 2) * 2);
+                this.borderVerts = new Float32Array((target + 1) * 4);
+                this.numPoints   = target;
+            }
+
+            resizePoints(target) {
+                if (target === this.numPoints) return;
+
+                const oldOff = this.offsets;
+                const oldVel = this.velocities;
+                const oldCount = this.numPoints;
+
+                const newOff = new Float64Array(target);
+                const newVel = new Float64Array(target);
+
+                const copyCount = Math.min(oldCount, target);
+                newOff.set(oldOff.subarray(0, copyCount));
+                newVel.set(oldVel.subarray(0, copyCount));
+
+                if (target > copyCount && copyCount > 0) {
+                    for (let i = copyCount; i < target; i++) {
+                        const rand = (Math.random() * copyCount) | 0;
+                        newOff[i] = oldOff[rand];
+                        newVel[i] = oldVel[rand];
+                    }
+                }
+
+                this.offsets     = newOff;
+                this.velocities   = newVel;
+
+                // Allocated for rebuildGeometry(), so as to avoid reallocating new Arrays every frame
+                this.fillVerts = new Float32Array((target + 2) * 2);
+                this.borderVerts = new Float32Array((target + 1) * 4);
+
+                this.offsetsTmp   = new Float64Array(target);
+                this.velocityTmp  = new Float64Array(target);
+                this.numPoints    = target;
+            }
+
+            stepPhysics() {
+                const n = this.numPoints;
+                if (n === 0) return;
+
+                const vel = this.velocities;
+                const off = this.offsets;
+                const velOut = this.velocityTmp;
+                const offOut = this.offsetsTmp;
+
+                for (let i = 0; i < n; i++) {
+                    const prevV = vel[(i - 1 + n) % n];
+                    const nextV = vel[(i + 1) % n];
+
+                    const jitter = Math.min(Math.max((vel[i] + Math.random() - 0.5) * JELLY_DAMPING, -10), 10);
+
+                    velOut[i] = (prevV + nextV + 8 * jitter) / 10;
+                }
+
+                for (let i = 0; i < n; i++) {
+                    const prevO = off[(i - 1 + n) % n];
+                    const nextO = off[(i + 1) % n];
+
+                    // Apply velocity, then relax toward 0
+                    const relaxed = (off[i] + velOut[i]) * (1 - JELLY_SMOOTHING);
+
+                    offOut[i] = Math.max((prevO + nextO + 8 * relaxed) / 10, -this.size);
+                }
+
+                // Swap buffers — avoids reallocating every frame.
+                this.velocities = velOut;
+                this.velocityTmp = vel;
+                this.offsets = offOut;
+                this.offsetsTmp = off;
+            }
+
+            // -------------------------------------------------------------------
+            // Geometry
+            // -------------------------------------------------------------------
+
+            rebuildGeometry() {
+                const n = this.numPoints;
+                if (n === 0) {
+                    if (this.fillMesh)   this.fillMesh.visible   = false;
+                    if (this.borderMesh) this.borderMesh.visible = false;
+                    if (this.skinSprite) this.skinSprite.visible = false;
+                    return;
+                }
+
+                const offsets = this.offsets;
+                const size = this.size;
+                const { cos, sin } = this.angleCache(n);
+
+                this.fillVerts[0] = 0;
+                this.fillVerts[1] = 0;
+
+                for (let i = 0; i <= n; i++) {
+                    const j = i % n;
+                    const jag = this.jaggedOffset(j);
+
+                    const fillR  = size + offsets[j] + jag;
+                    const outerR = fillR + this.borderWidth / 2;
+                    const innerR = Math.max(fillR - this.borderWidth / 2, 0);
+
+                    const c = cos[j], s = sin[j];
+
+                    if (i < n) {
+                        this.fillVerts[2 + j * 2]     = c * outerR;
+                        this.fillVerts[2 + j * 2 + 1] = s * outerR;
+                    }
+                    if (j === 0 && i === n) {
+                        this.fillVerts[2 + n * 2]     = c * outerR;
+                        this.fillVerts[2 + n * 2 + 1] = s * outerR;
+                    }
+
+                    this.borderVerts[i * 4]     = c * outerR;
+                    this.borderVerts[i * 4 + 1] = s * outerR;
+                    this.borderVerts[i * 4 + 2] = c * innerR;
+                    this.borderVerts[i * 4 + 3] = s * innerR;
+                }
+
+                const fillIdx = this.fanIndices(n);
+                const borderIdx = this.stripIndices(n);
+
+                this.syncMesh('fillMesh', this.fillVerts, fillIdx, this.node.color, 0, this.fillAlpha);
+                this.syncMesh('borderMesh', this.borderVerts, borderIdx, this.borderColor(this.node.color), 1, 1);
+
+                this.syncSkinMask(offsets, size, n);
+            }
+
+            static _angleCaches = new Map();
+            static _fanIdxCaches = new Map();
+            static _stripIdxCaches = new Map();
+
+            angleCache(n) {
+                let c = JellyRenderer._angleCaches.get(n);
+                if (!c) {
+                    const cos = new Float32Array(n), sin = new Float32Array(n), angle = new Float32Array(n);
+                    for (let j = 0; j < n; j++) {
+                        angle[j] = (2 * Math.PI * j) / n;
+                        cos[j] = Math.cos(angle[j]);
+                        sin[j] = Math.sin(angle[j]);
+                    }
+                    c = { cos, sin, angle };
+                    JellyRenderer._angleCaches.set(n, c);
+                }
+                return c;
+            }
+
+            fanIndices(n) {
+                if (this._fanIdxCache?.n === n) return this._fanIdxCache.data;
+                const idx = new Uint16Array(n * 3);
+                for (let i = 0; i < n; i++) {
+                    idx[i * 3]     = 0;
+                    idx[i * 3 + 1] = i + 1;
+                    idx[i * 3 + 2] = i + 2;
+                }
+                this._fanIdxCache = { n, data: idx };
+                return idx;
+            }
+
+            stripIndices(n) {
+                if (this._stripIdxCache?.n === n) return this._stripIdxCache.data;
+                const idx = new Uint16Array(n * 6);
+                for (let i = 0; i < n; i++) {
+                    const o = i * 2;
+                    idx[i * 6]     = o;
+                    idx[i * 6 + 1] = o + 1;
+                    idx[i * 6 + 2] = o + 2;
+                    idx[i * 6 + 3] = o + 2;
+                    idx[i * 6 + 4] = o + 1;
+                    idx[i * 6 + 5] = o + 3;
+                }
+                this._stripIdxCache = { n, data: idx };
+                return idx;
+            }
+
+            syncMesh(field, verts, indices, tint, zIndex, alpha) {
+                let mesh = this[field];
+                if (!mesh) {
+                    const geometry = new PIXI.MeshGeometry({ positions: verts, indices });
+                    mesh = new PIXI.Mesh({ geometry });
+                    mesh.zIndex = zIndex;
+                    this.root.addChild(mesh);
+                    this[field] = mesh;
+                } else {
+                    const geo = mesh.geometry;
+                    const posBuffer = geo.getBuffer('aPosition');
+                    posBuffer.data = verts;
+                    posBuffer.update();
+
+                    const idxBuffer = geo.getIndex();
+                    idxBuffer.data = indices;
+                    idxBuffer.update();
+                }
+
+                mesh.tint = tint;
+                mesh.alpha = alpha;
+                mesh.visible = true;
+            }
+
+            syncSkinMask(offsets, size, n) {
+                if (!this.skinSprite) return;
+
+                if (!this.skinMask) {
+                    this.skinMask = new PIXI.Graphics();
+                    this.uiRoot.addChild(this.skinMask);
+                    this.skinSprite.mask = this.skinMask;
+                }
+
+                const { cos, sin } = this.angleCache(n);
+                const mg = this.skinMask;
+                mg.clear();
+                mg.beginPath();
+
+                for (let i = 0; i <= n; i++) {
+                    const j = i % n;
+                    // normalized radius (unit circle, same math as before)
+                    const rNorm = Math.max(1 + (offsets[j] + this.jaggedOffset(j) - this.borderWidth / 2) / size, 0);
+                    // convert into the same texture-pixel space uiRoot now expects
+                    const r = rNorm * this.textureSize;
+                    const x = cos[j] * r;
+                    const y = sin[j] * r;
+                    i === 0 ? mg.moveTo(x, y) : mg.lineTo(x, y);
+                }
+
+                mg.closePath();
+                mg.fill({ color: 0xffffff });
+            }
+
+            borderColor(color) {
+                const r = ((color >> 16) & 0xff) * 0.8 | 0;
+                const g = ((color >> 8) & 0xff) * 0.8 | 0;
+                const b = (color & 0xff) * 0.8 | 0;
+                return (r << 16) | (g << 8) | b;
+            }
+
+            jaggedOffset(index) { return 0; }
+
+            get fillAlpha() { return 1; }
+            get borderWidth() { return 12; }
+            get uiRoot() {
+                if (!this._uiRoot) {
+                    this._uiRoot = new PIXI.Container();
+                    this._uiRoot.sortableChildren = true;
+                    this._uiRoot.scale.set(this.size);
+                    this._uiRoot.zIndex = 1;
+                    this.root.addChild(this._uiRoot);
+                }
+                return this._uiRoot;
+            }
+
+            get textureSize() { return 256; }
+            get targetPointsAmount() {
+                // If LOD, halve point count
+                const raw = (this.LOD ? 1 : 2) * Math.PI * this.node.size * JELLY_PPU;
+                return Math.max(raw | 0, JELLY_POINTS_MIN);
+            }
+        }
+
+        class PlayerJellyRenderer extends JellyRenderer {
+            init() {
+                super.init();
+                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
+                this.setSkin(this.node.skin);
+            }
+            clean() {
+                this.removeName();
+                this.removeSkin();
+                super.clean();
+            }
+            get skinSize() { console.error("This node has no type!"); }
+        }
+
+        class CellJellyRenderer extends PlayerJellyRenderer {
+            tick() {
+                super.tick();
+            }
+            init() {
+                super.init();
+                this.setSize(this.node.size);
+            }
+            clean() {
+                this.removeMass();
+                super.clean();
+            }
+            get textureSize() { return this.game.cellSize; }
+            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+
+        }
+
+        class VirusJellyRenderer extends PlayerJellyRenderer {
+            jaggedOffset(index) {
+                return index % 2 * 10;
+            }
+
+            borderColor(color) { return color; }
+
+            get targetPointsAmount() {
+                const raw = 2 * Math.PI * this.node.size * JELLY_PPU;
+                return Math.max(raw | 0, JELLY_POINTS_MIN);
+            }
+            get fillAlpha() { return 0.75; }
+            get textureSize() { return this.game.virusSize; }
+            get skinSize() { return 0.88; }
+            get borderWidth() { return 16; }
+        }
+
+        class FoodJellyRenderer extends JellyRenderer {
+            init() {
+                super.init();
+                this.root.visible = !this.game.settings.settings.hideFood;
+            }
+
+            get targetPointsAmount() {
+                if (this.shape == null) this.shape = Math.floor(Math.random() * 3);
+                console.debug(this.shape);
+                switch (this.shape) {
+                    case foodShape.Pentagon:
+                        return 5;
+                    case foodShape.Hexagon:
+                        return 6;
+                    case foodShape.Circle:
+                        const raw = (this.LOD ? 1 : 2) * Math.PI * this.node.size * JELLY_PPU;
+                        return Math.max(raw | 0, JELLY_POINTS_MIN);
+                }
+
+            }
+            get textureSize() { return this.game.foodSize; }
+            get borderWidth() { 
+                if (this.node.isEjected) return 12;
+                return 0;
+            }
+        }
+
+        /**
+         *  SpriteRenderers are essentially just PIXI containers with a cellSprite. Each of its derivative
+         *  subclasses provide its respective texture and texture size.
+         */
+
+        class SpriteRenderer extends Renderer {
+            constructor(game) {
+                super(game);
+
+                this.sprite = this.createSprite();
+                this.root.addChild(this.sprite);
+            }
+
+            init() {
+                super.init();
+                this.sprite.tint = this.node.color;
+            }
+
+            tick() {
+                if (!super.tick()) return false;
+
+                this.uiRoot.scale.set(this.size);
+            }
+
+            // Creates a Sprite with a texture defined by subclasses
+            createSprite() {
+                const sprite = new PIXI.Sprite(this.texture);
+                sprite.anchor.set(0.5, 0.5);
+                return sprite;
+            }
+        }
+
+        /**
+         *  Players can have skins and names
+         */
+
+        class PlayerSpriteRenderer extends SpriteRenderer {
+            init() {
+                super.init();
+                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
+                this.setSkin(this.node.skin);
+            }
+
+            destroy() {
+                this.removeName();
+                this.removeSkin();
+                super.destroy();
+            }
+
             clean() {
                 this.removeName();
                 this.removeSkin();
@@ -3977,73 +4214,6 @@ function modules(ks) {
                 this.setSize(this.node.size);
             }
 
-            setSize(size) {
-                if (!this.game.settings.settings.showMass) return;
-                
-                // Hide the texture if...
-                let zoomThreshold = 32 + Math.sqrt(this.game.nodes.size)
-                
-                if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
-
-                if (size * this.game.camera.renderZoom < zoomThreshold || this.node.eaten) {
-                    if (this.massSprite) this.massSprite.visible = false;
-                    return;
-                }
-
-                // Skip updating mass sprite if...
-                if (this.game.updateTime - this.lastMassUpdate < 100)
-                    return;
-
-                /**
-                 *  Just to note, we only care about updating heldMass/Size/Skin when either one of two things happens:
-                 *
-                 *      1. The node gets Pool.putNoded
-                 *      2. The texture of the sprite changes
-                 *  
-                 *  Sprite visibility doesn't matter at all for held textures
-                 */
-
-                // Release the old mass texture
-                if (this.heldMass) this.game.masses.release(this.heldMass);
-
-                const mass = Math.floor(size * size / 100);
-                const massKey = this.game.settings.settings.shortenMass ? this.toShortString(mass) : mass.toString();
-                
-                // Set and hold the new mass texture
-                let texture = this.game.masses.get(massKey);
-
-                if (texture === null) {
-                    texture = this.game.masses.create(
-                        massKey, 
-                        this.game.settings.settings.shortenMass ? 75 : 60, 
-                    );
-                }
-
-                this.game.masses.hold(massKey);
-                this.heldMass = massKey;
-
-                // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
-                if (this.massSprite) { 
-                    this.massSprite.visible = true;
-                    this.massSprite.texture = texture;
-                } else {
-                    this.massSprite = new PIXI.Sprite(texture);
-                    this.massSprite.anchor.set(0.5, -0.8);
-                    this.massSprite.zIndex = 1;
-                    this.root.addChild(this.massSprite);
-                }
-                this.lastMassUpdate = this.game.updateTime;
-            }
-
-            removeMass() {
-                if (this.heldMass) {
-                    this.game.masses.release(this.heldMass);
-                    this.heldMass = null;
-                    this.massSprite.removeAllListeners();
-                    this.massSprite.texture = PIXI.Texture.EMPTY;
-                }
-            }
-
             destroy() {
                 this.removeMass();
                 super.destroy();
@@ -4052,20 +4222,6 @@ function modules(ks) {
             clean() {
                 this.removeMass();
                 super.clean();
-            }
-
-            /**
-             *  Note that Size and Mass semantically differ only by Mass being the ingame
-             *  representation of a cell's Size.
-             */
-
-            toShortString(mass) {
-                if (mass >= 1000000)
-                    return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
-                if (mass >= 1000)
-                    return `${(Math.floor(mass / 100) / 10).toFixed(1)}k`;
-                else
-                    return mass.toString();
             }
 
             get texture() { return this.game.cellTexture };
@@ -6228,6 +6384,7 @@ function modules(ks) {
                 this.nodes = new Map();         // Map of all nodes by ID
                 this.playerCells = new Set();   // Set of your cell nodes
                 this.myCells = new Set();       // Set of your cell IDs
+                this.collisions = new Set();    // Set of all collidable point coordinates (node borders)
                 this.leaderboard = [];
                 this.border = [-1000, -1000, 1000, 1000];
                 // Texture caches
@@ -6293,7 +6450,7 @@ function modules(ks) {
                     gcActive: false,
                     preference: (this.settings.settings.webGPU ? 'webgpu' : "webgl"),
                     canvas: this.canvas,
-                    antialias: false, // Doesn't change much anyways
+                    antialias: true, // For jelly
                     resolution: window.devicePixelRatio,
                     powerPreference: 'high-performance',
                     backgroundColor: 0x333439,
@@ -6332,6 +6489,7 @@ function modules(ks) {
                 this.spriteSheet = PIXI.Assets.get('sheet');
 
                 this.gridTexture = PIXI.Assets.get('grid');
+                this.gridTexture.source.scaleMode = 'nearest';
                 this.hexTexture = PIXI.Assets.get('hex');
                 this.arrowTexture = PIXI.Assets.get('arrow');
 
@@ -6445,16 +6603,17 @@ function modules(ks) {
                 let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.renderY;
 
                 if (!this.linesplit) {
-                    if (this.linesplitCell && this.linesplitCell.renderer.sprite.tint !== this.linesplitCell.color) {
-                        this.linesplitCell.renderer.sprite.tint = this.linesplitCell.color;
+                    // TODO renderer.tint is not a thing. Make it a thing
+                    if (this.linesplitCell && this.linesplitCell.renderer.tint !== this.linesplitCell.color) {
+                        this.linesplitCell.renderer.tint = this.linesplitCell.color;
                     }
                     this.linesplitCell = null;
                     this.linesplitAxis = undefined;
                     this.linesplitOrigin = null;
                 } else {
                     if (this.linesplitCell?.eaten) {
-                        if (this.linesplitCell.renderer.sprite.tint !== this.linesplitCell.color)
-                            this.linesplitCell.renderer.sprite.tint = this.linesplitCell.color;
+                        if (this.linesplitCell.renderer.tint !== this.linesplitCell.color)
+                            this.linesplitCell.renderer.tint = this.linesplitCell.color;
                         this.linesplitCell = null;
                         // axis and origin intentionally preserved
                     }
@@ -6475,8 +6634,8 @@ function modules(ks) {
                         const r = (((this.linesplitCell.color >> 16) & 0xff) + 255) >> 1;
                         const g = (((this.linesplitCell.color >> 8) & 0xff) + 255) >> 1;
                         const b = ((this.linesplitCell.color & 0xff) + 255) >> 1;
-                        if (this.linesplitCell.renderer.sprite.tint !== (r << 16) | (g << 8) | b)
-                            this.linesplitCell.renderer.sprite.tint = (r << 16) | (g << 8) | b;
+                        if (this.linesplitCell.renderer.tint !== (r << 16) | (g << 8) | b)
+                            this.linesplitCell.renderer.tint = (r << 16) | (g << 8) | b;
 
                         // Update axis and origin while waiting for first split if the user wants
                         if (this.splitPending || this.linesplitAxis === undefined) {
@@ -6828,7 +6987,7 @@ function modules(ks) {
                 this.grid = new PIXI.Container();
 
                 const size = this.border[3] * 2;
-                const scaleFactor = 0.5;
+                let scaleFactor = 0.5;
                 let alpha = 0.7;
                 let texture = null;
 
@@ -6838,6 +6997,7 @@ function modules(ks) {
                     break;
                 case 'grid':
                     texture = this.gridTexture;
+                    scaleFactor = 0.7;
                     break;
                 }
 

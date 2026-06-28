@@ -2444,10 +2444,9 @@ function modules(ks) {
         modules.o = (kA, kB) => Object.prototype.hasOwnProperty.call(kA, kB);
     }
     )();
-    var kC = {};
     ( () => {
         'use strict';
-        var kD = modules('buffer');
+        var bufferModule = modules('buffer');
         ;/*
          * Simple BinaryReader is a minimal tool to read binary stream.
          * Useful for binary deserialization.
@@ -2469,57 +2468,57 @@ function modules(ks) {
         class BinaryReader {
             constructor(buffer) {
                 this._offset = 0;
-                this._buffer = new kD.Buffer(buffer);
+                this._buffer = new bufferModule.Buffer(buffer);
             }
-            ;readUInt8() {
+            readUInt8() {
                 var value = this._buffer.readUInt8(this._offset);
                 this._offset += 1;
                 return value;
             }
-            ;readInt8() {
+            readInt8() {
                 var value = this._buffer.readInt8(this._offset);
                 this._offset += 1;
                 return value;
             }
-            ;readUInt16() {
+            readUInt16() {
                 var value = this._buffer.readUInt16LE(this._offset);
                 this._offset += 2;
                 return value;
             }
-            ;readInt16() {
+            readInt16() {
                 var value = this._buffer.readInt16LE(this._offset);
                 this._offset += 2;
                 return value;
             }
-            ;readUInt32() {
+            readUInt32() {
                 var value = this._buffer.readUInt32LE(this._offset);
                 this._offset += 4;
                 return value;
             }
-            ;readInt32() {
+            readInt32() {
                 var value = this._buffer.readInt32LE(this._offset);
                 this._offset += 4;
                 return value;
             }
-            ;readFloat() {
+            readFloat() {
                 var value = this._buffer.readFloatLE(this._offset);
                 this._offset += 4;
                 return value;
             }
-            ;readDouble() {
+            readDouble() {
                 var value = this._buffer.readDoubleLE(this._offset);
                 this._offset += 8;
                 return value;
             }
-            ;readBytes(length) {
+            readBytes(length) {
                 var value = this._buffer.slice(this._offset, this._offset + length);
                 this._offset += length;
                 return value;
             }
-            ;skipBytes(length) {
+            skipBytes(length) {
                 this._offset += length;
             }
-            ;readStringUtf8(length) {
+            readStringUtf8(length) {
                 if (length == null)
                     length = this._buffer.length - this._offset;
                 length = Math.max(0, length);
@@ -2527,7 +2526,7 @@ function modules(ks) {
                 this._offset += length;
                 return value;
             }
-            ;readStringUnicode(length) {
+            readStringUnicode(length) {
                 if (length == null)
                     length = this._buffer.length - this._offset;
                 length = Math.max(0, length);
@@ -2537,7 +2536,7 @@ function modules(ks) {
                 this._offset += length;
                 return value;
             }
-            ;readStringZeroUtf8() {
+            readStringZeroUtf8() {
                 var length = 0;
                 var terminatorLength = 0;
                 for (var i = this._offset; i < this._buffer.length; i++) {
@@ -2551,7 +2550,7 @@ function modules(ks) {
                 this._offset += terminatorLength;
                 return value;
             }
-            ;readStringZeroUnicode() {
+            readStringZeroUnicode() {
                 var length = 0;
                 var terminatorLength = ((this._buffer.length - this._offset) & 1) != 0 ? 1 : 0;
                 for (var i = this._offset; i + 1 < this._buffer.length; i += 2) {
@@ -2565,14 +2564,13 @@ function modules(ks) {
                 this._offset += terminatorLength;
                 return value;
             }
-            ;
         }
         const reader = BinaryReader;
-        var l5 = modules('badwordsFilter');
-        var l6 = modules.n(l5); // module wrapper
-        ;class Chat {
-            constructor(l8) {
-                this.game = l8;
+        var badwordsFilterModule = modules('badwordsFilter');
+        var l6 = modules.n(badwordsFilterModule); // Module wrapper? Why is it doing this?
+        class Chat {
+            constructor(game) {
+                this.game = game;
                 this.channel = -1;
                 // chat channel (party, world)
                 this.filter = new (l6())({
@@ -2663,25 +2661,26 @@ function modules(ks) {
             send(lg) {
                 this.game.network.sendChat(lg, this.channel);
             }
-            onMessage(sender, rgb, message, parent, ll) {
-                // on incoming chat sender
+
+            // On incoming chat message
+            onMessage(sender, rgb, message, parent, channel) {
                 var color = 'white';
                 if (sender.indexOf('[Console]') > -1) {
-                    ll = -99;
+                    channel = -99;
                 }
-                if (ll == -99) {
+                if (channel == -99) {
                     $('#tabs').children().each(function() {
-                        var ll = $(this);
-                        var lo = sender.indexOf('[Console]') > -1 ? '' : ':';
-                        var lp = sender.indexOf('[Console]') > -1 ? '' : "<p class='nowrap' style='color: " + li + "'>" + sender + '</p>';
-                        var lq = $("<div class='adminMessage' style='color: " + color + "'>" + lp + '<p>' + lo + ' ' + message + '</p></div>');
-                        $(lq).appendTo(ll).hide().fadeIn(500);
+                        let chatTab = $(this);
+                        let lo = sender.indexOf('[Console]') > -1 ? '' : ':';
+                        let lp = sender.indexOf('[Console]') > -1 ? '' : "<p class='nowrap' style='color: " + li + "'>" + sender + '</p>';
+                        let lq = $("<div class='adminMessage' style='color: " + color + "'>" + lp + '<p>' + lo + ' ' + message + '</p></div>');
+                        $(lq).appendTo(chatTab).hide().fadeIn(500);
                     });
                 } else {
-                    const tab = document.querySelector("#tabs [value='" + ll + "']");
+                    const tab = document.querySelector("#tabs [value='" + channel + "']");
                     if (tab) {
-                        var notDefault = false;
-                        var isAdmin = false;
+                        let notDefault = false;
+                        let isAdmin = false;
 
                         if (sender.indexOf('[VIP]') > -1 || sender.indexOf('[Mod]') > -1 || sender.indexOf('[Admin]') > -1) {
                             notDefault = true;
@@ -2690,23 +2689,24 @@ function modules(ks) {
                             sender = sender.replace('[VIP]', '').replace('[Mod]', '').replace('[Admin]', '');
                             sender = sender.replace("font-weight: 900;", "font-weight: 300;");
                         } else {
-                            sender = sender.replace(/[<>]/g, '').trim();
+                            sender = sender.replace(/<([^>]*)>/g, '$1').trim();
                             if (sender === "") sender = "An unnamed cell";
 
-                            const lu = document.createElement('div');
+                            // div is just created to build stringified HTML of message and sender divs 
+                            const div = document.createElement('div');
 
-                            lu.textContent = sender.removeWideChars();
-                            sender = lu.innerHTML;
+                            div.textContent = sender.removeWideChars();
+                            sender = div.innerHTML;
 
-                            lu.textContent = message.removeWideChars();
-                            message = lu.innerHTML;
+                            div.textContent = message.removeWideChars();
+                            message = div.innerHTML;
 
                             if (this.game.settings.getItem('disableProfanityFilter') != true) {
                                 message = this.filter.clean(message);
                             }
                         }
 
-                        const lv = {
+                        const meta = {
                             skinSprite: null,
                             name: sender.replaceAllPoly("'", ''),
                             rgb: rgb,
@@ -2734,27 +2734,18 @@ function modules(ks) {
                                              .replaceAllPoly('class="germsfoxEmote"', 'class="germsfoxEmote big"');
                         }
 
-                        /* create wrapper */
-                        const wrapper = document.createElement('div');
+                        const messageDiv = document.createElement('div');
 
-                        wrapper.className = isAdmin
-                            ? 'adminMessage noshadow'
-                            : 'chatMessage';
+                        messageDiv.className = isAdmin ? 'adminMessage noshadow' : 'chatMessage';
+                        messageDiv.style.color = color;
+                        messageDiv.style.opacity = '0';
+                        messageDiv.style.transition = 'opacity 500ms';
+                        messageDiv.innerHTML = "<p><b oncontextmenu='openUserMenu(" + JSON.stringify(meta).replaceAll("'", "&apos;") + "); return false;' " + "style='display:inline-block;pointer-events:all;white-space:nowrap;height:14px;color:" + rgb + "'>" + sender + "</b>: " + message + "</p>";
 
-                        wrapper.style.color = color;
+                        tab.appendChild(messageDiv);
 
-                        // Fade in
-                        wrapper.style.opacity = '0';
-                        wrapper.style.transition = 'opacity 500ms';
-
-                        wrapper.innerHTML = "<p><b oncontextmenu='openUserMenu(" + JSON.stringify(lv).replaceAll("'", "&apos;") + "); return false;' " + "style='display:inline-block;pointer-events:all;white-space:nowrap;height:14px;color:" + rgb + "'>" + sender + "</b>: " + message + "</p>";
-
-                        tab.appendChild(wrapper);
-
-                        /* trigger fade */
-                        requestAnimationFrame(() => {
-                            wrapper.style.opacity = '1';
-                        });
+                        // Trigger fade
+                        requestAnimationFrame(() => { messageDiv.style.opacity = '1'; });
 
                         if (notDefault) {
                             $('[data-toggle="tooltip"]').tooltip();
@@ -2762,55 +2753,66 @@ function modules(ks) {
                     }
                 }
                 document.querySelectorAll('.chatTab').forEach(tab => {
+                    if (tab.children.length > 50) {
+                        const first = tab.firstElementChild;
+                        if (first) {
+                            first.style.opacity = '1';
+                            first.style.transition = 'opacity 500ms';
 
-                if (tab.children.length > 50) {
-                    const first = tab.firstElementChild;
-                    if (first) {
-                        first.style.opacity = '1';
-                        first.style.transition = 'opacity 500ms';
-
-                        requestAnimationFrame(() => {
-                            first.style.opacity = '0';
-                        });
-                        setTimeout(() => {
-                            first.remove();
-                        }, 500);
+                            requestAnimationFrame(() => {
+                                first.style.opacity = '0';
+                            });
+                            setTimeout(() => {
+                                first.remove();
+                            }, 500);
+                        }
                     }
-                }
-                tab.scrollTop = tab.scrollHeight;
-            });
-            }
-            clear() {
-                $('.chatTab').each(function() {
-                    $(this).children().remove();
+                    tab.scrollTop = tab.scrollHeight;
                 });
-                $('#tabs').children().slice(2).remove();
-                $('#channels').children().slice(2).remove();
             }
+
+            clear() {
+                document.querySelectorAll('.chatTab').forEach(chatTab => {
+                    chatTab.replaceChildren();
+                });
+
+                [...document.getElementById('tabs').children].slice(2).forEach(el => el.remove());
+                [...document.getElementById('channels').children].slice(2).forEach(el => el.remove()); 
+            }
+
             setChannel(lA) {
                 this.channel = lA;
+
+                const btnChannel = document.getElementById('btnChannel');
+
                 switch (lA) {
-                case -2:
-                    $('#btnChannel').html('<i class="fas fa-users"></i>');
-                    break;
-                case -1:
-                    $('#btnChannel').html('<i class="fas fa-globe"></i>');
-                    break;
+                    case -2:
+                        btnChannel.innerHTML = '<i class="fas fa-users"></i>';
+                        break;
+                    case -1:
+                        btnChannel.innerHTML = '<i class="fas fa-globe"></i>';
+                        break;
                 }
-                $('#channels').hide();
-                $('#tabs').children().hide();
-                var lB = $('#tabs').find("[value='" + lA + "']");
-                if (lB) {
-                    $(lB).show();
-                }
-                $("[value='").each(function() {
-                    $(this).scrollTop($(this).prop('scrollHeight'));
+
+                document.getElementById('channels').style.display = 'none';
+
+                // Hide everything in the old tab
+                [...document.getElementById('tabs').children].forEach(el => { el.style.display = 'none'; });
+
+                const lB = document.querySelector(`#tabs [value="${lA}"]`);
+
+                // Show everything in the new tab
+                if (lB) lB.style.display = '';
+
+                document.querySelectorAll('[value]').forEach(el => {
+                    el.scrollTop = el.scrollHeight;
                 });
             }
         }
-        ;class lC {
-            constructor(lD) {
-                this.game = lD;
+
+        class GameUI {
+            constructor(game) {
+                this.game = game;
                 this.mapParty = document.getElementById('mapParty');
                 this.debugText = document.getElementById('debugText');
                 this.partyText = document.getElementById('partyText');
@@ -2821,9 +2823,9 @@ function modules(ks) {
                 this.mapSize = $('#map').width();
                 this.nodeX = 0;
                 this.nodeY = 0;
-                setInterval(this.updateDebug.bind(this), 500);
+                setInterval(this.updateDebugHTML.bind(this), 500);
             }
-            loop() {
+            updateMinimap() {
                 this.nodeX = this.game.camera.renderX / (this.game.border[3] * 2) * this.mapSize;
                 this.nodeY = this.game.camera.renderY / (this.game.border[3] * 2) * this.mapSize;
                 this.mapPlayer.css({
@@ -2831,7 +2833,7 @@ function modules(ks) {
                     'left': this.nodeX + this.mapSize / 2
                 });
                 if (this.game.playerCells.size > 0) {
-                    if (this.game.aliveCell.skinSprite && this.game.aliveCell.skinSprite.texture != null && this.game.aliveCell.skinSprite.texture !== PIXI.Texture.EMPTY) {
+                    if (this.game.aliveCell.renderer.heldSkin) {
                         this.mapPlayer.css('background-image', 'url(' + this.game.skinURLFrom(this.game.aliveCell.skin) + ')');
                         this.mapPlayer.css('border', '1px solid ' + this.game.aliveCell.rgb);
                     } else {
@@ -2845,46 +2847,46 @@ function modules(ks) {
                 this.mapPlayer.css('background-image', 'none');
                 this.mapPlayer.css('border', '2px solid rgba(0,0,0, 0.2);');
             }
-            update() {
-                var lE = '';
-                var lF = 0;
-                for (var lG = 0; lG < this.game.leaderboard.length; lG++) {
-                    var lH = this.game.leaderboard[lG];
-                    var lI = '<li %style%>\n                                <p class="leaderboardRank">%rank%</p>\n                                <p class="leaderboardName">%name%</p>\n                            </li>';
-                    var lJ = lH.rank <= 2 ? '<i class="fas fa-crown lbCrown lbCrown-' + (lH.rank + 1) + '"></i>' : lH.rank + 1;
-                    var lK = '';
+            updateLeaderboardHTML() {
+                let leaderboardHTML = '';
+
+                for (let i = 0; i < this.game.leaderboard.length; i++) {
+                    let player = this.game.leaderboard[i];
+                    let playerNameHTML = '<li %style%>\n                                <p class="leaderboardRank">%rank%</p>\n                                <p class="leaderboardName">%name%</p>\n                            </li>';
+                    let playerIconHTML = player.rank <= 2 ? '<i class="fas fa-crown lbCrown lbCrown-' + (player.rank + 1) + '"></i>' : player.rank + 1;
+                    var myPlayerHTML = '';
                     if (this.game.party) {
-                        if (this.game.party.hasOwnProperty(lH.id) == true) {
-                            var lL = this.game.party[lH.id];
-                            lJ = '<i class="fas fa-user-friends lbFriend" style="color:' + lL.color + '"></i>';
+                        if (this.game.party.hasOwnProperty(player.id) == true) {
+                            var partyMember = this.game.party[player.id];
+                            playerIconHTML = '<i class="fas fa-user-friends lbFriend" style="color:' + partyMember.color + '"></i>';
                         }
                     }
-                    if (lH.name.includes('[YT]')) {
-                        lH.name = lH.name.replace('[YT]', '');
-                        lJ = '<b class="lbYT">YT</b>';
-                        if (this.game.pID == lH.id) {
+                    if (player.name.includes('[YT]')) {
+                        player.name = player.name.replace('[YT]', '');
+                        playerIconHTML = '<b class="lbYT">YT</b>';
+                        if (this.game.myID == player.id) {
                             if (this.game.playerCells.size > 0) {
-                                this.game.topPosition = Math.min(this.game.topPosition, lH.rank);
-                                lK = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
-                                if (lH.rank < 10) {
+                                this.game.topPosition = Math.min(this.game.topPosition, player.rank);
+                                myPlayerHTML = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
+                                if (player.rank < 10) {
                                     this.game.onLeaderboard = true;
                                 }
                             }
                         }
                     } else {
-                        if (this.game.pID == lH.id) {
+                        if (this.game.myID == player.id) {
                             if (this.game.playerCells.size > 0) {
-                                this.game.topPosition = Math.min(this.game.topPosition, lH.rank);
-                                lK = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
-                                if (lH.rank > 2 && lH.rank < 10) {
+                                this.game.topPosition = Math.min(this.game.topPosition, player.rank);
+                                myPlayerHTML = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
+                                if (player.rank > 2 && player.rank < 10) {
                                     var lM = 'background-color: ' + this.game.aliveCell.rgb + ';';
-                                    if (this.game.aliveCell.skinSprite && this.game.aliveCell.skinSprite.texture != null && this.game.aliveCell.skinSprite.texture !== PIXI.Texture.EMPTY) {
+                                    if (this.game.aliveCell.heldSkin) {
                                         lM += 'background-image: url(' + this.game.skinURLFrom(this.game.aliveCell.skin) + ');';
                                         lM += 'border: 1px solid ' + this.game.aliveCell.rgb + ';';
                                     }
-                                    lJ = '<span class="lbCell" style="' + lM + '"></span>';
+                                    playerIconHTML = '<span class="lbCell" style="' + lM + '"></span>';
                                 }
-                                if (lH.rank < 10) {
+                                if (player.rank < 10) {
                                     this.game.onLeaderboard = true;
                                 }
                             } else {
@@ -2893,33 +2895,59 @@ function modules(ks) {
                         }
                     }
                     var lN = document.createElement('div');
-                    lN.textContent = lH.name.trim().removeWideChars();
+                    lN.textContent = player.name.trim().removeWideChars();
                     var lO = lN.innerHTML;
-                    lE += lI.replace('%style%', lK).replace('%rank%', lJ).replace('%name%', lO.trim().removeWideChars() === '' ? 'An unnamed cell' : lO).replace('%mass%', '500');
-                    lF++;
+                    leaderboardHTML += playerNameHTML.replace('%style%', myPlayerHTML).replace('%rank%', playerIconHTML).replace('%name%', lO.trim().removeWideChars() === '' ? 'An unnamed cell' : lO).replace('%mass%', '500');
                 }
-                this.leaderboard.css('height', 55 + lF * 20 + 'px');
-                this.lbList.innerHTML = lE;
+                this.leaderboard.css('height', 55 + this.game.leaderboard.length * 20 + 'px');
+                this.lbList.innerHTML = leaderboardHTML;
             }
-            exitParty() {
+
+            clearPartyHTML() {
                 this.partyText.innerHTML = '';
                 this.mapParty.innerHTML = '';
             }
-            updateDebug() {
-                var lP = '<b>Mass:</b> ' + this.getMass();
-                lP += '<br><b>Score:</b> ' + this.getScore();
-                lP += '<br><b>Cells:</b> ' + this.game.myCells.size;
-                lP += '<br><b>FPS:</b> ' + this.getFPS();
-                lP += '<br><b>PING:</b> ' + this.getPING();
-                if (this.game.linesplit) lP += '<br><b style="color:red">[ LINESPLITTING ]</b>'; // gota haha remember that game
-                else if (this.game.freeze) lP += '<br><b style="color:red">[ MOUSE FROZEN ]</b>';
-                this.debugText.innerHTML = lP;
+            
+            // TODO: Remove related information from debug, move debug elsewhere
+            updateScoreDiv() {
+                if (!this.scoreDiv) {
+                    this.scoreDiv = document.createElement("div");
+                    this.scoreDiv.id = "uiScore";
+
+                    // I wanna have a bigger mario-kart style rank in the top left before score/mass
+                    this.scoreLabels = {
+                        rank: document.createElement("b"),
+                        mass: document.createElement("b"),
+                        topRank: document.createElement("b"),
+                        topMass: document.createElement("b")
+                    };
+
+                    for (const label of this.scoreLabels) {
+                        const lineBreak = document.createElement("br");
+                        scoreDiv.append(lineBreak, label);
+                    }
+                }
+
+                // TODO to be continued
+                this.scoreLabels.rank.innerHTML = `<b>Rank:</b> ${this.getRank()}`;
+                this.scoreLabels.mass.innerHTML = `<b>Mass:</b> ${this.getMass()}`;
+            }
+
+            updateDebugHTML() {
+                let debugHTML = '<b>Mass:</b> ' + this.getMass();
+                debugHTML += '<br><b>Score:</b> ' + this.getScore();
+                debugHTML += '<br><b>Cells:</b> ' + this.game.myCells.size;
+                debugHTML += '<br><b>FPS:</b> ' + this.getFPSHTML();
+                debugHTML += '<br><b>PING:</b> ' + this.getPingHTML();
+                if (this.game.linesplit) debugHTML += '<br><b style="color:red">[ LINESPLITTING ]</b>'; // gota haha remember that game
+                else if (this.game.freeze) debugHTML += '<br><b style="color:red">[ MOUSE FROZEN ]</b>';
+                this.debugText.innerHTML = debugHTML;
                 if (this.game.network.restart) {
                     var lQ = '<b>' + this.game.network.server.slice(3) + '</b>';
                     if (this.game.network.restart.indexOf('[console]') > -1) {
-                        lQ = '<b>' + this.getRestart() + '</b>';
+                        lQ = '<b>' + this.getRestartHTML() + '</b>';
                     } else {
-                        lQ += ' - <b>' + this.getRestart() + '</b>';
+                        lQ += ' - <b>' + this.getRestartHTML() + '</b>';
                     }
                     this.resetText.innerHTML = lQ;
                 }
@@ -2954,10 +2982,7 @@ function modules(ks) {
                 }
                 
             }
-            getID() {
-                return '<font color="#fff">' + this.game.pID + '</font>';
-            }
-            getRestart() {
+            getRestartHTML() {
                 if (this.game.network.restart.indexOf('[console]') > -1) {
                     var m3 = new Date(this.game.network.restart.split('[console]')[1]);
                     var m4 = this.game.network.restart.split('[console]')[0];
@@ -2992,34 +3017,32 @@ function modules(ks) {
                 var me = Math.floor(ma % 60000 / 1000);
                 return mb + m8(mc) + ':' + m8(md) + ':' + m8(me);
             }
+          
             // TODO: Robust getMass, getScore
             getMass() {
-                var mf = 0;
+                let total = 0;
                 for (const cell of this.game.playerCells) {
-                    mf += cell.mass;
+                    total += cell.size ** 2;
                 }
-                return ~~mf;
+                return ~~(total / 100);
             }
             getScore() {
-                var mh = 0;
-                for (const cell of this.game.playerCells) {
-                    mh += cell.mass;
-                }
-                this.score = Math.max(this.score || 0, mh);
+                const mass = this.getMass();
+                this.score = Math.max(this.score || 0, mass);
                 this.game.highestMass = Math.max(this.score, this.game.highestMass);
                 return ~~this.score;
             }
-            getFPS() {
-                var mj = ~~this.game.fps;
-                if (mj <= 15) {
-                    return '<font color="#ff0000">' + mj + '</font>';
-                } else if (mj <= 30) {
-                    return '<font color="yellow">' + mj + '</font>';
+            getFPSHTML() {
+                var FPS = ~~this.game.ticker?.FPS;
+                if (FPS <= 15) {
+                    return '<font color="#ff0000">' + FPS + '</font>';
+                } else if (FPS <= 30) {
+                    return '<font color="yellow">' + FPS + '</font>';
                 } else {
-                    return '<font color="#00ff00">' + mj + '</font>';
+                    return '<font color="#00ff00">' + FPS + '</font>';
                 }
             }
-            getPING() {
+            getPingHTML() {
                 // Ping font color
                 var mk = ~~this.game.ping;
                 if (!mk) {
@@ -3460,6 +3483,8 @@ function modules(ks) {
          *      - Destruction, sanitization and resetting (destroy, clean, init respectively)
          */
 
+        const LOD_THRESHOLD = 20;
+
         class Renderer {
             constructor(game) {
                 this.game = game;
@@ -3512,7 +3537,7 @@ function modules(ks) {
 
                     // Update alpha
                     this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
-                    if (this.root.alpha <= 0.8) {
+                    if (this.root.alpha <= 0.7) {
                         this.game.removeNode(this.node);
                         return false;
                     }
@@ -3529,6 +3554,14 @@ function modules(ks) {
                 this.root.x = this.x;
                 this.root.y = this.y;
 
+                // Update LOD
+                const LOD = this.size * this.game.camera.renderZoom < LOD_THRESHOLD;
+
+                // LOD has a setter because subclasses may want to do some stuff upon LOD updates
+                if (LOD !== this.LOD) {
+                    this.setLOD(LOD);
+                }
+
                 return true;
             }
             
@@ -3544,7 +3577,10 @@ function modules(ks) {
                 this.root = null;
             }
 
-            setName(name, color, position) {
+            setName() {
+                const name = this.node.name;
+                const color = this.node.lockedColor;
+                const position = this.node.lockedPosition;
                 
                 // Don't create a texture if it's an empty name or the user doesn't want one
                 if (!name || !name.trim() || !this.canDisplay(this.game.settings.settings.showNames)) return;
@@ -3595,23 +3631,18 @@ function modules(ks) {
                 }
             }
 
-            setSkin(skin) {
+            setSkin() {
+                const skin = this.node.skin;
                 
                 // Don't create a texture if the skin is empty or the user doesn't want one
-                if (!skin || skin === '' || !this.canDisplay(this.game.settings.settings.showSkins)) return;
+                if (!skin || !this.canDisplay(this.game.settings.settings.showSkins)) return;
                 
                 // Release old skin texture
                 if (this.heldSkin) this.game.skins.release(this.heldSkin);
 
                 // Set and hold the new skin texture
-                let resource = this.game.skins.get(skin);
-
-                if (resource === null) {
-                    resource = this.game.skins.create(
-                        skin,
-                        this.game.settings.settings.highQualitySkins, 
-                    );
-                }
+                let resource = this.game.skins.get(skin) ??
+                    this.game.skins.create(skin, this.game.settings.settings.highQualitySkins);
 
                 this.game.skins.hold(skin);
                 this.heldSkin = skin;
@@ -3620,14 +3651,7 @@ function modules(ks) {
                     const texture = resource.texture;
                     if (!texture) return; 
 
-                    if (!this.skinSprite) {
-                        this.skinSprite = new PIXI.Sprite(texture);
-                        this.skinSprite.zIndex = 0;
-                        this.skinSprite.anchor.set(0.5, 0.5);
-                        this.uiRoot.addChild(this.skinSprite);
-                    } else {
-                        this.skinSprite.texture = texture;
-                    }
+                    this.skinSprite.texture = texture;
 
                     this.skinSprite.visible = !this.game.settings.settings.blockedSkins.has(skin);
                     this.skinSprite.scale.set(this.skinSize * (2 * this.textureSize / resource.size));
@@ -3641,8 +3665,11 @@ function modules(ks) {
                 return false;
             }
 
-            setSize(size) {
+            setSize() {
+
                 if (!this.game.settings.settings.showMass) return;
+                
+                const size = this.node.size;
                 
                 // Hide the texture if...
                 let zoomThreshold = 32 + Math.sqrt(this.game.nodes.size)
@@ -3662,7 +3689,7 @@ function modules(ks) {
                 if (this.heldMass) this.game.masses.release(this.heldMass);
 
                 const mass = Math.floor(size * size / 100);
-                const massKey = this.game.settings.settings.shortenMass ? this.toShortString(mass) : mass.toString();
+                const massKey = this.game.settings.settings.shortenMass ? this.shortStringFrom(mass) : mass.toString();
                 
                 // Set and hold the new mass texture
                 let texture = this.game.masses.get(massKey);
@@ -3695,7 +3722,7 @@ function modules(ks) {
              *  representation of a cell's Size.
              */
 
-            toShortString(mass) {
+            shortStringFrom(mass) {
                 if (mass >= 1000000)
                     return `${(Math.floor(mass / 100000) / 10).toFixed(1)}M`;
                 if (mass >= 1000)
@@ -3704,11 +3731,14 @@ function modules(ks) {
                     return mass.toString();
             }
 
+            /**
+             *  remove() functions clear relevant textures from both the game cache and node sprite
+             */
+
             removeMass() {
                 if (this.heldMass) {
                     this.game.masses.release(this.heldMass);
                     this.heldMass = null;
-                    this.massSprite.removeAllListeners();
                     this.massSprite.texture = PIXI.Texture.EMPTY;
                 }
             }
@@ -3717,7 +3747,6 @@ function modules(ks) {
                 if (this.heldName) {
                     this.game.names.release(this.heldName);
                     this.heldName = null;
-                    this.nameSprite.removeAllListeners(); // TODO: Might only be necessary if textures are attached?
                     this.nameSprite.texture = PIXI.Texture.EMPTY;
                     return true;
                 }
@@ -3735,7 +3764,7 @@ function modules(ks) {
                     this.game.skins.release(this.heldSkin);
                     this.heldSkin = null;
 
-                    if (this.skinSprite) { // Texture may not have loaded yet
+                    if (this._skinSprite) { // Texture may not have loaded yet
                         this.skinSprite.removeAllListeners();
                         this.skinSprite.texture = PIXI.Texture.EMPTY;
                     }
@@ -3745,8 +3774,23 @@ function modules(ks) {
                 return false;
             }
 
+            setLOD(LOD) {
+                this.LOD = LOD;
+            }
+
             debug(...args) {
                 console.debug(`[Renderer ${this.node.id}]`, ...args);
+            }
+            
+            
+            get skinSprite() {
+                if (!this._skinSprite) {
+                    this._skinSprite = new PIXI.Sprite();
+                    this._skinSprite.zIndex = 0;
+                    this._skinSprite.anchor.set(0.5, 0.5);
+                    this.uiRoot.addChild(this._skinSprite);
+                }
+                return this._skinSprite;
             }
 
             get uiRoot() { return this.root; } // Where names, skins, and mass are appended
@@ -3758,76 +3802,85 @@ function modules(ks) {
         const JELLY_SMOOTHING = 0.4;
         const JELLY_PPU = 0.1;
         const JELLY_POINTS_MIN = 5;
-        const LOD_THRESHOLD = 20;
-
 
         class JellyRenderer extends Renderer {
+
             init() {
                 super.init();
-
                 this.initPoints(this.targetPointsAmount);
+                this.setSkin();
                 this.rebuildGeometry();
             }
 
             tick() {
                 if (!super.tick()) return false;
-
-                const LOD = this.size * this.game.camera.renderZoom < LOD_THRESHOLD;
-
-                if (LOD !== this.LOD) {
-                    console.debug("Setting LOD " + LOD);
-                    this.setLOD(LOD);
-                }
-
                 this.resizePoints(this.targetPointsAmount);
-                if (!this.LOD) {
-                    this.stepPhysics();
-                }
+                this.stepPhysics();
                 this.rebuildGeometry();
-
-                if (this.uiRoot) this.uiRoot.scale.set(this.size / this.textureSize);
-
                 return true;
             }
 
-            setLOD(LOD) {
-                this.LOD = LOD;
-            }
-
             destroy() {
-                this.fillMesh?.destroy();
-                this.fillMesh = null;
-
-                this.borderMesh?.destroy();
-                this.borderMesh = null;
-
-                this.skinMask?.destroy();
-                this.skinMask = null;
-
+                this.cellMesh?.geometry.destroy();
+                this.cellMesh?.destroy();
+                this.cellMesh = null;
                 super.destroy();
             }
 
+            clean() {
+                this.skinTexture = null;
+                super.clean();
+            }
+
+            setSkin() {
+                const skin = this.node.skin;
+                
+                // Don't create a texture if the skin is empty or the user doesn't want one
+                if (!skin || !this.canDisplay(this.game.settings.settings.showSkins)) return;
+
+                // Release old skin texture
+                if (this.heldSkin) this.game.skins.release(this.heldSkin);
+
+                // Set and hold the new skin texture
+                let resource = this.game.skins.get(this.node.skin)
+                    ?? this.game.skins.create(this.node.skin, this.game.settings.settings.highQualitySkins);
+
+                this.game.skins.hold(skin);
+                this.heldSkin = skin;
+
+                resource.onReady(this.node.id, resource => {
+                    const texture = resource.texture;
+                    if (!texture) return;
+
+                    this.skinTexture = texture;
+                    this.applyTextureToMesh();
+                });
+            }
+
+            applyTextureToMesh() {
+                if (!this.cellMesh || !this.skinTexture) return;
+                this.cellMesh.shader.resources.uTexture = this.skinTexture.source;
+            }
+
+            // -------------------------------------------------------------------
+            // Geometry
+            // -------------------------------------------------------------------
+
             initPoints(target) {
-                // offsets: wobble relative to this.size, starts flat at 0
-                this.offsets    = new Float64Array(target);
+                this.offsets     = new Float64Array(target);
                 this.velocities  = new Float64Array(target);
                 this.offsetsTmp  = new Float64Array(target);
                 this.velocityTmp = new Float64Array(target);
-                this.fillVerts = new Float32Array((target + 2) * 2);
-                this.borderVerts = new Float32Array((target + 1) * 4);
                 this.numPoints   = target;
+                this.allocateBuffers(target);
             }
 
             resizePoints(target) {
                 if (target === this.numPoints) return;
 
-                const oldOff = this.offsets;
-                const oldVel = this.velocities;
-                const oldCount = this.numPoints;
-
+                const oldOff = this.offsets, oldVel = this.velocities, oldCount = this.numPoints;
                 const newOff = new Float64Array(target);
                 const newVel = new Float64Array(target);
-
                 const copyCount = Math.min(oldCount, target);
                 newOff.set(oldOff.subarray(0, copyCount));
                 newVel.set(oldVel.subarray(0, copyCount));
@@ -3840,205 +3893,185 @@ function modules(ks) {
                     }
                 }
 
-                this.offsets     = newOff;
-                this.velocities   = newVel;
+                this.offsets = newOff;
+                this.velocities = newVel;
+                this.offsetsTmp = new Float64Array(target);
+                this.velocityTmp = new Float64Array(target);
+                this.numPoints = target;
+                this.allocateBuffers(target);
+            }
 
-                // Allocated for rebuildGeometry(), so as to avoid reallocating new Arrays every frame
-                this.fillVerts = new Float32Array((target + 2) * 2);
-                this.borderVerts = new Float32Array((target + 1) * 4);
-
-                this.offsetsTmp   = new Float64Array(target);
-                this.velocityTmp  = new Float64Array(target);
-                this.numPoints    = target;
+            allocateBuffers(n) {
+                const vertCount = 1 + (n + 1) * 3;
+                this.cellVerts  = new Float32Array(vertCount * 2);
+                this.cellUVs    = new Float32Array(vertCount * 2);
+                this.cellColors = new Float32Array(vertCount * 4);
+                this.cellBorder = new Float32Array(vertCount);
             }
 
             stepPhysics() {
                 const n = this.numPoints;
                 if (n === 0) return;
 
-                const vel = this.velocities;
-                const off = this.offsets;
-                const velOut = this.velocityTmp;
-                const offOut = this.offsetsTmp;
+                const vel = this.velocities, off = this.offsets;
+                const velOut = this.velocityTmp, offOut = this.offsetsTmp;
 
                 for (let i = 0; i < n; i++) {
                     const prevV = vel[(i - 1 + n) % n];
                     const nextV = vel[(i + 1) % n];
-
                     const jitter = Math.min(Math.max((vel[i] + Math.random() - 0.5) * JELLY_DAMPING, -10), 10);
-
                     velOut[i] = (prevV + nextV + 8 * jitter) / 10;
                 }
 
                 for (let i = 0; i < n; i++) {
                     const prevO = off[(i - 1 + n) % n];
                     const nextO = off[(i + 1) % n];
-
-                    // Apply velocity, then relax toward 0
                     const relaxed = (off[i] + velOut[i]) * (1 - JELLY_SMOOTHING);
-
                     offOut[i] = Math.max((prevO + nextO + 8 * relaxed) / 10, -this.size);
                 }
 
-                // Swap buffers — avoids reallocating every frame.
-                this.velocities = velOut;
-                this.velocityTmp = vel;
-                this.offsets = offOut;
-                this.offsetsTmp = off;
+                this.velocities = velOut; this.velocityTmp = vel;
+                this.offsets = offOut; this.offsetsTmp = off;
             }
-
-            // -------------------------------------------------------------------
-            // Geometry
-            // -------------------------------------------------------------------
 
             rebuildGeometry() {
                 const n = this.numPoints;
                 if (n === 0) {
-                    if (this.fillMesh)   this.fillMesh.visible   = false;
-                    if (this.borderMesh) this.borderMesh.visible = false;
-                    if (this.skinSprite) this.skinSprite.visible = false;
+                    if (this.cellMesh) this.cellMesh.visible = false;
                     return;
                 }
 
                 const offsets = this.offsets;
                 const size = this.size;
                 const { cos, sin } = this.angleCache(n);
+                const verts = this.cellVerts, uvs = this.cellUVs, colors = this.cellColors, border = this.cellBorder;
 
-                this.fillVerts[0] = 0;
-                this.fillVerts[1] = 0;
+                const innerFillBase   = 1;
+                const innerBorderBase = innerFillBase + (n + 1);
+                const outerBase       = innerBorderBase + (n + 1);
+
+                const [fr, fg, fb] = this.unpackColor(this.node.color);
+                const [br, bg, bb] = this.unpackColor(this.borderColor(this.node.color));
+                const fa = this.fillAlpha;
+
+                this.setVec2(verts, 0, 0, 0);
+                this.setVec2(uvs, 0, 0.5, 0.5);
+                this.setColor(colors, 0, fr, fg, fb, fa);
+                border[0] = 0;
 
                 for (let i = 0; i <= n; i++) {
                     const j = i % n;
                     const jag = this.jaggedOffset(j);
-
                     const fillR  = size + offsets[j] + jag;
                     const outerR = fillR + this.borderWidth / 2;
                     const innerR = Math.max(fillR - this.borderWidth / 2, 0);
-
                     const c = cos[j], s = sin[j];
 
-                    if (i < n) {
-                        this.fillVerts[2 + j * 2]     = c * outerR;
-                        this.fillVerts[2 + j * 2 + 1] = s * outerR;
-                    }
-                    if (j === 0 && i === n) {
-                        this.fillVerts[2 + n * 2]     = c * outerR;
-                        this.fillVerts[2 + n * 2 + 1] = s * outerR;
-                    }
+                    this.setVec2(verts, innerFillBase + i, c * innerR, s * innerR);
+                    this.setVec2(uvs, innerFillBase + i, 0.5 + 0.5 * c, 0.5 + 0.5 * s);
+                    this.setColor(colors, innerFillBase + i, fr, fg, fb, fa);
+                    border[innerFillBase + i] = 0;
 
-                    this.borderVerts[i * 4]     = c * outerR;
-                    this.borderVerts[i * 4 + 1] = s * outerR;
-                    this.borderVerts[i * 4 + 2] = c * innerR;
-                    this.borderVerts[i * 4 + 3] = s * innerR;
+                    this.setVec2(verts, innerBorderBase + i, c * innerR, s * innerR);
+                    this.setVec2(uvs, innerBorderBase + i, 0, 0);
+                    this.setColor(colors, innerBorderBase + i, br, bg, bb, 1);
+                    border[innerBorderBase + i] = 1;
+
+                    this.setVec2(verts, outerBase + i, c * outerR, s * outerR);
+                    this.setVec2(uvs, outerBase + i, 0, 0);
+                    this.setColor(colors, outerBase + i, br, bg, bb, 1);
+                    border[outerBase + i] = 1;
                 }
 
-                const fillIdx = this.fanIndices(n);
-                const borderIdx = this.stripIndices(n);
-
-                this.syncMesh('fillMesh', this.fillVerts, fillIdx, this.node.color, 0, this.fillAlpha);
-                this.syncMesh('borderMesh', this.borderVerts, borderIdx, this.borderColor(this.node.color), 1, 1);
-
-                this.syncSkinMask(offsets, size, n);
+                const indices = this.cellIndices(n, innerFillBase, innerBorderBase, outerBase);
+                this.syncCellMesh(verts, uvs, colors, border, indices);
             }
 
-            static _angleCaches = new Map();
-            static _fanIdxCaches = new Map();
-            static _stripIdxCaches = new Map();
+            cellIndices(n, innerFillBase, innerBorderBase, outerBase) {
+                let cached = JellyRenderer._cellIdxCaches.get(n);
+                if (cached) return cached;
+
+                const idx = new Uint32Array(n * 3 + n * 6);
+                let p = 0;
+                for (let i = 0; i < n; i++) {
+                    idx[p++] = 0; idx[p++] = innerFillBase + i; idx[p++] = innerFillBase + i + 1;
+                }
+                for (let i = 0; i < n; i++) {
+                    const a = innerBorderBase + i, b = innerBorderBase + i + 1;
+                    const c = outerBase + i,       d = outerBase + i + 1;
+                    idx[p++] = a; idx[p++] = c; idx[p++] = b;
+                    idx[p++] = b; idx[p++] = c; idx[p++] = d;
+                }
+                JellyRenderer._cellIdxCaches.set(n, idx);
+                return idx;
+            }
+
+            static _angleCaches  = new Map();
+            static _cellIdxCaches = new Map();
 
             angleCache(n) {
                 let c = JellyRenderer._angleCaches.get(n);
                 if (!c) {
-                    const cos = new Float32Array(n), sin = new Float32Array(n), angle = new Float32Array(n);
+                    const cos = new Float32Array(n), sin = new Float32Array(n);
                     for (let j = 0; j < n; j++) {
-                        angle[j] = (2 * Math.PI * j) / n;
-                        cos[j] = Math.cos(angle[j]);
-                        sin[j] = Math.sin(angle[j]);
+                        const a = (2 * Math.PI * j) / n;
+                        cos[j] = Math.cos(a); sin[j] = Math.sin(a);
                     }
-                    c = { cos, sin, angle };
+                    c = { cos, sin };
                     JellyRenderer._angleCaches.set(n, c);
                 }
                 return c;
             }
 
-            fanIndices(n) {
-                if (this._fanIdxCache?.n === n) return this._fanIdxCache.data;
-                const idx = new Uint16Array(n * 3);
-                for (let i = 0; i < n; i++) {
-                    idx[i * 3]     = 0;
-                    idx[i * 3 + 1] = i + 1;
-                    idx[i * 3 + 2] = i + 2;
-                }
-                this._fanIdxCache = { n, data: idx };
-                return idx;
-            }
+            syncCellMesh(verts, uvs, colors, border, indices) {
+                let mesh = this.cellMesh;
+                const topologyChanged = mesh && mesh.geometry.getIndex().data.length !== indices.length;
 
-            stripIndices(n) {
-                if (this._stripIdxCache?.n === n) return this._stripIdxCache.data;
-                const idx = new Uint16Array(n * 6);
-                for (let i = 0; i < n; i++) {
-                    const o = i * 2;
-                    idx[i * 6]     = o;
-                    idx[i * 6 + 1] = o + 1;
-                    idx[i * 6 + 2] = o + 2;
-                    idx[i * 6 + 3] = o + 2;
-                    idx[i * 6 + 4] = o + 1;
-                    idx[i * 6 + 5] = o + 3;
+                if (mesh && topologyChanged) {
+                    mesh.geometry.destroy();
+                    mesh.destroy();
+                    mesh = this.cellMesh = null;
                 }
-                this._stripIdxCache = { n, data: idx };
-                return idx;
-            }
 
-            syncMesh(field, verts, indices, tint, zIndex, alpha) {
-                let mesh = this[field];
                 if (!mesh) {
                     const geometry = new PIXI.MeshGeometry({ positions: verts, indices });
-                    mesh = new PIXI.Mesh({ geometry });
-                    mesh.zIndex = zIndex;
+                    geometry.addAttribute('aUV', { buffer: new PIXI.Buffer({ data: uvs }), format: 'float32x2' });
+                    geometry.addAttribute('aColor', { buffer: new PIXI.Buffer({ data: colors }), format: 'float32x4' });
+                    geometry.addAttribute('aBorder', { buffer: new PIXI.Buffer({ data: border }), format: 'float32' });
+
+                    const shader = new PIXI.Shader({
+                        glProgram: JellyRenderer.jellyProgram,
+                        resources: { uTexture: PIXI.Texture.EMPTY.source },
+                    });
+
+                    mesh = new PIXI.Mesh({ geometry, shader });
                     this.root.addChild(mesh);
-                    this[field] = mesh;
+                    this.cellMesh = mesh;
+                    if (this.skinTexture) this.applyTextureToMesh();
                 } else {
-                    const geo = mesh.geometry;
-                    const posBuffer = geo.getBuffer('aPosition');
-                    posBuffer.data = verts;
-                    posBuffer.update();
-
-                    const idxBuffer = geo.getIndex();
-                    idxBuffer.data = indices;
-                    idxBuffer.update();
+                    mesh.geometry.getBuffer('aPosition').data = verts; mesh.geometry.getBuffer('aPosition').update();
+                    mesh.geometry.getBuffer('aUV').data = uvs;         mesh.geometry.getBuffer('aUV').update();
+                    mesh.geometry.getBuffer('aColor').data = colors;   mesh.geometry.getBuffer('aColor').update();
+                    mesh.geometry.getBuffer('aBorder').data = border;  mesh.geometry.getBuffer('aBorder').update();
+                    mesh.geometry.getIndex().data = indices;           mesh.geometry.getIndex().update();
                 }
-
-                mesh.tint = tint;
-                mesh.alpha = alpha;
                 mesh.visible = true;
             }
 
-            syncSkinMask(offsets, size, n) {
-                if (!this.skinSprite) return;
+            unpackColor(color) {
+                return [((color >> 16) & 0xff) / 255, ((color >> 8) & 0xff) / 255, (color & 0xff) / 255];
+            }
 
-                if (!this.skinMask) {
-                    this.skinMask = new PIXI.Graphics();
-                    this.uiRoot.addChild(this.skinMask);
-                    this.skinSprite.mask = this.skinMask;
-                }
+            setVec2(arr, i, x, y) { 
+                arr[i * 2]     = x; 
+                arr[i * 2 + 1] = y; 
+            }
 
-                const { cos, sin } = this.angleCache(n);
-                const mg = this.skinMask;
-                mg.clear();
-                mg.beginPath();
-
-                for (let i = 0; i <= n; i++) {
-                    const j = i % n;
-                    // normalized radius (unit circle, same math as before)
-                    const rNorm = Math.max(1 + (offsets[j] + this.jaggedOffset(j) - this.borderWidth / 2) / size, 0);
-                    // convert into the same texture-pixel space uiRoot now expects
-                    const r = rNorm * this.textureSize;
-                    const x = cos[j] * r;
-                    const y = sin[j] * r;
-                    i === 0 ? mg.moveTo(x, y) : mg.lineTo(x, y);
-                }
-
-                mg.closePath();
-                mg.fill({ color: 0xffffff });
+            setColor(arr, i, r, g, b, a) { 
+                arr[i * 4 ]    = r; 
+                arr[i * 4 + 1] = g; 
+                arr[i * 4 + 2] = b; 
+                arr[i * 4 + 3] = a; 
             }
 
             borderColor(color) {
@@ -4052,30 +4085,75 @@ function modules(ks) {
 
             get fillAlpha() { return 1; }
             get borderWidth() { return 12; }
-            get uiRoot() {
-                if (!this._uiRoot) {
-                    this._uiRoot = new PIXI.Container();
-                    this._uiRoot.sortableChildren = true;
-                    this._uiRoot.scale.set(this.size);
-                    this._uiRoot.zIndex = 1;
-                    this.root.addChild(this._uiRoot);
-                }
-                return this._uiRoot;
-            }
-
-            get textureSize() { return 256; }
             get targetPointsAmount() {
-                // If LOD, halve point count
-                const raw = (this.LOD ? 1 : 2) * Math.PI * this.node.size * JELLY_PPU;
+                const raw = 2 * Math.PI * this.node.size * JELLY_PPU;
                 return Math.max(raw | 0, JELLY_POINTS_MIN);
             }
+            
+            // This program is used in each cell's respective shader.
+            static jellyProgram = PIXI.GlProgram.from({
+                vertex: `
+                    in vec2 aPosition;
+                    in vec2 aUV;
+                    in vec4 aColor;
+                    in float aBorder;
+
+                    out vec4 vColor;
+                    out vec2 vUV;
+                    out vec4 vCellColor;
+                    out float vBorder;
+
+                    uniform mat3 uProjectionMatrix;
+                    uniform mat3 uWorldTransformMatrix;
+                    uniform vec4 uWorldColorAlpha;
+                    uniform vec2 uResolution;
+
+                    uniform mat3 uTransformMatrix;
+                    uniform vec4 uColor;
+
+                    void main(void) {
+                        mat3 worldTransformMatrix = uWorldTransformMatrix;
+                        mat3 modelMatrix = uTransformMatrix;   // <- this mesh's own position/scale, not identity
+
+                        vec2 position = aPosition;
+                        vec2 uv = aUV;
+
+                        vColor = uColor;                        // tint/alpha for this specific mesh
+                        vUV = uv;
+                        vCellColor = aColor;
+                        vBorder = aBorder;
+
+                        mat3 modelViewProjectionMatrix = uProjectionMatrix * worldTransformMatrix * modelMatrix;
+                        gl_Position = vec4((modelViewProjectionMatrix * vec3(position, 1.0)).xy, 0.0, 1.0);
+                        vColor *= uWorldColorAlpha;
+                    }
+                `,
+                fragment: `
+                    in vec4 vColor;
+                    in vec2 vUV;
+                    in vec4 vCellColor;
+                    in float vBorder;
+
+                    uniform sampler2D uTexture;
+
+                    out vec4 finalColor;
+
+                    void main(void) {
+                        vec4 texColor = texture(uTexture, vUV);
+                        float skinWeight = (1.0 - vBorder) * texColor.a;
+                        vec3 rgb = mix(vCellColor.rgb, texColor.rgb, skinWeight);
+                        vec4 outColor = vec4(rgb, vCellColor.a);
+                        finalColor = outColor * vColor;
+                    }
+                `
+            });
         }
 
         class PlayerJellyRenderer extends JellyRenderer {
             init() {
                 super.init();
-                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
-                this.setSkin(this.node.skin);
+                this.setName();
+                this.setSkin();
             }
             clean() {
                 this.removeName();
@@ -4091,14 +4169,14 @@ function modules(ks) {
             }
             init() {
                 super.init();
-                this.setSize(this.node.size);
+                this.setSize();
             }
             clean() {
                 this.removeMass();
                 super.clean();
             }
             get textureSize() { return this.game.cellSize; }
-            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+            get skinSize() { return 1; }
 
         }
 
@@ -4123,12 +4201,11 @@ function modules(ks) {
             init() {
                 super.init();
                 this.root.visible = !this.game.settings.settings.hideFood;
+                this.root.rotation = Math.random() * Math.PI * 2; 
             }
 
             get targetPointsAmount() {
-                if (this.shape == null) this.shape = Math.floor(Math.random() * 3);
-                console.debug(this.shape);
-                switch (this.shape) {
+                switch (this.node.shape) {
                     case foodShape.Pentagon:
                         return 5;
                     case foodShape.Hexagon:
@@ -4167,7 +4244,7 @@ function modules(ks) {
             tick() {
                 if (!super.tick()) return false;
 
-                this.uiRoot.scale.set(this.size);
+                this.root.scale.set(this.size / this.textureSize);
             }
 
             // Creates a Sprite with a texture defined by subclasses
@@ -4185,8 +4262,8 @@ function modules(ks) {
         class PlayerSpriteRenderer extends SpriteRenderer {
             init() {
                 super.init();
-                this.setName(this.node.name, this.node.lockedColor, this.node.lockedPosition);
-                this.setSkin(this.node.skin);
+                this.setName();
+                this.setSkin();
             }
 
             destroy() {
@@ -4211,7 +4288,7 @@ function modules(ks) {
         class CellSpriteRenderer extends PlayerSpriteRenderer {
             init() {
                 super.init();
-                this.setSize(this.node.size);
+                this.setSize();
             }
 
             destroy() {
@@ -4239,15 +4316,10 @@ function modules(ks) {
             init() {
                 super.init();
                 this.root.visible = !this.game.settings.settings.hideFood;
+                this.root.rotation = Math.random() * Math.PI * 2; 
             }
 
-            createSprite() { 
-                const sprite = super.createSprite();
-                sprite.rotation = Math.random() * Math.PI * 2; 
-                return sprite;
-            }
-
-            get texture() { return this.game.randomFoodTexture; }
+            get texture() { return this.game.foodTextures[this.node.shape]; }
             get textureSize() { return this.game.foodSize; }
         }
 
@@ -4348,6 +4420,11 @@ function modules(ks) {
         //     lockedColor -X-> FoodNode
 
         class FoodNode extends Node {
+            init(nodeData) {
+                this.shape = Math.floor(Math.random() * 3);
+                super.init(nodeData);
+            }
+
             get type() { return nodeType.Food; }
         }
 
@@ -4466,9 +4543,9 @@ function modules(ks) {
         class BinaryWriter {
             constructor(size) {
                 if (!size || size <= 0) {
-                    size = kD.Buffer.poolSize / 2;
+                    size = bufferModule.Buffer.poolSize / 2;
                 }
-                this._buffer = new kD.Buffer(size);
+                this._buffer = new bufferModule.Buffer(size);
                 this._length = 0;
             }
             writeUInt8(value) {
@@ -4519,13 +4596,13 @@ function modules(ks) {
                 this._length += data.length;
             }
             ;writeStringUtf8(value) {
-                var length = kD.Buffer.byteLength(value, 'utf8')
+                var length = bufferModule.Buffer.byteLength(value, 'utf8')
                 this.checkAlloc(this, length);
                 this._buffer.write(value, this._length, 'utf8');
                 this._length += length;
             }
             ;writeStringUnicode(value) {
-                var length = kD.Buffer.byteLength(value, 'ucs2')
+                var length = bufferModule.Buffer.byteLength(value, 'ucs2')
                 this.checkAlloc(this, length);
                 this._buffer.write(value, this._length, 'ucs2');
                 this._length += length;
@@ -4545,37 +4622,34 @@ function modules(ks) {
                 this._length = 0;
             }
             ;toBuffer() {
-                return kD.Buffer.concat([this._buffer.slice(0, this._length)]);
+                return bufferModule.Buffer.concat([this._buffer.slice(0, this._length)]);
             }
             ;checkAlloc(writer, size) {
                 var needed = writer._length + size;
                 if (writer._buffer.length >= needed)
                     return;
-                var chunk = Math.max(kD.Buffer.poolSize / 2, 1024);
+                var chunk = Math.max(bufferModule.Buffer.poolSize / 2, 1024);
                 var chunkCount = (needed / chunk) >>> 0;
                 if ((needed % chunk) > 0) {
                     chunkCount += 1;
                 }
-                var buffer = new kD.Buffer(chunkCount * chunk);
+                var buffer = new bufferModule.Buffer(chunkCount * chunk);
                 writer._buffer.copy(buffer, 0, 0, writer._length);
                 writer._buffer = buffer;
             }
-            ;
         }
-        const writer = BinaryWriter;
-        ;class nN {
+        class PingWriter {
             constructor() {
-                this._writer = new writer(1);
+                this._writer = new BinaryWriter(1);
                 this._writer.writeUInt8(100);
             }
             build() {
                 return this._writer.toBuffer();
             }
         }
-        const nO = nN;
-        ;class nP {
+        class ProtocolWriter {
             constructor(nQ) {
-                this._writer = new writer();
+                this._writer = new BinaryWriter();
                 this._writer.writeUInt8(0x7b);
                 this._writer.writeUInt8(0x6);
                 this._writer.writeStringZeroUtf8(nQ);
@@ -4584,10 +4658,9 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const nR = nP;
-        ;class nS {
+        class LoginWriter {
             constructor(nT) {
-                this._writer = new writer();
+                this._writer = new BinaryWriter();
                 this._writer.writeUInt8(0xff);
                 this._writer.writeStringZeroUnicode(nT);
             }
@@ -4595,20 +4668,18 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const nU = nS;
-        ;class nV {
+        class SpectateWriter {
             constructor() {
-                this._writer = new writer(1);
+                this._writer = new BinaryWriter(1);
                 this._writer.writeUInt8(1);
             }
             build() {
                 return this._writer.toBuffer();
             }
         }
-        const nW = nV;
-        ;class nX {
+        class NameWriter {
             constructor(nY) {
-                this._writer = new writer();
+                this._writer = new BinaryWriter();
                 this._writer.writeUInt8(0);
                 this._writer.writeStringZeroUtf8(nY);
             }
@@ -4616,10 +4687,9 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const nZ = nX;
-        ;class o0 {
+        class ChatWriter {
             constructor(o1, o2) {
-                this._writer = new writer();
+                this._writer = new BinaryWriter();
                 this._writer.writeUInt8(0x56);
                 this._writer.writeInt32(o2);
                 this._writer.writeStringZeroUtf8(o1);
@@ -4628,10 +4698,9 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const o3 = o0;
-        ;class o4 {
+        class MouseWriter {
             constructor(o5, o6) {
-                this._writer = new writer();
+                this._writer = new BinaryWriter();
                 this._writer.writeUInt8(16);
                 this._writer.writeDouble(~~o5);
                 this._writer.writeDouble(~~o6);
@@ -4640,12 +4709,11 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const o7 = o4;
-        ;class o8 {
+        class SplitWriter {
             constructor(/*amount*/
             ) {
                 // Amount from 1-4
-                this._writer = new writer(1);
+                this._writer = new BinaryWriter(1);
                 this._writer.writeUInt8(17);
                 /* Server would queue splits for the next `amount` game ticks
                 this._writer.writeUInt8(amount); 
@@ -4655,31 +4723,18 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const o9 = o8;
-        ;class oa {
+        class EjectWriter {
             constructor() {
-                this._writer = new writer(1);
+                this._writer = new BinaryWriter(1);
                 this._writer.writeUInt8(21);
             }
             build() {
                 return this._writer.toBuffer();
             }
         }
-        const ob = oa;
-        /*class oc {
-            constructor() {
-                this._writer = new writer(0x1);
-                this._writer.writeUInt8(0x12);
-            }
-            build() {
-                return this._writer.toBuffer();
-            }
-        }
-        // Extra (??) packet constructor
-        const od = oc;*/
-        class oe {
+        class PartyWriter {
             constructor(of, og) {
-                this._writer = new writer();
+                this._writer = new BinaryWriter();
                 this._writer.writeUInt8(0x55);
                 this._writer.writeUInt8(of);
                 if (of == 1) {
@@ -4690,19 +4745,18 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
-        const oh = oe;
-        ;const packet = {
-            'Ping': nO,
-            'Protocol': nR,
-            'Login': nU,
-            'Spectate': nW,
-            'Name': nZ,
-            'Chat': o3,
-            'Mouse': o7,
-            'Split': o9,
-            'Eject': ob,
+        const packet = {
+            'Ping': PingWriter,
+            'Protocol': ProtocolWriter,
+            'Login': LoginWriter,
+            'Spectate': SpectateWriter,
+            'Name': NameWriter,
+            'Chat': ChatWriter,
+            'Mouse': MouseWriter,
+            'Split': SplitWriter,
+            'Eject': EjectWriter,
             /*'Extra': od,*/
-            'Party': oh
+            'Party': PartyWriter
         };
         ;const oj = 'g-h';
         const ok = ['6', '9'];
@@ -4712,8 +4766,8 @@ function modules(ks) {
         }
         ;
         ;class Network {
-            constructor(os) {
-                this.game = os;
+            constructor(game) {
+                this.game = game;
                 this.open = false;
                 this.ping = Date.now();
                 this.searching = false;
@@ -5000,10 +5054,8 @@ function modules(ks) {
                         this.handlePosition(oY);
                         break;
                     case 0x12:
-                        this.handleClear(oY);
-                        break;
                     case 20:
-                        this.handleClear(oY);
+                        this.handleClear();
                         break;
                     case 32:
                         this.handleAddNode(oY);
@@ -5030,7 +5082,7 @@ function modules(ks) {
                         this.handleLevel(oY);
                         break;
                     case 100:
-                        this.handlePong(oY);
+                        this.handlePong();
                         break;
                     case 0x77:
                         this.handleRadius(oY);
@@ -5069,14 +5121,14 @@ function modules(ks) {
                 , p1);
             }
 
-            handleLevel(p2) {
-                this.game.login.setXP(p2.readUInt32());
-                if (p2.readUInt8() == 1) {
-                    this.game.login.setCoins(this.game.login.coins + p2.readUInt32());
+            handleLevel(reader) {
+                this.game.login.setXP(reader.readUInt32());
+                if (reader.readUInt8() == 1) {
+                    this.game.login.setCoins(this.game.login.coins + reader.readUInt32());
                 }
             }
 
-            handlePong(p3) {
+            handlePong() {
                 var p4 = Date.now();
                 var p5 = p4 - this.ping;
                 this.game.ping = p5;
@@ -5140,6 +5192,7 @@ function modules(ks) {
                 this.game.myCells.add(id); // id of node owned by player
 
                 if (this.game.nodes.has(id)) {
+                    // This has never fired once, but I'm keeping it 
                     console.warn("!!!!! CAUGHT EXISTING NODE OWNED BY PLAYER !!!!!"); 
                     if (!this.game.aliveCell) this.game.aliveCell = node;
                     this.game.playerCells.add(this.game.nodes.get(id));
@@ -5272,8 +5325,8 @@ function modules(ks) {
                     node.y = y;
                     node.size = size;
 
-                    // ...And its rendered mass sprite, I suppose?
-                    if (node.type === nodeType.Player) node.renderer.setSize(size);
+                    // ...And its rendered mass sprite
+                    if (node.type === nodeType.Player) node.renderer.setSize();
                 }
 
                 let destroyCount = buffer.readUInt16();
@@ -5304,62 +5357,65 @@ function modules(ks) {
             }
             handleBorder(pW) {
                 this.game.setBorder(pW.readDouble(), pW.readDouble(), pW.readDouble(), pW.readDouble());
-                this.game.pID = pW.readUInt32();
+                this.game.myID = pW.readUInt32();
             }
-            handleLeaderboardText(pX) {
-                var pY = pX.readUInt16();
-                this.game.leaderboard = [];
-                this.game.leaderboardCustom = true;
-                for (var pZ = 0; pZ < pY; pZ++) {
-                    this.game.leaderboard.push(pX.readStringZeroUtf8());
+            handleLeaderboardText(reader) {
+                const amount = reader.readUInt16();
+
+                let leaderboard = [];
+                for (let i = 0; i < amount; i++) {
+                    leaderboard.push(reader.readStringZeroUtf8());
                 }
-                this.game.ui.update();
+                this.game.leaderboard = leaderboard;
+
+                this.game.ui.updateLeaderboardHTML();
             }
-            handleLeaderboardFFA(q0) {
-                let q1 = q0.readUInt16();
-                this.game.leaderboard = [];
-                this.game.leaderboardCustom = false;
-                for (let q2 = 0; q2 < q1; q2++) {
-                    let q3 = q0.readUInt16();
-                    let q4 = q0.readUInt32();
-                    this.game.leaderboard.push({
-                        'rank': q3,
-                        'id': q4,
-                        'name': q0.readStringZeroUtf8()
+            handleLeaderboardFFA(reader) {
+                const amount = reader.readUInt16();
+                let leaderboard = [];
+                for (let i = 0; i < amount; i++) {
+                    const rank = reader.readUInt16();
+                    const id = reader.readUInt32();
+                    leaderboard.push({
+                        'rank': rank,
+                        'id': id,
+                        'name': reader.readStringZeroUtf8()
                     });
                 }
-                this.game.ui.update();
+                this.game.leaderboard = leaderboard;
+                this.game.ui.updateLeaderboardHTML();
             }
-            handleClear(q5) {
+            handleClear() {
                 this.game.clearNodes();
             }
-            handlePosition(q6) {
-                this.game.updateCameraPos(q6.readFloat(), q6.readFloat(), q6.readFloat());
+            handlePosition(reader) {
+                this.game.updateCameraPos(reader.readFloat(), reader.readFloat(), reader.readFloat());
             }
-            handleRestart(q7) {
+            handleRestart(reader) {
                 this.verified = true;
-                this.restart = q7.readStringZeroUnicode();
+                this.restart = reader.readStringZeroUnicode();
                 $('#resetCenter').show();
-                this.game.ui.updateDebug();
+                this.game.ui.updateDebugHTML();
             }
-            handleRadius(q8) {
-                this.game.radius = q8.readDouble();
+            handleRadius(reader) {
+                this.game.radius = reader.readDouble();
             }
-            handleChat(q9) {
-                let qa = q9.readInt32();
-                let qb = q9.readInt32();
-                var qc = q9.readUInt8()
-                  , qd = q9.readUInt8()
-                  , qe = q9.readUInt8()
-                  , qf = (qc << 16 | qd << 8 | qe).toString(16);
-                while (qf.length < 6) {
-                    qf = '0' + qf;
+            handleChat(reader) {
+                let parent = reader.readInt32();
+                let channel = reader.readInt32();
+                var r = reader.readUInt8()
+                  , g = reader.readUInt8()
+                  , b = reader.readUInt8()
+                  , color = (r << 16 | g << 8 | b).toString(16);
+                while (color.length < 6) {
+                    color = '0' + color;
                 }
-                qf = '#' + qf;
-                let qg = q9.readStringZeroUtf8();
-                let qh = q9.readStringZeroUtf8();
-                this.game.chat.onMessage(qg, qf, qh, qa, qb);
+                color = '#' + color;
+                let sender = reader.readStringZeroUtf8();
+                let message = reader.readStringZeroUtf8();
+                this.game.chat.onMessage(sender, color, message, parent, channel);
             }
+
             findMode(qi) {
                 for (var qj in this.modes) {
                     var qk = this.modes[qj];
@@ -5380,6 +5436,7 @@ function modules(ks) {
                     }
                 }
             }
+
             refresh() {
                 if (this.open && $('#menu').is(':visible')) {
                     $.getJSON('php/Servers.php?region=' + this.region, qq => {
@@ -5395,6 +5452,7 @@ function modules(ks) {
                     );
                 }
             }
+
             moreServers() {
                 if (!this.modes || !this.mode)
                     return;
@@ -5452,7 +5510,7 @@ function modules(ks) {
                 );
             }
         }
-        ;class Settings {
+        class Settings {
             constructor(game) {
                 this.game = game;
                 this.settings = JSON.parse(window.localStorage.getItem('settings') || '{}');
@@ -5536,34 +5594,47 @@ function modules(ks) {
             }
             ready() {
                 this.game.setSkin(this.getItem('skin'));
-                this.game.setTheme(this.getItem('theme'), '#theme-' + this.getItem('theme'));
-                this.game.setColor(this.getItem('color'), '#color-' + this.getItem('color'));
-                document.getElementById('nick').value = this.getItem('nick');
-                document.getElementById('showNames').value = this.getItem('showNames');
-                document.getElementById('showSkins').value = this.getItem('showSkins');
+                this.game.setTheme(this.getItem('theme'), `#theme-${this.getItem('theme')}`);
+                this.game.setColor(this.getItem('color'), `#color-${this.getItem('color')}`);
 
-                document.getElementById('showMass').checked = this.getItem('showMass');
-                document.getElementById('skipDeathScreen').checked = this.getItem('skipDeathScreen');
-                document.getElementById('hideXP').checked = this.getItem('hideXP');
-                document.getElementById('hideChat').checked = this.getItem('hideChat');
-                document.getElementById('hideFood').checked = this.getItem('hideFood');
-                document.getElementById('hideBorder').checked = this.getItem('hideBorder');
-                document.getElementById('disableProfanityFilter').checked = this.getItem('disableProfanityFilter');
+                [
+                    'nick',
+                    'showNames',
+                    'showSkins',
+                    'animationDelay'
+                ].forEach(id => {
+                    document.getElementById(id).value = this.getItem(id);
+                });
 
-                document.getElementById('animationDelay').value = this.getItem('animationDelay');
+                [
+                    'showMass',
+                    'skipDeathScreen',
+                    'hideXP',
+                    'hideChat',
+                    'hideFood',
+                    'hideBorder',
+                    'disableProfanityFilter',
+                    'autoZoom',
+                    'mouseArrow'
+                ].forEach(id => {
+                    document.getElementById(id).checked = this.getItem(id);
+                });
 
-                document.getElementById('autoZoom').checked = this.getItem('autoZoom');
-                document.getElementById('mouseArrow').checked = this.getItem('mouseArrow');
+                const controls = {
+                    keyFeed: 'Feed',
+                    keySplit: 'Split',
+                    keyDouble: 'Double',
+                    keyTriple: 'Triple',
+                    key16x: '16x',
+                    keyFreeze: 'Freeze',
+                    keyVertical: 'Vertical',
+                    keyHide: 'Hide'
+                };
 
-                document.getElementById('keyFeed').value = this.settings.controls.Feed[1];
-                document.getElementById('keySplit').value = this.settings.controls.Split[1];
-                document.getElementById('keyDouble').value = this.settings.controls.Double[1];
-                document.getElementById('keyTriple').value = this.settings.controls.Triple[1];
-                document.getElementById('key16x').value = this.settings.controls['16x'][1];
-                document.getElementById('keyFreeze').value = this.settings.controls.Freeze[1];
-                document.getElementById('keyVertical').value = this.settings.controls.Vertical[1];
-                document.getElementById('keyHide').value = this.settings.controls.Hide[1];
-                //$('#keySpectate').val(this.settings.controls.Spectate[1]);
+                for (const [id, key] of Object.entries(controls)) {
+                    document.getElementById(id).value = this.settings.controls[key][1];
+                }
+
                 this.game.renderTheme();
             }
             getItem(key) {
@@ -5628,7 +5699,7 @@ function modules(ks) {
                         for (const node of this.game.nodes.values()) {
                             if (node.type !== nodeType.Player) continue;
                             if (node.renderer.canDisplay(value)) {
-                                node.renderer.setName(node.name, node.lockedColor, node.lockedPosition);
+                                node.renderer.setName();
                             } else {
                                 node.renderer.removeName();
                             }
@@ -5638,7 +5709,7 @@ function modules(ks) {
                         for (const node of this.game.nodes.values()) {
                             if (node.type !== nodeType.Player) continue;
                             if (value) {
-                                node.renderer.setSize(node.size);
+                                node.renderer.setSize();
                             } else {
                                 node.renderer.removeMass();
                             }
@@ -5670,7 +5741,7 @@ function modules(ks) {
                 window.localStorage.setItem('settings', JSON.stringify(saveSettings));
             }
         }
-        ;class qI {
+        class Login {
             constructor(qJ) {
                 this.game = qJ;
                 this.getCache();
@@ -6371,8 +6442,7 @@ function modules(ks) {
                 this.updateTime = performance.now();
                 this.startTime = performance.now();
                 this.delta = 1;
-                this.fps = 60;
-                this.pID = -1;
+                this.myID = -1;
                 this.hideUI = false;
                 this.freeze = false;
                 this.linesplit = false;
@@ -6395,8 +6465,8 @@ function modules(ks) {
                 this.masses = new MassCache(this);
                 this.camera = new Camera(this);
                 this.network = new Network(this);
-                this.ui = new lC(this);
-                this.login = new qI(this);
+                this.ui = new GameUI(this);
+                this.login = new Login(this);
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
                 this.foodEaten = 0;
@@ -6410,6 +6480,7 @@ function modules(ks) {
                 this.customTheme = this.settings.getItem('customTheme'); // Reduce lookups
                 this.theme = 2;
             }
+
             async waitForGermsfoxURL() {
                 while (!window.__germsfoxURL) {
                     await new Promise(resolve => setTimeout(resolve, 100));
@@ -6555,6 +6626,7 @@ function modules(ks) {
                 });
             }
 
+            // TODO I want to get rid of this
             updateCellsAppearance() {
                 this.cellTexture = this.settings.settings.borderlessCells ? 
                     this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
@@ -6584,6 +6656,7 @@ function modules(ks) {
                     texture.source.update();
                 }
             }
+
             counter() {
                 if (this.onLeaderboard) {
                     this.leaderboardTime++;
@@ -6592,11 +6665,9 @@ function modules(ks) {
                     this.timeAlive++;
                 }
             }
+            
             urlFromSkin(sY) {
                 return sY.includes('i.imgur.com/') ? sY : sY.includes('.png') ? 'res/skins/' + sY : 'res/skins/' + sY + '.png';
-            }
-            get randomFoodTexture() {
-                return this.foodTextures[Math.floor(Math.random() * this.foodTextures.length)];
             }
             calcMouse() {
                 let newX = (this.rawMouseX - this.width / 2) / this.camera.renderZoom + this.camera.renderX;
@@ -6668,6 +6739,7 @@ function modules(ks) {
 
                 this.mouse = { x: newX, y: newY, realX: newX, realY: newY };
             }
+
             isOnLinesplitAxis(x, y) {
                 const dx = x - this.linesplitOrigin.x;
                 const dy = y - this.linesplitOrigin.y;
@@ -6744,12 +6816,6 @@ function modules(ks) {
                 }
                 return bestCell;
             }
-            sort() {
-                this.cellContainer.children.sort( (t3, t4) => {
-                    return t3.zIndex - t4.zIndex;
-                }
-                );
-            }
             sendMouse() {
                 if (this.freeze)
                     return;
@@ -6764,17 +6830,16 @@ function modules(ks) {
                     }
                 }
             }
-            render(t5) {
-                this.updateTime = performance.now();
-                this.delta = Math.min(1, Math.max(0, t5.deltaTime));
 
-                this.fps = this.ticker.FPS;
+            render(tick) {
+                this.updateTime = performance.now();
+                this.delta = Math.min(1, Math.max(0, tick.deltaTime));
 
                 for (const node of this.nodes.values()) {
                     node.renderer.tick();
                 }
 
-                if (this.playerCells.size > 0) {
+                if (this.aliveCell) {
 
                     // Get alive player cells and base camera position off each cell's size relative to total size
                     let playerCellsAlive = 0;
@@ -6784,7 +6849,6 @@ function modules(ks) {
                     let cameraY = 0;
 
                     for (const cell of this.playerCells) {
-
                         if (cell.eaten)
                             continue;
 
@@ -6819,22 +6883,16 @@ function modules(ks) {
                     }
                 }
 
+                this.ui.updateMinimap();
+
                 this.cellContainer.sortChildren();
 
                 this.stage.x = this.width / 2 - this.camera.renderX * this.camera.renderZoom;
                 this.stage.y = this.height / 2 - this.camera.renderY * this.camera.renderZoom;
-
                 this.stage.scale.x = this.camera.renderZoom;
                 this.stage.scale.y = this.camera.renderZoom;
-                this.ui.loop();
-                try {
-                    this.renderer.render(this.stage);
-                } catch(e) {
-                    console.debug('Names cache:', this.names.entries.size, 'entries');
-                    console.debug('Masses cache:', this.masses.entries.size, 'entries');
-                    console.debug('Skins cache:', this.skins.entries.size, 'entries');
-                    throw e;
-                }
+
+                this.renderer.render(this.stage);
             }
 
             changeSetting(key, value) {
@@ -6866,16 +6924,17 @@ function modules(ks) {
                 this.settings.setItem('nick', name);
                 this.deleteLastKiller();
                 this.freeSpec = false;
-                if (this.playerCells.size == 0) {
+
+                if (!this.aliveCell) {
                     this.freeze = false;
                     this.linesplit = false;
-                    const ts = this.settings.getItem('deathCount');
-                    if (ts % 5 == 0 && typeof adplayer !== 'undefined') {
+                    const deaths = this.settings.getItem('deathCount');
+                    if (deaths % 5 == 0 && typeof adplayer !== 'undefined') {
                         try {
                             aiptag.cmd.player.push(function() {
                                 adplayer.startPreRoll();
                             });
-                        } catch (tt) {
+                        } catch (error) {
                             this.prerollComplete();
                         }
                     } else {
@@ -6883,15 +6942,16 @@ function modules(ks) {
                     }
                 }
             }
-            setSkin(tu, tv) {
-                if (tu === '') return;
-                if (tu.includes('imgur') || tv) {
-                    if (tu.includes('i.imgur.com/')) {
+
+            setSkin(skin) {
+                if (skin === '') return;
+                if (skin.includes('imgur')) {
+                    if (skin.includes('i.imgur.com/')) {
                         hideSkins();
                         hideShop();
-                        this.settings.setItem('skin', tu);
-                        this.network.setSkin(tu);
-                        $('#skin').css('background-image', 'url(' + tu + ')');
+                        this.settings.setItem('skin', skin);
+                        this.network.setSkin(skin);
+                        $('#skin').css('background-image', 'url(' + skin + ')');
                         $('#skin').addClass('selected');
                     } else {
                         alert('Invalid Imgur Link\n(Must include i.imgur)');
@@ -6899,14 +6959,14 @@ function modules(ks) {
                 } else {
                     hideSkins();
                     hideShop();
-                    this.settings.setItem('skin', tu);
-                    this.network.setSkin(tu);
-                    if (tu == 'None') {
+                    this.settings.setItem('skin', skin);
+                    this.network.setSkin(skin);
+                    if (skin == 'None') {
                         $('#skin').css('background-image', 'url(res/noskin.png)');
                         $('#skin').removeClass('selected');
                     } else {
-                        var tw = 'res/skins/' + encodeURIComponent(tu) + '.png';
-                        $('#skin').css('background-image', 'url(' + tw + ')');
+                        const url = 'res/skins/' + encodeURIComponent(skin) + '.png';
+                        $('#skin').css('background-image', 'url(' + url + ')');
                         $('#skin').addClass('selected');
                     }
                 }
@@ -7116,7 +7176,7 @@ function modules(ks) {
                 this.ui.score = 0;
                 this.party = null;
                 this.camera.setPosition(0, 0);
-                this.ui.update();
+                this.ui.updateLeaderboardHTML();
                 
                 // Clear texture caches
                 this.names.clear();
@@ -7207,8 +7267,6 @@ function modules(ks) {
                 if ($('#menu').is(':visible'))
                     return;
 
-                const self = this;
-
                 if ($('#chat_input').is(':focus')) {
                     switch (event.keyCode) {
                     case 27:
@@ -7281,7 +7339,7 @@ function modules(ks) {
                             return;
                         this.freeze = !this.freeze;
                         this.linesplit = false;
-                        this.ui.updateDebug();
+                        this.ui.updateDebugHTML();
                         break;
                     case this.controls.Vertical[0]:
                         if (event.repeat || this.freeSpec)
@@ -7289,30 +7347,30 @@ function modules(ks) {
                         this.splitPending = true;
                         this.linesplit = !this.linesplit;
                         this.freeze = false;
-                        this.ui.updateDebug();
+                        this.ui.updateDebugHTML();
                         break;
                     case this.controls.Double[0]:
                         this.splitPending = false;
-                        self.network.send(new packet.Split());
+                        this.network.send(new packet.Split());
                         if (event.repeat)
                             return;
-                        setTimeout( () => self.network.send(new packet.Split()), 75);
+                        setTimeout( () => this.network.send(new packet.Split()), 75);
                         break;
                     case this.controls.Triple[0]:
                         this.splitPending = false;
-                        self.network.send(new packet.Split());
+                        this.network.send(new packet.Split());
                         if (event.repeat)
                             return;
                         setTimeout( () => {
-                            self.network.send(new packet.Split());
-                            setTimeout( () => self.network.send(new packet.Split()), 75);
+                            this.network.send(new packet.Split());
+                            setTimeout( () => this.network.send(new packet.Split()), 75);
                         }
                         , 75);
                         break;
                     case this.controls['16x'][0]:
                         this.splitPending = false;
                         for (let i = 0; i < 4; i++) {
-                            setTimeout( () => self.network.send(new packet.Split()), 45 * i);
+                            setTimeout( () => this.network.send(new packet.Split()), 45 * i);
                             if (i === 0 && event.repeat)
                                 return;
                         }
@@ -7394,18 +7452,18 @@ function modules(ks) {
                 }
                 return openUserMenu(null);
             }
-            openUserMenu(uk) {
-                if (uk && this.pID != uk.parent) {
-                    this.lastSelectedPlayer = uk;
+            openUserMenu(node) {
+                if (node && this.myID != node.parent) {
+                    this.lastSelectedPlayer = node;
 
                     // Block skins
                     const blockSkinItem = document.getElementById("userMenuBlockSkin");
                     const blockSkinText = document.getElementById("userMenuBlockSkinText");
 
-                    if (uk?.skin) {
+                    if (node.skin) {
                         blockSkinItem.style.display = "";
 
-                        if (this.settings.settings.blockedSkins.has(uk.skin)) {
+                        if (this.settings.settings.blockedSkins.has(node.skin)) {
                             blockSkinText.innerText = "Unblock Skin";
                         } else {
                             blockSkinText.innerText = "Block Skin";
@@ -7415,13 +7473,13 @@ function modules(ks) {
                     }
                     // Other default stuff
                     document.getElementById("userMenuBlockText").innerText = "Block Player";
-                    $('#userMenuPlayerName').html(uk.name && uk.name !== "" ? uk.name.removeWideChars() : 'An unnamed cell');
-                    if (uk.skinSprite?.texture != null && uk.skinSprite?.texture !== PIXI.Texture.EMPTY) {
-                        $('#userMenuPlayerSkin').css('background-image', 'url(' + this.skinURLFrom(uk.skin) + ')');
+                    $('#userMenuPlayerName').html(node.name && node.name !== "" ? node.name.removeWideChars() : 'An unnamed cell');
+                    if (node.renderer.heldSkin) {
+                        $('#userMenuPlayerSkin').css('background-image', 'url(' + this.skinURLFrom(node.skin) + ')');
                     } else {
                         $('#userMenuPlayerSkin').css('background-image', 'none');
                     }
-                    $('#userMenuPlayerSkin').css('background-color', uk.rgb);
+                    $('#userMenuPlayerSkin').css('background-color', node.rgb);
                     $('#userMenuPlayer').show();
                 } else {
                     $('#userMenuPlayer').hide();
@@ -7433,16 +7491,16 @@ function modules(ks) {
                     $('#userMenuCreateParty').show();
                     $('#userMenuLeaveParty').hide();
                 }
-                var ul = this.pageY;
-                var um = this.pageX;
-                if (um + $('#userMenu').width() >= $(window).width()) {
-                    um -= $('#userMenu').width();
+                var gameY = this.pageY;
+                var gameX = this.pageX;
+                if (gameX + $('#userMenu').width() >= $(window).width()) {
+                    gameX -= $('#userMenu').width();
                 }
-                if (ul + $('#userMenu').height() >= $(window).height()) {
-                    ul -= $('#userMenu').height();
+                if (gameY + $('#userMenu').height() >= $(window).height()) {
+                    gameY -= $('#userMenu').height();
                 }
-                $('#userMenu').css('top', ul);
-                $('#userMenu').css('left', um);
+                $('#userMenu').css('top', gameY);
+                $('#userMenu').css('left', gameX);
                 $('#userMenu').show();
             }
             userMenuBlockSkin() {
@@ -7517,7 +7575,7 @@ function modules(ks) {
                 this.camera.changeZoom(amount);
             }
 
-            onResize(uz) {
+            onResize() {
                 this.width = $(window).width();
                 this.height = $(window).height();
                 var uA = Math.min(this.width / $('#menuContainer').width(), this.height / $('#menuContainer').height());
@@ -7651,7 +7709,7 @@ function modules(ks) {
                 this.party = {};
                 this.inParty = false;
                 this.network.sendParty(2);
-                this.ui.exitParty();
+                this.ui.clearPartyHTML();
                 history.pushState('', document.title, window.location.pathname + window.location.search);
                 $('.partyCard').removeClass('partyGlow');
                 $('.partyCreate').hide();
@@ -7692,11 +7750,11 @@ function modules(ks) {
                 }
                 $('#gamemodes').html(uD);
             }
-            setRegion(uG) {
-                if (this.network.region != uG && this.network.searching == false) {
+            setRegion(region) {
+                if (this.network.region != region && this.network.searching == false) {
                     this.setConnecting(true);
-                    this.network.fetchServers(uG);
-                    this.settings.setItem('region', uG);
+                    this.network.fetchServers(region);
+                    this.settings.setItem('region', region);
                     this.exitParty();
                 }
                 return false;
@@ -7750,23 +7808,6 @@ function modules(ks) {
                 console.log('%cGerms:~$ %c ' + message, 'color: #00fd00; font-weight: bold; font-size: 14px; font-family: Ubuntu;', 'color: white; font-size: 14px;text-shadow: rgb(0, 0, 0) 1px 0px 0px, rgb(0, 0, 0) 0.540302px 0.841471px 0px, rgb(0, 0, 0) -0.426147px 0.909297px 0px, rgb(0, 0, 0) -0.989992px 0.14112px 0px, rgb(0, 0, 0) -0.653644px -0.756802px 0px, rgb(0, 0, 0) 0.283662px -0.958924px 0px, rgb(0, 0, 0) 0.96017px -0.279415px 0px;');
             }
         }
-        ;window.countFPS = function() {
-            var uL = new Date()['getMilliseconds']();
-            var uM = 1;
-            var uN = 0;
-            return function() {
-                var uO = new Date()['getMilliseconds']();
-                if (uL > uO) {
-                    uN = uM;
-                    uM = 1;
-                } else {
-                    uM += 1;
-                }
-                uL = uO;
-                return uN;
-            }
-            ;
-        }();
 
         String.prototype.replaceAllPoly = function(uR, uS) {
             var uT = this;

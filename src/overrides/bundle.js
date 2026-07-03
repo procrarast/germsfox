@@ -2826,8 +2826,8 @@ function modules(ks) {
                 setInterval(this.updateDebugHTML.bind(this), 500);
             }
             updateMinimap() {
-                this.nodeX = this.game.camera.renderX / (this.game.border[3] * 2) * this.mapSize;
-                this.nodeY = this.game.camera.renderY / (this.game.border[3] * 2) * this.mapSize;
+                this.nodeX = this.game.camera.x / (this.game.border[3] * 2) * this.mapSize;
+                this.nodeY = this.game.camera.y / (this.game.border[3] * 2) * this.mapSize;
                 this.mapPlayer.css({
                     'top': this.nodeY + this.mapSize / 2,
                     'left': this.nodeX + this.mapSize / 2
@@ -3110,24 +3110,22 @@ function modules(ks) {
         }
 
         class PartyMember {
-            constructor(game, id, mass, originX, originY, name) {
+            constructor(game, id, mass, x, y, name) {
                 this.game = game;
                 this.id = id;
                 this.mass = mass;
-                this.originX = originX;
-                this.originY = originY;
-                this.targetX = originX;
-                this.targetY = originY;
-                this.x = originX;
-                this.y = originY;
+                this.x = x;
+                this.y = y;
+                this.targetX = x;
+                this.targetY = y;
                 this.name = name;
                 this.lastUpdate = performance.now();
             }
             updatePos() {
                 this.delta = Math.min(1, Math.max(0, 
                     (this.game.updateTime - this.lastUpdate) / 10));
-                this.x = lerp(this.originX, this.targetX, this.delta);
-                this.y = lerp(this.originY, this.targetY, this.delta);
+                this.x = lerp(this.x, this.targetX, this.delta);
+                this.y = lerp(this.y, this.targetY, this.delta);
                 this.lastUpdate = this.game.updateTime;
             }
         }
@@ -3136,8 +3134,8 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
                 // Render pos
-                this.renderX = 0;
-                this.renderY = 0;
+                this.x = 0;
+                this.y = 0;
                 // Interpolated position
                 this.targetX = 0;
                 this.targetY = 0;
@@ -3152,8 +3150,8 @@ function modules(ks) {
             tick() {
                 // Update position
                 const speed = this.game.freeSpec ? 25 : this.cameraDelay / 10;
-                this.renderX = lerp(this.renderX, this.targetX, this.game.delta / speed);
-                this.renderY = lerp(this.renderY, this.targetY, this.game.delta / speed);
+                this.x = lerp(this.x, this.targetX, this.game.delta / speed);
+                this.y = lerp(this.y, this.targetY, this.game.delta / speed);
                 
                 // Update zoom
                 let newZoom;
@@ -3185,6 +3183,10 @@ function modules(ks) {
 
             setZoom(value) { this.userZoom = value; }
 
+            get bounds() {
+                let top, right, bottom, left;
+                return [top, right, bottom, left];
+            }
             get viewRange() { return Math.max(this.game.width / 1080, this.game.height / 1920) * this.userZoom; }
             get cameraDelay() { return this._delay }
             set cameraDelay(cameraDelay) { this._delay = cameraDelay; }
@@ -3524,7 +3526,7 @@ function modules(ks) {
          *      - Destruction, sanitization and resetting (destroy, clean, init respectively)
          */
 
-        const LOD_THRESHOLD = 10;
+        const LOD_SCALE = 25;
 
         class Renderer {
             constructor(game) {
@@ -3593,10 +3595,10 @@ function modules(ks) {
                 this.root.x = this.x;
                 this.root.y = this.y;
 
-                // Update LOD
-                const LOD = this.size * this.game.camera.renderZoom < LOD_THRESHOLD;
-
-                // LOD has a setter because subclasses may want to do some stuff upon LOD updates
+                const scale = this.size * this.game.camera.renderZoom;
+                const LOD = Math.min(Math.floor(scale / LOD_SCALE), 2);
+                
+                // LOD has a setter because subclasses may want to do some stuff when LOD updates
                 if (LOD !== this.LOD) {
                     this.setLOD(LOD);
                 }
@@ -3837,9 +3839,11 @@ function modules(ks) {
             set animationDelay(delay) { this._delay = delay; } 
         }
 
-        const JELLY_DAMPING = 0.95;
-        const JELLY_SMOOTHING = 0.4;
-        const JELLY_PPU = 0.1;
+        const JELLY_SPRING   = 0.05;  // higher = snappier return
+        const JELLY_VELOCITY_DECAY  = 0.7; // velocity decay per frame — closer to 1 = longer oscillation
+        const JELLY_TENSION  = 0.2;   // neighbor coupling — surface tension
+        const JELLY_WOBBLE   = 0.6;   // idle jitter to keep surface wobbly
+        const JELLY_PPU      = 0.1;
         const JELLY_POINTS_MIN = 5;
 
         class JellyRenderer extends Renderer {
@@ -3847,12 +3851,13 @@ function modules(ks) {
                 super.init(node);
                 this.initPoints(this.targetPointsAmount);
                 this.updateGeometry();
+                this.updateColorUniforms();
             }
 
             tick() {
                 if (!super.tick()) return false;
                 this.resizePoints(this.targetPointsAmount);
-                this.stepPhysics();
+                if (this.LOD > 0) this.stepPhysics();
                 this.updateGeometry();
                 return true;
             }
@@ -3863,14 +3868,12 @@ function modules(ks) {
                     this.cellMesh.destroy();
                     this.cellMesh = null;
                 }
-
                 this.offsets     = null;
                 this.velocities  = null;
                 this.offsetsTmp  = null;
-                this.velocityTmp = null;
+                this.velocitiesTmp = null;
                 this.cellVerts   = null;
                 this.cellUVs     = null;
-                this.cellColors  = null;
                 this.cellBorder  = null;
                 this.skinTexture = null;
 
@@ -3882,8 +3885,17 @@ function modules(ks) {
                 this.offsets = null;
                 this.velocities = null;
                 this.offsetsTmp = null;
-                this.velocityTmp = null;
+                this.velocitiesTmp = null;
                 super.clean();
+            }
+
+            setLOD(value) {
+                if (this.LOD !== value) {
+                    if (value === 0) {
+                        this.offsets.fill(0);
+                    }
+                    this.LOD = value;
+                }
             }
 
             applySkinTexture() {
@@ -3894,54 +3906,56 @@ function modules(ks) {
                 this.offsets     = new Float64Array(target);
                 this.velocities  = new Float64Array(target);
                 this.offsetsTmp  = new Float64Array(target);
-                this.velocityTmp = new Float64Array(target);
+                this.velocitiesTmp = new Float64Array(target);
                 this.numPoints   = target;
+                this.pointCapacity = target;
                 this.allocateBuffers(target);
             }
 
             resizePoints(target) {
                 if (target === this.numPoints) return;
 
-                const oldOff = this.offsets, oldVel = this.velocities, oldCount = this.numPoints;
+                const oldOff = this.offsets;
+                const oldVel = this.velocities;
+                const oldCount = this.numPoints;
+
                 const newOff = new Float64Array(target);
                 const newVel = new Float64Array(target);
+
                 const copyCount = Math.min(oldCount, target);
                 newOff.set(oldOff.subarray(0, copyCount));
                 newVel.set(oldVel.subarray(0, copyCount));
 
+                // Initialize newly-added points by copying their nearest neighbor
                 if (target > copyCount && copyCount > 0) {
-                    for (let i = copyCount; i < target; i++) {
-                        const rand = (Math.random() * copyCount) | 0;
-                        newOff[i] = oldOff[rand];
-                        newVel[i] = oldVel[rand];
+                    for (let i = 0; i < target; i++) {
+                        const oldF = (i / target) * oldCount;
+                        const lo = Math.floor(oldF) % oldCount;
+                        const hi = (lo + 1) % oldCount;
+                        const t = oldF - Math.floor(oldF);
+                        newOff[i] = oldOff[lo] * (1 - t) + oldOff[hi] * t;
+                        newVel[i] = oldVel[lo] * (1 - t) + oldVel[hi] * t;
                     }
                 }
 
                 this.offsets = newOff;
                 this.velocities = newVel;
                 this.offsetsTmp = new Float64Array(target);
-                this.velocityTmp = new Float64Array(target);
+                this.velocitiesTmp = new Float64Array(target);
                 this.numPoints = target;
 
                 if (!this.pointCapacity || target > this.pointCapacity) {
-                    this.pointCapacity = target + 16; // headroom so growth doesn't rebuild every crossing
+                    this.pointCapacity = target + 16;
                     this.allocateBuffers(this.pointCapacity);
-                    this.forceRebuild = true; // tell rebuildGeometry() the GPU mesh must be recreated
+                } else {
+                    this.allocateBuffers(target);
                 }
-
-                this.allocateBuffers(target);
             }
-
-            /**
-             *  For a target amount n of vertices, allocate buffers that can hold n vertices
-             */
 
             allocateBuffers(n) {
                 const vertCount = 1 + (n + 1) * 3;
-                this.cellVerts  = new Float32Array(vertCount * 2);
-                this.cellUVs    = new Float32Array(vertCount * 2);
-                this.cellColors = new Float32Array(vertCount * 4);
-                this.cellBorder = new Float32Array(vertCount);
+                this.cellVerts = new Float32Array(vertCount * 2);
+                this.cellUVs   = new Float32Array(vertCount * 2);
             }
 
             /**
@@ -3952,54 +3966,42 @@ function modules(ks) {
                 const n = this.numPoints;
                 if (n === 0) return;
 
-                // tmp copies of velocities and offsets are used 
-                const vel = this.velocities;
-                const off = this.offsets;
-                const velOut = this.velocityTmp;
-                const offOut = this.offsetsTmp;
+                const velsTmp = this.velocities;
+                const offsTmp = this.offsets;
+                const velsNew = this.velocitiesTmp;
+                const offsNew = this.offsetsTmp;
 
                 for (let i = 0; i < n; i++) {
-                    const prevV = vel[(i - 1 + n) % n];
-                    const nextV = vel[(i + 1) % n];
-                    const jitter = Math.min(Math.max((vel[i] + Math.random() - 0.5) * JELLY_DAMPING, -10), 10);
-                    velOut[i] = (prevV + nextV + 8 * jitter) / 10;
+                    const spring  = -JELLY_SPRING * offsTmp[i];
+                    const lateral = JELLY_TENSION * (offsTmp[(i - 1 + n) % n] + offsTmp[(i + 1) % n] - 2 * offsTmp[i]);
+                    const noise   = (Math.random() - 0.5) * JELLY_WOBBLE;
+                    velsNew[i] = (velsTmp[i] + spring + lateral + noise) * JELLY_VELOCITY_DECAY;
                 }
 
                 for (let i = 0; i < n; i++) {
-                    const prevO = off[(i - 1 + n) % n];
-                    const nextO = off[(i + 1) % n];
-                    const relaxed = (off[i] + velOut[i]) * (1 - JELLY_SMOOTHING);
-                    offOut[i] = Math.max((prevO + nextO + 8 * relaxed) / 10, -this.size);
+                    offsNew[i] = Math.min(Math.max(offsTmp[i] + velsNew[i], -this.size / 2));
                 }
 
-                this.velocities = velOut; 
-                this.velocityTmp = vel;
-                this.offsets = offOut; 
-                this.offsetsTmp = off;
+                this.velocities = velsNew; 
+                this.velocitiesTmp = velsTmp;
+                this.offsets = offsNew; 
+                this.offsetsTmp = offsTmp;
             }
 
             updateGeometry() {
                 const n = this.numPoints;
-
                 const offsets = this.offsets;
                 const size = this.size;
                 const { cos, sin } = this.angleCache(n);
-                const verts = this.cellVerts, uvs = this.cellUVs, colors = this.cellColors, border = this.cellBorder;
+                const verts = this.cellVerts, uvs = this.cellUVs;
 
                 const innerFillBase   = 1;
                 const innerBorderBase = innerFillBase + (n + 1);
                 const outerBase       = innerBorderBase + (n + 1);
-
-                // fillRed, fillGreen, fillBlue
-                const [fr, fg, fb] = this.unpackColor(this.node.color);
-                const fa = this.fillAlpha;
-                // border
-                const [br, bg, bb] = this.unpackColor(this.borderColor(this.node.color));
+                const border = this.getBorderAttr(n, innerBorderBase, outerBase);
 
                 this.setVec2(verts, 0, 0, 0);
                 this.setVec2(uvs, 0, 0.5, 0.5);
-                this.setColor(colors, 0, fr, fg, fb, fa);
-                border[0] = 0;
 
                 for (let i = 0; i <= n; i++) {
                     const j = i % n;
@@ -4007,31 +4009,21 @@ function modules(ks) {
                     const fillR  = size + offsets[j] + jag;
                     const outerR = fillR + this.borderWidth / 2;
                     const innerR = Math.max(fillR - this.borderWidth / 2, 0);
-                    const c = cos[j]; 
-                    const s = sin[j];
-
-                    // UV radius is relative to the nominal size, independent of wobble —
-                    // this keeps the texture at a fixed scale and lets innerR just clip it.
+                    const c = cos[j], s = sin[j];
                     const uvRadius = size > 0 ? innerR / size : 0;
 
                     this.setVec2(verts, innerFillBase + i, c * innerR, s * innerR);
                     this.setVec2(uvs, innerFillBase + i, 0.5 + 0.5 * c * uvRadius, 0.5 + 0.5 * s * uvRadius);
-                    this.setColor(colors, innerFillBase + i, fr, fg, fb, fa);
-                    border[innerFillBase + i] = 0;
 
                     this.setVec2(verts, innerBorderBase + i, c * innerR, s * innerR);
                     this.setVec2(uvs, innerBorderBase + i, 0, 0);
-                    this.setColor(colors, innerBorderBase + i, br, bg, bb, 1);
-                    border[innerBorderBase + i] = 1;
 
                     this.setVec2(verts, outerBase + i, c * outerR, s * outerR);
                     this.setVec2(uvs, outerBase + i, 0, 0);
-                    this.setColor(colors, outerBase + i, br, bg, bb, 1);
-                    border[outerBase + i] = 1;
                 }
 
                 const indices = this.getIndices(n, innerFillBase, innerBorderBase, outerBase);
-                this.updateMesh(verts, uvs, colors, border, indices);
+                this.updateMesh(verts, uvs, indices, border, n);
             }
 
             getIndices(n, innerFillBase, innerBorderBase, outerBase) {
@@ -4061,8 +4053,90 @@ function modules(ks) {
                 return idx;
             }
 
+            buildGeometry(verts, uvs, indices, border) {
+                const geometry = new PIXI.MeshGeometry({ positions: verts, indices });
+                geometry.addAttribute('aUV', {
+                    buffer: new PIXI.Buffer({
+                        data: uvs,
+                        usage: PIXI.BufferUsage.VERTEX | PIXI.BufferUsage.COPY_DST,
+                    }),
+                    format: 'float32x2',
+                });
+                geometry.addAttribute('aBorder', {
+                    buffer: new PIXI.Buffer({
+                        data: border,
+                        usage: PIXI.BufferUsage.VERTEX | PIXI.BufferUsage.COPY_DST,
+                    }),
+                    format: 'float32',
+                });
+                return geometry;
+            }
+
+            updateMesh(verts, uvs, indices, border, n) {
+                let mesh = this.cellMesh;
+
+                if (!mesh) {
+                    const geometry = this.buildGeometry(verts, uvs, indices, border);
+                    const shader = new PIXI.Shader({
+                        glProgram: JellyRenderer.jellyGlProgram,
+                        gpuProgram: JellyRenderer.jellyGpuProgram,
+                        resources: {
+                            uTexture: PIXI.Texture.EMPTY.source,
+                            cellUniforms: this.buildColorUniforms(),
+                        },
+                    });
+                    mesh = new PIXI.Mesh({ geometry, shader });
+                    this.root.addChild(mesh);
+                    this.cellMesh = mesh;
+                    this._meshN = n;
+                    if (this.skinTexture) this.applySkinTexture();
+                } else if (n !== this._meshN) {
+                    // Topology differs from whatever this mesh was last built for
+                    const oldGeometry = mesh.geometry;
+                    mesh.geometry = this.buildGeometry(verts, uvs, indices, border);
+                    oldGeometry.destroy(true);
+                    this._meshN = n;
+                } else {
+                    mesh.geometry.getBuffer('aPosition').data = verts; mesh.geometry.getBuffer('aPosition').update();
+                    mesh.geometry.getBuffer('aUV').data = uvs;         mesh.geometry.getBuffer('aUV').update();
+                }
+                mesh.visible = true;
+            }
+
+            buildColorUniforms() {
+                const [fr, fg, fb] = this.unpackColor(this.node.color);
+                const [br, bg, bb] = this.unpackColor(this.borderColor(this.node.color));
+                return new PIXI.UniformGroup({
+                    uFillColor:   { value: new Float32Array([fr, fg, fb, this.fillAlpha]), type: 'vec4<f32>' },
+                    uBorderColor: { value: new Float32Array([br, bg, bb, 1]), type: 'vec4<f32>' },
+                });
+            }
+
+            updateColorUniforms() {
+                if (!this.cellMesh) return;
+                const [fr, fg, fb] = this.unpackColor(this.node.color);
+                const [br, bg, bb] = this.unpackColor(this.borderColor(this.node.color));
+                const u = this.cellMesh.shader.resources.cellUniforms.uniforms;
+                u.uFillColor.set([fr, fg, fb, this.fillAlpha]);
+                u.uBorderColor.set([br, bg, bb, 1]);
+            }
+
             static _angleCaches  = new Map();
             static _cellIdxCaches = new Map();
+            static _borderCaches = new Map();
+
+            getBorderAttr(n, innerBorderBase, outerBase) {
+                let cached = JellyRenderer._borderCaches.get(n);
+                if (cached) return cached;
+                const vertCount = 1 + (n + 1) * 3;
+                const arr = new Float32Array(vertCount); // fill verts stay 0 by default
+                for (let i = 0; i <= n; i++) {
+                    arr[innerBorderBase + i] = 1;
+                    arr[outerBase + i] = 1;
+                }
+                JellyRenderer._borderCaches.set(n, arr);
+                return arr;
+            }
 
             angleCache(n) {
                 let c = JellyRenderer._angleCaches.get(n);
@@ -4076,41 +4150,6 @@ function modules(ks) {
                     JellyRenderer._angleCaches.set(n, c);
                 }
                 return c;
-            }
-
-            updateMesh(verts, uvs, colors, border, indices) {
-                let mesh = this.cellMesh;
-
-                if (this.forceRebuild) {
-                    mesh.geometry.destroy(true);
-                    mesh.destroy();
-                    mesh = this.cellMesh = null;
-                    this.forceRebuild = false;
-                }
-
-                if (!mesh) {
-                    const geometry = new PIXI.MeshGeometry({ positions: verts, indices });
-                    geometry.addAttribute('aUV', { buffer: new PIXI.Buffer({ data: uvs }), format: 'float32x2' });
-                    geometry.addAttribute('aColor', { buffer: new PIXI.Buffer({ data: colors }), format: 'float32x4' });
-                    geometry.addAttribute('aBorder', { buffer: new PIXI.Buffer({ data: border }), format: 'float32' });
-
-                    const shader = new PIXI.Shader({
-                        glProgram: JellyRenderer.jellyProgram,
-                        resources: { uTexture: PIXI.Texture.EMPTY.source },
-                    });
-
-                    mesh = new PIXI.Mesh({ geometry, shader });
-                    this.root.addChild(mesh);
-                    this.cellMesh = mesh;
-                    if (this.skinTexture) this.applySkinTexture();
-                } else {
-                    mesh.geometry.getBuffer('aPosition').data = verts; mesh.geometry.getBuffer('aPosition').update();
-                    mesh.geometry.getBuffer('aUV').data = uvs;         mesh.geometry.getBuffer('aUV').update();
-                    mesh.geometry.getBuffer('aColor').data = colors;   mesh.geometry.getBuffer('aColor').update();
-                    mesh.geometry.getBuffer('aBorder').data = border;  mesh.geometry.getBuffer('aBorder').update();
-                    mesh.geometry.getIndex().data = indices;           mesh.geometry.getIndex().update();
-                }
-                mesh.visible = true;
             }
 
             // Return [r, g, b] from color
@@ -4149,74 +4188,133 @@ function modules(ks) {
             get borderWidth() { return 12; }
             get targetPointsAmount() {
                 const raw = 2 * Math.PI * this.node.size * JELLY_PPU;
-                return Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN);
+                const base = Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN);
+
+                const divisor = this.LOD === 2 ? 1 : this.LOD === 1 ? 2 : 3;
+                return Math.max(Math.ceil(base / divisor / 8) * 8, JELLY_POINTS_MIN);
             }
             
             // This program is used in each cell's respective shader.
-            // TODO gpu program
-            static jellyProgram = PIXI.GlProgram.from({
-                vertex: `
+            static jellyGlProgram = PIXI.GlProgram.from({
+                vertex: `#version 300 es
                     in vec2 aPosition;
                     in vec2 aUV;
-                    in vec4 aColor;
                     in float aBorder;
-
                     out vec4 vColor;
                     out vec2 vUV;
-                    out vec4 vCellColor;
                     out float vBorder;
-
                     uniform mat3 uProjectionMatrix;
                     uniform mat3 uWorldTransformMatrix;
                     uniform vec4 uWorldColorAlpha;
                     uniform vec2 uResolution;
-
                     uniform mat3 uTransformMatrix;
                     uniform vec4 uColor;
-
                     void main(void) {
                         mat3 worldTransformMatrix = uWorldTransformMatrix;
                         mat3 modelMatrix = uTransformMatrix;
-
-                        vec2 position = aPosition;
-                        vec2 uv = aUV;
-
                         vColor = uColor;
-                        vUV = uv;
-                        vCellColor = aColor;
+                        vUV = aUV;
                         vBorder = aBorder;
-
-                        mat3 modelViewProjectionMatrix = uProjectionMatrix * worldTransformMatrix * modelMatrix;
-                        gl_Position = vec4((modelViewProjectionMatrix * vec3(position, 1.0)).xy, 0.0, 1.0);
+                        mat3 mvp = uProjectionMatrix * worldTransformMatrix * modelMatrix;
+                        gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
                         vColor *= uWorldColorAlpha;
                     }
                 `,
-                fragment: `
+                fragment: `#version 300 es
+                    precision mediump float;
                     in vec4 vColor;
                     in vec2 vUV;
-                    in vec4 vCellColor;
                     in float vBorder;
-
                     uniform sampler2D uTexture;
-
+                    uniform vec4 uFillColor;
+                    uniform vec4 uBorderColor;
                     out vec4 finalColor;
-
                     void main(void) {
                         vec4 texColor = texture(uTexture, vUV);
+                        vec3 cellColor = mix(uFillColor.rgb, uBorderColor.rgb, vBorder);
+                        float cellAlpha = mix(uFillColor.a, uBorderColor.a, vBorder);
                         float skinWeight = (1.0 - vBorder) * texColor.a;
-                        vec3 rgb = mix(vCellColor.rgb, texColor.rgb, skinWeight);
-                        float alpha = vCellColor.a * vColor.a;
-
+                        vec3 rgb = mix(cellColor, texColor.rgb, skinWeight);
+                        float alpha = cellAlpha * vColor.a;
                         finalColor = vec4(rgb * alpha, alpha) * vec4(vColor.rgb, 1.0);
                     }
                 `
+            });
+
+            static jellyGpuProgram = PIXI.GpuProgram.from({
+                vertex: {
+                    source: `
+                        struct GlobalUniforms {
+                            uProjectionMatrix: mat3x3<f32>,
+                            uWorldTransformMatrix: mat3x3<f32>,
+                            uWorldColorAlpha: vec4<f32>,
+                            uResolution: vec2<f32>,
+                        };
+                        struct LocalUniforms {
+                            uTransformMatrix: mat3x3<f32>,
+                            uColor: vec4<f32>,
+                        };
+                        @group(0) @binding(0) var<uniform> globalUniforms: GlobalUniforms;
+                        @group(1) @binding(0) var<uniform> localUniforms: LocalUniforms;
+
+                        struct VSOutput {
+                            @builtin(position) position: vec4<f32>,
+                            @location(0) vColor: vec4<f32>,
+                            @location(1) vUV: vec2<f32>,
+                            @location(2) vBorder: f32,
+                        };
+
+                        @vertex
+                        fn main(
+                            @location(0) aPosition: vec2<f32>,
+                            @location(1) aUV: vec2<f32>,
+                            @location(2) aBorder: f32,
+                        ) -> VSOutput {
+                            var out: VSOutput;
+                            let mvp = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix;
+                            out.position = vec4<f32>((mvp * vec3<f32>(aPosition, 1.0)).xy, 0.0, 1.0);
+                            out.vColor = localUniforms.uColor * globalUniforms.uWorldColorAlpha;
+                            out.vUV = aUV;
+                            out.vBorder = aBorder;
+                            return out;
+                        }
+                    `,
+                    entryPoint: 'main',
+                },
+                fragment: {
+                    source: `
+                        struct CellUniforms {
+                            uFillColor: vec4<f32>,
+                            uBorderColor: vec4<f32>,
+                        };
+                        @group(2) @binding(0) var<uniform> cellUniforms: CellUniforms;
+                        @group(2) @binding(1) var uTexture: texture_2d<f32>;
+                        @group(2) @binding(2) var uSampler: sampler;
+
+                        @fragment
+                        fn main(
+                            @location(0) vColor: vec4<f32>,
+                            @location(1) vUV: vec2<f32>,
+                            @location(2) vBorder: f32,
+                        ) -> @location(0) vec4<f32> {
+                            let texColor = textureSample(uTexture, uSampler, vUV);
+                            let cellColor = mix(cellUniforms.uFillColor.rgb, cellUniforms.uBorderColor.rgb, vBorder);
+                            let cellAlpha = mix(cellUniforms.uFillColor.a, cellUniforms.uBorderColor.a, vBorder);
+                            let skinWeight = (1.0 - vBorder) * texColor.a;
+                            let rgb = mix(cellColor, texColor.rgb, skinWeight);
+                            let alpha = cellAlpha * vColor.a;
+                            return vec4<f32>(rgb * alpha, alpha) * vec4<f32>(vColor.rgb, 1.0);
+                        }
+                    `,
+                    entryPoint: 'main',
+                },
             });
         }
 
         class PlayerJellyRenderer extends JellyRenderer {
             tick() {
+                if (!super.tick()) return;
                 this.uiRoot.scale.set(this.size / this.textureSize);
-                super.tick();
             }
             init(node) {
                 super.init(node);
@@ -4269,6 +4367,10 @@ function modules(ks) {
 
             borderColor(color) { return color; }
 
+            get targetPointsAmount() {
+                const raw = 2 * Math.PI * this.node.size * JELLY_PPU;
+                return Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN);
+            }
             get fillAlpha() { return 0.5; }
             get textureSize() { return this.game.virusSize; }
             get skinSize() { return 0.88; }
@@ -4287,10 +4389,7 @@ function modules(ks) {
                     case foodShape.Pentagon: return 5;
                     case foodShape.Hexagon: return 6;
                     case foodShape.Circle:
-                    default: {
-                        const raw = (this.LOD ? 1 : 2) * Math.PI * this.node.size * JELLY_PPU;
-                        return Math.max(raw | 0, JELLY_POINTS_MIN);
-                    }
+                    default: return super.targetPointsAmount;
                 }
             }
             get textureSize() { return this.game.foodSize; }
@@ -4396,6 +4495,11 @@ function modules(ks) {
             clean() {
                 this.removeMass();
                 super.clean();
+            }
+
+            updateBorder() {
+                if (this.skinTexture) this.skinSprite.scale.set(this.skinSize * (2 * this.textureSize / this.skinTexture.size));
+                this.sprite.texture = this.texture;
             }
 
             get texture() { return this.game.cellTexture };
@@ -4522,7 +4626,7 @@ function modules(ks) {
         class FoodNode extends Node {
             get type() { return nodeType.Food; }
             get shape() {
-                if (!this._shape) {
+                if (this._shape == null) {
                     this._shape = Math.floor(Math.random() * 3);
                 }
                 return this._shape;
@@ -4577,6 +4681,29 @@ function modules(ks) {
                     }
                 }
             };
+
+            updateRendererType() {
+                const jelly = this.game.settings.settings.jellyPhysics;
+
+                for (const cfg of Object.values(this.config)) {
+                    const rendererType = jelly ? cfg.jellyRenderer : cfg.spriteRenderer;
+                    for (const node of this[cfg.pool]) {
+                        node.renderer.destroy();
+                        const renderer = new rendererType(this.game);
+                        renderer.init(node);
+                        renderer.clean();
+                    }
+                }
+
+                for (const node of this.game.nodes.values()) {
+                    const cfg = this.config[node.type];
+                    const rendererType = jelly ? cfg.jellyRenderer : cfg.spriteRenderer;
+                    const oldRenderer = node.renderer;
+                    const renderer = new rendererType(this.game);
+                    renderer.init(node);
+                    oldRenderer.destroy();
+                }
+            }
 
             createNode(type, nodeData = {}) {
                 const cfg = this.config[type];
@@ -5283,8 +5410,6 @@ function modules(ks) {
                     var pl;
                     if (this.game.party && this.game.party.hasOwnProperty(pc)) {
                         pl = this.game.party[pc];
-                        pl.originX = pl.x;
-                        pl.originY = pl.y;
                         pl.targetX = pj;
                         pl.targetY = pk;
                     } else {
@@ -5677,7 +5802,7 @@ function modules(ks) {
                     'hideMapGrid': true,
                     'dynamicLinesplitAxis': true,
                     'diagonalLinesplits': true,
-                    'webGPU': true,
+                    'webGPU': false,
                     'textureMipmaps': true,
                     'textMipmaps': false,
                     'deathFreecam': true,
@@ -5763,7 +5888,9 @@ function modules(ks) {
 
                 switch (key) {
                     case 'jellyPhysics':
-                        this.game.pool.populate();
+                        const borderlessCellsInput = document.getElementById("borderlessCells").parentElement.parentElement;
+                        borderlessCellsInput.style.display = value ? "none" : "block";
+                        this.game.pool.updateRendererType();
                         break;
                     case 'acidMode':
                         if (!this.game.settings.settings.webGPU) {
@@ -5774,6 +5901,13 @@ function modules(ks) {
                     case 'webGPU':
                         const acidModeInput = document.getElementById("acidMode").parentElement.parentElement;
                         acidModeInput.style.display = value ? "none" : "block";
+                        const jellyPhysicsInputCheckbox = document.getElementById("jellyPhysics");
+                        const jellyPhysicsInput = jellyPhysicsInputCheckbox.parentElement.parentElement;
+                        jellyPhysicsInput.style.display = value ? "none" : "block";
+                        if (value) {
+                            this.game.settings.setItem('jellyPhysics', false);
+                            jellyPhysicsInputCheckbox.checked = false;
+                        }
                         break;
                     case 'cameraDelay':
                         this.game.camera.cameraDelay = value;
@@ -5799,8 +5933,18 @@ function modules(ks) {
                         if (this.game.grid)
                             this.game.drawGrid();
                         break;
-                    case 'highQualitySkins':
                     case 'borderlessCells':
+                        this.game.cellTexture = value ? this.game.spriteSheet.textures.borderlessCell : this.game.spriteSheet.textures.cell;
+                        for (const node of this.game.nodes.values()) {
+                            if (node.type !== nodeType.Player) continue;
+                            node.renderer.updateBorder();
+                            node.renderer.sprite.texture = this.game.cellTexture;
+                        }
+                        for (const node of this.game.pool.playerPool) {
+                            node.renderer.sprite.texture = this.game.cellTexture;
+                        }
+                        break;
+                    case 'highQualitySkins':
                     case 'blockedSkins':
                         for (const node of this.game.nodes.values()) {
                             if (node.type === nodeType.Player) {
@@ -6558,7 +6702,86 @@ function modules(ks) {
                 return sV;
             }
         }
-        ;class Game {
+
+        class CollisionGrid {
+            constructor() {
+                this.sectors = new Map();
+                this.stamp = 0;
+                this.stamps = new Map();
+            }
+
+            init(cellSize) {
+                this.sectors.clear();
+                this.stamps.clear();
+                this.sectorSize = cellSize;
+            }
+
+            key(gx, gy) { return (gx * 73856093) ^ (gy * 19349663); }
+
+            insert(node) {
+                let inserted = false;
+                const r = node.renderer;
+
+                const minX = Math.floor((r.x - r.size) / this.sectorSize);
+                const maxX = Math.floor((r.x + r.size) / this.sectorSize);
+                const minY = Math.floor((r.y - r.size) / this.sectorSize);
+                const maxY = Math.floor((r.y + r.size) / this.sectorSize);
+                for (let i = minX; i <= maxX; i++) {
+                    for (let j = minY; j <= maxY; j++) {
+                        const k = this.key(i, j);
+                        let sector = this.sectors.get(k);
+                        if (!sector) {
+                            sector = [];
+                            sector.minLOD = 0;
+                            sector.locked = false;
+                            this.sectors.set(k, sector);
+                        } else if (sector.length > 32 && !sector.locked) {
+                            this.cleanThreshold(sector);
+                        }
+                        if (sector.locked || r.LOD < sector.minLOD) continue;
+                        sector.push(node);
+                        inserted = true;
+                    }
+                }
+                return inserted;
+            }
+
+            cleanThreshold(sector) {
+                sector.minLOD = Math.min(sector.minLOD + 1, 2);
+                for (let k = sector.length - 1; k >= 0; k--) {
+                    if (sector[k].renderer.LOD < sector.minLOD) {
+                        sector.splice(k, 1);
+                    }
+                }
+                if (sector.minLOD >= 2 && sector.length > 32) sector.locked = true;
+            }
+
+            neighbors(node, cb) {
+                const current = ++this.stamp;
+                const r = node.renderer;
+                const minX = Math.floor((r.x - r.size) / this.sectorSize);
+                const maxX = Math.floor((r.x + r.size) / this.sectorSize);
+                const minY = Math.floor((r.y - r.size) / this.sectorSize);
+                const maxY = Math.floor((r.y + r.size) / this.sectorSize);
+
+                for (let i = minX; i <= maxX; i++) {
+                    for (let j = minY; j <= maxY; j++) {
+                        const sector = this.sectors.get(this.key(i, j));
+                        if (!sector) continue;
+
+                        for (const n of sector) {
+                            if (n === node) continue;
+                            if (this.stamps.get(n.id) === current) continue;
+                            this.stamps.set(n.id, current);
+                            cb(n);
+                        }
+                    }
+                }
+            }
+            clear() { this.sectors.clear(); }
+        }
+
+        class Game {
             constructor() {
                 this.width = 800;
                 this.height = 600;
@@ -6575,11 +6798,10 @@ function modules(ks) {
                     'y': 0
                 };
                 this.nodes = new Map();         // Map of all nodes by ID
-                this.playerCells = new Set();   // Set of your cell nodes
-                this.myCells = new Set();       // Set of your cell IDs
-                this.collisions = new Set();    // Set of all collidable point coordinates (node borders)
+                this.playerCells = new Set();   // Set of player's cell nodes
+                this.myCells = new Set();       // Set of player's cell IDs
                 this.leaderboard = [];
-                this.border = [-1000, -1000, 1000, 1000];
+                this.border = [-10000, -10000, 10000, 10000];
                 // Texture caches
                 // Game objects
                 this.settings = new Settings(this);
@@ -6771,8 +6993,8 @@ function modules(ks) {
                 return sY.includes('i.imgur.com/') ? sY : sY.includes('.png') ? 'res/skins/' + sY : 'res/skins/' + sY + '.png';
             }
             calcMouse() {
-                let newX = (this.rawMouseX - this.width / 2) / this.camera.renderZoom + this.camera.renderX;
-                let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.renderY;
+                let newX = (this.rawMouseX - this.width / 2) / this.camera.renderZoom + this.camera.x;
+                let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.y;
 
                 if (!this.linesplit) {
                     // TODO renderer.tint is not a thing. Make it a thing
@@ -6932,9 +7154,102 @@ function modules(ks) {
                 }
             }
 
+            updateCollisionGrid() {
+                let collisionNodes = new Set(); 
+                if (!this.collisionGrid) { 
+                    this.collisionGrid = new CollisionGrid();
+                } else {
+                    this.collisionGrid.init(this.border[3] / 8); // Divide into an 8x8
+                }
+
+                for (const node of this.nodes.values()) {
+                    if (this.collisionGrid.insert(node)) collisionNodes.add(node);
+                }
+
+                for (const A of collisionNodes) {
+                    const Ar = A.renderer;
+                    if (Ar.LOD < 2) continue;
+
+                    // Some consts to reduce lookups
+                    // r = renderer, A/B = which node, etc. should be self explanatory
+                    const AnumPoints = Ar.numPoints;
+                    const Acache     = JellyRenderer._angleCaches.get(AnumPoints);
+                    if (!Acache) continue;
+                    const Acos       = Acache.cos;
+                    const Asin       = Acache.sin;
+                    const Aoffsets   = Ar.offsets;
+                    const Avel       = Ar.velocities;
+                    const Asize      = Ar.size;
+                    const Ax         = Ar.x;
+                    const Ay         = Ar.y;
+
+                    this.collisionGrid.neighbors(A, B => {
+                        if (B.size >= A.size) return; // Each pair tested once, the smaller of which affects the larger cell
+
+                        const Br = B.renderer;
+                        if (!Br?.offsets) return; // In case there's a sprite renderer that would crash the following tests
+                        const dx = Br.x - Ax;
+                        const dy = Br.y - Ay;
+                        const sumR = Asize + Br.size;
+                        if (dx * dx + dy * dy >= sumR * sumR) return;
+
+                        const BnumPoints = Br.numPoints;
+                        const Bcache      = JellyRenderer._angleCaches.get(BnumPoints);
+                        if (!Bcache) return;
+                        const Bcos        = Bcache.cos;
+                        const Bsin        = Bcache.sin;
+                        const Boffsets    = Br.offsets;
+                        const Bvel        = Br.velocities;
+                        const Bsize       = Br.size;
+                        const Bx          = Br.x;
+                        const By          = Br.y;
+                        const Binverse    = BnumPoints / (2 * Math.PI);
+                        const Ainverse    = AnumPoints / (2 * Math.PI);
+
+                        // A's points against B's surface
+                        for (let i = 0; i < AnumPoints; i++) {
+                            const wx = Ax + Acos[i] * (Asize + Aoffsets[i] * 2);
+                            const wy = Ay + Asin[i] * (Asize + Aoffsets[i] * 2);
+                            const px = wx - Bx;
+                            const py = wy - By;
+                            const pointDistSq = px * px + py * py;
+                            let angle = Math.atan2(py, px);
+                            if (angle < 0) angle += 2 * Math.PI;
+                            const j = Math.round(angle * Binverse) % BnumPoints;
+                            const Bsurface = Bsize + Boffsets[j];
+                            const outer = Bsurface + 12;
+                            const inner = Bsurface - 12;
+                            if (pointDistSq < outer * outer && pointDistSq > inner * inner) {
+                                Avel[i] -= 1;
+                            }
+                        }
+
+                        // B's points against A's surface
+                        for (let i = 0; i < BnumPoints; i++) {
+                            const wx = Bx + Bcos[i] * (Bsize + Boffsets[i] * 2);
+                            const wy = By + Bsin[i] * (Bsize + Boffsets[i] * 2);
+                            const px = wx - Ax;
+                            const py = wy - Ay;
+                            const pointDistSq = px * px + py * py;
+                            let angle = Math.atan2(py, px);
+                            if (angle < 0) angle += 2 * Math.PI;
+                            const j = Math.round(angle * Ainverse) % AnumPoints;
+                            const Asurface = Asize + Aoffsets[j];
+                            const outer = Asurface + 12;
+                            const inner = Asurface - 12;
+                            if (pointDistSq < outer * outer && pointDistSq > inner * inner) {
+                                Bvel[i] -= 1;
+                            }
+                        }
+                    });
+                }
+            }
+
             render(tick) {
                 this.updateTime = performance.now();
                 this.delta = Math.min(1, Math.max(0, tick.deltaTime));
+
+                if (this.settings.settings.jellyPhysics && this.nodes.size < 512) this.updateCollisionGrid();
 
                 for (const node of this.nodes.values()) {
                     node.renderer.tick();
@@ -6988,8 +7303,8 @@ function modules(ks) {
 
                 this.cellContainer.sortChildren();
 
-                this.stage.x = this.width / 2 - this.camera.renderX * this.camera.renderZoom;
-                this.stage.y = this.height / 2 - this.camera.renderY * this.camera.renderZoom;
+                this.stage.x = this.width / 2 - this.camera.x * this.camera.renderZoom;
+                this.stage.y = this.height / 2 - this.camera.y * this.camera.renderZoom;
                 this.stage.scale.x = this.camera.renderZoom;
                 this.stage.scale.y = this.camera.renderZoom;
 
@@ -7574,7 +7889,7 @@ function modules(ks) {
                     // Other default stuff
                     document.getElementById("userMenuBlockText").innerText = "Block Player";
                     $('#userMenuPlayerName').html(node.name && node.name !== "" ? node.name.removeWideChars() : 'An unnamed cell');
-                    if (node.renderer.heldSkin) {
+                    if (node.renderer?.heldSkin) {
                         $('#userMenuPlayerSkin').css('background-image', 'url(' + this.skinURLFrom(node.skin) + ')');
                     } else {
                         $('#userMenuPlayerSkin').css('background-image', 'none');
@@ -8206,15 +8521,15 @@ function modules(ks) {
 
             // New Render Options
             const renderSettings = [
-                ["jellyPhysics", "Jelly Physics"],
-                ["webGPU", "Use WebGPU"],
                 ["highQualitySkins", "Hi-Res Skins"],
-                ["borderlessCells", "Borderless Cells"],
                 ["shortenMass", "Shorten Mass"],
                 ["hideMapGrid", "Hide Map Grid"],
                 ["textureMipmaps", "Texture Mipmapping"],
                 ["textMipmaps", "Text Mipmapping"],
                 ["acidMode", "Acid Mode"],
+                ["borderlessCells", "Borderless Cells"],
+                ["jellyPhysics", "Jelly Physics"],
+                ["webGPU", "Use WebGPU"],
             ];
 
             for (const [key, label] of renderSettings) {
@@ -8258,10 +8573,8 @@ function modules(ks) {
                 "hideBorder",
                 "hideMapGrid",
                 "mouseArrow",
-                "borderlessCells",
                 "showNames",
                 "showSkins",
-                "acidMode",
             ];
 
             for (const id of appearanceSettings) {

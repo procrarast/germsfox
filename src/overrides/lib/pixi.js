@@ -1,6 +1,6 @@
 /*!
- * PixiJS - v8.18.1
- * Compiled Tue, 14 Apr 2026 20:01:42 UTC
+ * PixiJS - v8.19.0
+ * Compiled Thu, 04 Jun 2026 08:22:17 UTC
  *
  * PixiJS is licensed under the MIT License.
  * http://www.opensource.org/licenses/mit-license
@@ -47,6 +47,8 @@ var PIXI = (function (exports) {
       ExtensionType2["MaskEffect"] = "mask-effect";
       ExtensionType2["BlendMode"] = "blend-mode";
       ExtensionType2["TextureSource"] = "texture-source";
+      ExtensionType2["TextureUploaderWebGL"] = "texture-uploader-webgl";
+      ExtensionType2["TextureUploaderWebGPU"] = "texture-uploader-webgpu";
       ExtensionType2["Environment"] = "environment";
       ExtensionType2["ShapeBuilder"] = "shape-builder";
       ExtensionType2["Batcher"] = "batcher";
@@ -5588,7 +5590,7 @@ Deprecated since v${version}`;
        * @param options - options for creating a new TextureSource
        */
       constructor(options = {}) {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e;
         super();
         this.options = options;
         /** @internal */
@@ -5667,6 +5669,12 @@ Deprecated since v${version}`;
          */
         this.antialias = false;
         /**
+         * Treat the underlying GPU texture as transient — see {@link TextureSourceOptions.transient}.
+         * Internal flag, populated from options.
+         * @internal
+         */
+        this.transient = false;
+        /**
          * Used by automatic texture Garbage Collection, stores last GC tick when it was bound
          * @protected
          */
@@ -5706,6 +5714,7 @@ Deprecated since v${version}`;
         this.autoGenerateMipmaps = options.autoGenerateMipmaps;
         this.sampleCount = options.sampleCount;
         this.antialias = options.antialias;
+        this.transient = (_e = options.transient) != null ? _e : false;
         this.alphaMode = options.alphaMode;
         this.style = new TextureStyle(definedProps(options));
         this.destroyed = false;
@@ -7848,8 +7857,8 @@ Deprecated since v${version}`;
           typeof opts.y === "number" ? opts.y : this.position.y
         );
         this.scale.set(
-          typeof opts.scaleX === "number" ? opts.scaleX || 1 : this.scale.x,
-          typeof opts.scaleY === "number" ? opts.scaleY || 1 : this.scale.y
+          typeof opts.scaleX === "number" ? opts.scaleX : this.scale.x,
+          typeof opts.scaleY === "number" ? opts.scaleY : this.scale.y
         );
         this.rotation = typeof opts.rotation === "number" ? opts.rotation : this.rotation;
         this.skew.set(
@@ -14941,7 +14950,15 @@ Deprecated since v${version}`;
     TextureSource.from = textureSourceFrom;
 
     "use strict";
-    extensions.add(AlphaMask, ColorMask, StencilMask, VideoSource, ImageSource, CanvasSource, BufferImageSource);
+    extensions.add(
+      AlphaMask,
+      ColorMask,
+      StencilMask,
+      VideoSource,
+      ImageSource,
+      CanvasSource,
+      BufferImageSource
+    );
 
     "use strict";
     let canUseNewCanvasBlendModesValue;
@@ -20371,7 +20388,6 @@ ${src}`;
        * @returns Return instance of renderer
        */
       _addSystem(ClassRef, name) {
-        //console.debug("Adding system:", name, ClassRef);
         const system = new ClassRef(this);
         if (this[name]) {
           throw new Error(`Whoops! The name "${name}" is already in use`);
@@ -20625,7 +20641,7 @@ ${src}`;
 
     "use strict";
     const DATA_URI = /^\s*data:(?:([\w-]+)\/([\w+.-]+))?(?:;charset=([\w-]+))?(?:;(base64))?,(.*)/i;
-    const VERSION = "8.18.1";
+    const VERSION = "8.19.0";
 
     "use strict";
     class ApplicationInitHook {
@@ -21938,73 +21954,63 @@ ${e}`);
       }
     };
 
-    var parseSvgPath;
-    var hasRequiredParseSvgPath;
-
-    function requireParseSvgPath () {
-    	if (hasRequiredParseSvgPath) return parseSvgPath;
-    	hasRequiredParseSvgPath = 1;
-    	parseSvgPath = parse;
-
-    	/**
-    	 * expected argument lengths
-    	 * @type {Object}
-    	 */
-
-    	var length = {a: 7, c: 6, h: 1, l: 2, m: 2, q: 4, s: 4, t: 2, v: 1, z: 0};
-
-    	/**
-    	 * segment pattern
-    	 * @type {RegExp}
-    	 */
-
-    	var segment = /([astvzqmhlc])([^astvzqmhlc]*)/ig;
-
-    	/**
-    	 * parse an svg path data string. Generates an Array
-    	 * of commands where each command is an Array of the
-    	 * form `[command, arg1, arg2, ...]`
-    	 *
-    	 * @param {String} path
-    	 * @return {Array}
-    	 */
-
-    	function parse(path) {
-    		var data = [];
-    		path.replace(segment, function(_, command, args){
-    			var type = command.toLowerCase();
-    			args = parseValues(args);
-
-    			// overloaded moveTo
-    			if (type == 'm' && args.length > 2) {
-    				data.push([command].concat(args.splice(0, 2)));
-    				type = 'l';
-    				command = command == 'm' ? 'l' : 'L';
+    //#region src/index.ts
+    /** Number of numeric arguments each SVG path command expects (lowercase keys). */
+    const length = {
+    	a: 7,
+    	c: 6,
+    	h: 1,
+    	l: 2,
+    	m: 2,
+    	q: 4,
+    	s: 4,
+    	t: 2,
+    	v: 1,
+    	z: 0
+    };
+    /** Matches a single path command letter followed by its raw argument string. */
+    const segment = /([astvzqmhlc])([^astvzqmhlc]*)/gi;
+    /** Matches a single numeric token, including negatives, decimals, and scientific notation. */
+    const number = /-?[0-9]*\.?[0-9]+(?:e[-+]?\d+)?/gi;
+    /**
+    * Parse an SVG path `d` attribute string into an array of commands.
+    *
+    * Each command is a tuple of `[letter, ...args]`. Relative commands use
+    * lowercase letters; absolute commands use uppercase. An implicit `lineto`
+    * is inserted after the first coordinate pair of a `moveto` with extra args,
+    * per the SVG spec.
+    *
+    * @param path - The raw SVG path data string (e.g. `"M0,0 L10,10 Z"`).
+    * @returns Array of parsed commands.
+    * @throws {Error} if a command has fewer arguments than expected.
+    */
+    function parse(path) {
+    	const data = [];
+    	path.replace(segment, (_, cmd, args) => {
+    		let type = cmd.toLowerCase();
+    		let command = cmd;
+    		const values = parseValues(args);
+    		if (type === "m" && values.length > 2) {
+    			data.push([command, ...values.splice(0, 2)]);
+    			type = "l";
+    			command = command === "m" ? "l" : "L";
+    		}
+    		while (true) {
+    			if (values.length === length[type]) {
+    				data.push([command, ...values]);
+    				return "";
     			}
-
-    			while (true) {
-    				if (args.length == length[type]) {
-    					args.unshift(command);
-    					return data.push(args)
-    				}
-    				if (args.length < length[type]) throw new Error('malformed path data')
-    				data.push([command].concat(args.splice(0, length[type])));
-    			}
-    		});
-    		return data
-    	}
-
-    	var number = /-?[0-9]*\.?[0-9]+(?:e[-+]?\d+)?/ig;
-
-    	function parseValues(args) {
-    		var numbers = args.match(number);
-    		return numbers ? numbers.map(Number) : []
-    	}
-    	return parseSvgPath;
+    			if (values.length < length[type]) throw new Error("malformed path data");
+    			data.push([command, ...values.splice(0, length[type])]);
+    		}
+    	});
+    	return data;
     }
-
-    var parseSvgPathExports = requireParseSvgPath();
-    var parse = /*@__PURE__*/getDefaultExportFromCjs(parseSvgPathExports);
+    /** Extract all numeric tokens from a raw argument string. */
+    function parseValues(args) {
+    	const numbers = args.match(number);
+    	return numbers ? numbers.map(Number) : [];
+    }
 
     "use strict";
     function parseSVGPath(svgPath, path) {
@@ -24704,11 +24710,12 @@ ${parts.join("\n")}
           })
         });
         const m = new Matrix();
-        m.scale(1 / scale, 1 / scale);
-        m.translate(ox, oy);
         if (this.textureSpace === "local") {
-          m.scale(defaultSize, defaultSize);
+          m.scale(2 * r1, 2 * r1);
+        } else {
+          m.scale(1 / scale, 1 / scale);
         }
+        m.translate(ox, oy);
         this.transform = m;
       }
       /** Destroys the gradient, releasing resources. This will also destroy the internal texture. */
@@ -24749,6 +24756,7 @@ ${parts.join("\n")}
       outerRadius: 0.5,
       colorStops: [],
       scale: 1,
+      rotation: 0,
       textureSpace: "local",
       type: "radial",
       textureSize: 256,
@@ -27069,6 +27077,9 @@ ${parts.join("\n")}
     }
 
     "use strict";
+    function isFillPatternOptions(value) {
+      return value.texture !== void 0;
+    }
     const repetitionMap = {
       repeat: {
         addressModeU: "repeat",
@@ -27088,7 +27099,7 @@ ${parts.join("\n")}
       }
     };
     class FillPattern {
-      constructor(texture, repetition) {
+      constructor(textureOrOptions, repetition) {
         /**
          * unique id for this fill pattern
          * @internal
@@ -27102,14 +27113,14 @@ ${parts.join("\n")}
         this._tick = 0;
         /** The transform matrix applied to the pattern */
         this.transform = new Matrix();
-        this.texture = texture;
-        this.transform.scale(
-          1 / texture.frame.width,
-          1 / texture.frame.height
-        );
-        if (repetition) {
-          texture.source.style.addressModeU = repetitionMap[repetition].addressModeU;
-          texture.source.style.addressModeV = repetitionMap[repetition].addressModeV;
+        var _a;
+        const options = isFillPatternOptions(textureOrOptions) ? textureOrOptions : { texture: textureOrOptions, repetition };
+        this.texture = options.texture;
+        this.textureSpace = (_a = options.textureSpace) != null ? _a : "global";
+        const rep = options.repetition;
+        if (rep) {
+          this.texture.source.style.addressModeU = repetitionMap[rep].addressModeU;
+          this.texture.source.style.addressModeV = repetitionMap[rep].addressModeV;
         }
       }
       /**
@@ -27118,13 +27129,13 @@ ${parts.join("\n")}
        * If not provided, the pattern will use the default transform.
        */
       setTransform(transform) {
-        const texture = this.texture;
-        this.transform.copyFrom(transform);
-        this.transform.invert();
-        this.transform.scale(
-          1 / texture.frame.width,
-          1 / texture.frame.height
-        );
+        if (transform) {
+          if (this.transform.equals(transform)) return;
+          this.transform.copyFrom(transform);
+        } else {
+          if (this.transform.isIdentity()) return;
+          this.transform.identity();
+        }
         this._tick++;
       }
       /** Internal texture used to render the gradient */
@@ -27208,6 +27219,7 @@ ${parts.join("\n")}
       fill.color = 16777215;
       fill.texture = value.texture;
       fill.matrix = value.transform;
+      fill.textureSpace = value.textureSpace;
       return __spreadValues$10(__spreadValues$10({}, defaultStyle), fill);
     }
     function handleFillGradient(fill, value, defaultStyle) {
@@ -36934,12 +36946,17 @@ ${parts.join("\n")}
       uvs[2] = uvs[4] = 1 - anchorX;
       uvs[1] = uvs[3] = -anchorY;
       uvs[5] = uvs[7] = 1 - anchorY;
+      const tileMatrix = tilingSprite._tileTransform.matrix;
       const textureMatrix = Matrix.shared;
-      textureMatrix.copyFrom(tilingSprite._tileTransform.matrix);
-      textureMatrix.tx /= tilingSprite.width;
-      textureMatrix.ty /= tilingSprite.height;
+      textureMatrix.set(
+        tileMatrix.a * width / tilingSprite.width,
+        tileMatrix.b * width / tilingSprite.height,
+        tileMatrix.c * height / tilingSprite.width,
+        tileMatrix.d * height / tilingSprite.height,
+        tileMatrix.tx / tilingSprite.width,
+        tileMatrix.ty / tilingSprite.height
+      );
       textureMatrix.invert();
-      textureMatrix.scale(tilingSprite.width / width, tilingSprite.height / height);
       applyMatrix(uvs, 2, 0, textureMatrix);
     }
 
@@ -39676,12 +39693,7 @@ ${parts.join("\n")}
       } else if (fillStyle.fill instanceof FillPattern) {
         const fillPattern = fillStyle.fill;
         const pattern = context.createPattern(fillPattern.texture.source.resource, "repeat");
-        const tempMatrix = fillPattern.transform.copyTo(Matrix.shared);
-        tempMatrix.scale(
-          fillPattern.texture.source.pixelWidth,
-          fillPattern.texture.source.pixelHeight
-        );
-        pattern.setTransform(tempMatrix);
+        canvasUtils.applyPatternTransform(pattern, fillPattern.transform, false);
         return pattern;
       } else if (fillStyle.fill instanceof FillGradient) {
         const fillGradient = fillStyle.fill;
@@ -41797,13 +41809,13 @@ ${parts.join("\n")}
           if (addWordToNextLine) {
             nextLine();
             nextWord(currentWord);
-            if (!isEnd) {
+            if (!isEnd && charData) {
               currentLine.charPositions.push(0);
             }
           } else {
             currentWord.start = currentLine.width;
             nextWord(currentWord);
-            if (!isEnd) {
+            if (!isEnd && charData) {
               currentLine.charPositions.push(0);
             }
           }
@@ -43680,10 +43692,14 @@ ${parts.join("\n")}
               isFromCachedRenderGroup && isRootTarget
             );
           }
-          const drawX = applyRotateTransform ? 0 : dx;
-          const drawY = applyRotateTransform ? 0 : dy;
           const drawW = dw;
           const drawH = dh;
+          let drawX = applyRotateTransform ? 0 : dx;
+          let drawY = applyRotateTransform ? 0 : dy;
+          if (!applyRotateTransform && quad.roundPixels === 1) {
+            drawX |= 0;
+            drawY |= 0;
+          }
           if (needsRepeat) {
             let patternSource = source;
             const canTint = tint !== 16777215 && !rotate;
@@ -43901,8 +43917,8 @@ ${parts.join("\n")}
         this._adaptor = adaptor;
         (_b = (_a = this._adaptor).init) == null ? void 0 : _b.call(_a, this);
       }
-      static getBatcher(name) {
-        return new this._availableBatchers[name]();
+      static getBatcher(name, maxTextures) {
+        return new this._availableBatchers[name]({ maxTextures });
       }
       buildStart(instructionSet) {
         let batchers = this._batchersByInstructionSet[instructionSet.uid];
@@ -43923,7 +43939,7 @@ ${parts.join("\n")}
           this._activeBatch.break(instructionSet);
           let batch = this._activeBatches[batchableObject.batcherName];
           if (!batch) {
-            batch = this._activeBatches[batchableObject.batcherName] = _BatcherPipe.getBatcher(batchableObject.batcherName);
+            batch = this._activeBatches[batchableObject.batcherName] = _BatcherPipe.getBatcher(batchableObject.batcherName, this.renderer.limits.maxBatchableTextures);
             batch.begin();
           }
           this._activeBatch = batch;
@@ -45209,7 +45225,7 @@ ${parts.join("\n")}
       }
       if (fill instanceof FillPattern) {
         const pattern = canvasUtils.getTintedPattern(fill.texture, tint);
-        canvasUtils.applyPatternTransform(pattern, fill.transform);
+        canvasUtils.applyPatternTransform(pattern, fill.transform, false);
         return pattern;
       }
       const texture = style.texture;
@@ -46846,14 +46862,6 @@ ${parts.join("\n")}
           }
           const isRecentlyUsed = now - resource._gcLastUsed < this.maxUnusedTime;
           if (!isRecentlyUsed && resource.autoGarbageCollect) {
-            if (!hashClone) {
-              if (nullCount + 1 !== 1e4) {
-                hashValue[key] = null;
-                nullCount++;
-              } else {
-                hashClone = this._createHashClone(hashValue, key);
-              }
-            }
             if (type === "renderable") {
               const res = resource;
               const renderGroup = (_b = res.renderGroup) != null ? _b : res.parentRenderGroup;
@@ -46862,6 +46870,14 @@ ${parts.join("\n")}
             resource.unload();
             resource._gcData = null;
             resource._gcLastUsed = -1;
+            if (!hashClone) {
+              if (nullCount + 1 !== 1e4) {
+                hashValue[key] = null;
+                nullCount++;
+              } else {
+                hashClone = this._createHashClone(hashValue, key);
+              }
+            }
           } else if (hashClone) {
             hashClone[key] = resource;
           }
@@ -50990,8 +51006,14 @@ ${parts.join("\n")}
 
     "use strict";
     function logPrettyShaderError(gl, shader) {
-      const shaderSrc = gl.getShaderSource(shader).split("\n").map((line, index) => `${index}: ${line}`);
-      const shaderLog = gl.getShaderInfoLog(shader);
+      var _a;
+      const rawSource = gl.getShaderSource(shader);
+      if (rawSource === null) {
+        console.error("PixiJS Error: Could not retrieve shader source (WebGL context may be lost).");
+        return;
+      }
+      const shaderSrc = rawSource.split("\n").map((line, index) => `${index}: ${line}`);
+      const shaderLog = (_a = gl.getShaderInfoLog(shader)) != null ? _a : "";
       const splitShader = shaderLog.split("\n");
       const dedupe = {};
       const lineNumbers = splitShader.map((line) => parseFloat(line.replace(/^ERROR\: 0\:([\d]+)\:.*$/, "$1"))).filter((n) => {
@@ -52450,7 +52472,7 @@ ${parts.join("\n")}
     };
     var __spreadProps$c = (a, b) => __defProps$c(a, __getOwnPropDescs$c(b));
     const BYTES_PER_PIXEL = 4;
-    class GlTextureSystem {
+    const _GlTextureSystem = class _GlTextureSystem {
       constructor(renderer) {
         this._glSamplers = /* @__PURE__ */ Object.create(null);
         this._boundTextures = [];
@@ -52466,12 +52488,12 @@ ${parts.join("\n")}
           onUnload: this.onSourceUnload.bind(this),
           name: "glTexture"
         });
-        const baseUploaders = {
+        const baseUploaders = __spreadValues$k({
           image: glUploadImageResource,
           buffer: glUploadBufferImageResource,
           video: glUploadVideoResource,
           compressed: glUploadCompressedTextureResource
-        };
+        }, _GlTextureSystem.uploadExtensions);
         this._uploads = __spreadProps$c(__spreadValues$k({}, baseUploaders), {
           cube: createGlUploadCubeTextureResource(baseUploaders)
         });
@@ -52853,14 +52875,23 @@ ${parts.join("\n")}
         this._premultiplyAlpha = false;
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this._premultiplyAlpha);
       }
-    }
+    };
     /** @ignore */
-    GlTextureSystem.extension = {
+    _GlTextureSystem.extension = {
       type: [
         ExtensionType.WebGLSystem
       ],
       name: "texture"
     };
+    /**
+     * Optional uploaders registered via {@link ExtensionType.TextureUploaderWebGL}. Each entry is
+     * merged into {@link _uploads} at construction time, so import order matters: register the
+     * extension before creating the renderer.
+     * @internal
+     */
+    _GlTextureSystem.uploadExtensions = /* @__PURE__ */ Object.create(null);
+    let GlTextureSystem = _GlTextureSystem;
+    extensions.handleByMap(ExtensionType.TextureUploaderWebGL, GlTextureSystem.uploadExtensions);
 
     "use strict";
 
@@ -53039,21 +53070,16 @@ ${parts.join("\n")}
       getBindGroup(bindGroup, program, groupIndex) {
         bindGroup._updateKey();
         const gpuBindGroup = this._hash[bindGroup._key] || this._createBindGroup(bindGroup, program, groupIndex);
-        if (!gpuBindGroup) return null; // Germsfox added
         return gpuBindGroup;
       }
       _createBindGroup(group, program, groupIndex) {
-        //console.debug('group.resources:', group.resources, 'length:', group.resources?.length, 'resources[0]:', group.resources?.[0]);
         var _a;
         const device = this._gpu.device;
         const groupLayout = program.layout[groupIndex];
         const entries = [];
         const renderer = this._renderer;
-        if (!group.resources) return null; // Germsfox added
         for (const j in groupLayout) {
-          //console.debug('_createBindGroup group:', group, 'groupIndex:', groupIndex, 'groupLayout:', groupLayout);
           const resource = (_a = group.resources[j]) != null ? _a : group.resources[groupLayout[j]];
-          //console.debug('resource at crash point:', resource, 'j:', j, 'groupLayout[j]:', groupLayout[j]);
           let gpuResource;
           if (resource._resourceType === "uniformGroup") {
             const uniformGroup = resource;
@@ -53274,6 +53300,9 @@ ${parts.join("\n")}
         if (this._initPromise) return this._initPromise;
         this._initPromise = (options.gpu ? Promise.resolve(options.gpu) : this._createDeviceAndAdaptor(options)).then((gpu) => {
           this.gpu = gpu;
+          this.extensions = {
+            transientAttachment: typeof GPUTextureUsage.TRANSIENT_ATTACHMENT === "number"
+          };
           this._renderer.runners.contextChange.emit(this.gpu);
         });
         return this._initPromise;
@@ -53309,6 +53338,7 @@ ${parts.join("\n")}
       }
       destroy() {
         this.gpu = null;
+        this.extensions = null;
         this._renderer = null;
       }
     }
@@ -53404,7 +53434,6 @@ ${parts.join("\n")}
         this._boundBindGroup[index] = bindGroup;
         bindGroup._touch(this._renderer.gc.now, this._renderer.tick);
         const gpuBindGroup = this._renderer.bindGroup.getBindGroup(bindGroup, program, index);
-        if (!gpuBindGroup) return; // Germsfox added
         this.renderPassEncoder.setBindGroup(index, gpuBindGroup);
       }
       setGeometry(geometry, program) {
@@ -53514,6 +53543,8 @@ ${parts.join("\n")}
       name: "encoder",
       priority: 1
     };
+
+    "use strict";
 
     "use strict";
     class GpuLimitsSystem {
@@ -54141,6 +54172,7 @@ ${parts.join("\n")}
         );
       }
       getDescriptor(renderTarget, clear, clearValue, mipLevel = 0, layer = 0) {
+        var _a;
         if (typeof clear === "boolean") {
           clear = clear ? CLEAR.ALL : CLEAR.NONE;
         }
@@ -54168,11 +54200,13 @@ ${parts.join("\n")}
                 arrayLayerCount: 1
               });
             }
+            let attachmentIsTransient = false;
             if (gpuRenderTarget.msaaTextures[i]) {
               resolveTarget = view;
               view = this._renderer.texture.getTextureView(
                 gpuRenderTarget.msaaTextures[i]
               );
+              attachmentIsTransient = gpuRenderTarget.msaaTextures[i].transient;
             }
             const loadOp = clear & CLEAR.COLOR ? "clear" : "load";
             clearValue != null ? clearValue : clearValue = renderTargetSystem.defaultClearColor;
@@ -54180,7 +54214,10 @@ ${parts.join("\n")}
               view,
               resolveTarget,
               clearValue,
-              storeOp: "store",
+              // Only discard the MSAA buffer when it was created as transient — i.e. we know
+              // no later pass will try to load it. Non-transient MSAA targets keep storeOp:'store'
+              // so flows like filter pop-back (loadOp:'load' on the parent RT) keep working.
+              storeOp: attachmentIsTransient ? "discard" : "store",
               loadOp
             };
           }
@@ -54189,10 +54226,12 @@ ${parts.join("\n")}
         if ((renderTarget.stencil || renderTarget.depth) && !renderTarget.depthStencilTexture) {
           renderTarget.ensureDepthStencilTexture();
           renderTarget.depthStencilTexture.source.sampleCount = gpuRenderTarget.msaa ? 4 : 1;
+          renderTarget.depthStencilTexture.source.transient = !!((_a = gpuRenderTarget.msaaTextures[0]) == null ? void 0 : _a.transient);
         }
         if (renderTarget.depthStencilTexture) {
           const stencilLoadOp = clear & CLEAR.STENCIL ? "clear" : "load";
           const depthLoadOp = clear & CLEAR.DEPTH ? "clear" : "load";
+          const dsStoreOp = renderTarget.depthStencilTexture.source.transient ? "discard" : "store";
           depthStencilAttachment = {
             view: this._renderer.texture.getGpuSource(renderTarget.depthStencilTexture.source).createView({
               dimension: "2d",
@@ -54201,11 +54240,11 @@ ${parts.join("\n")}
               baseArrayLayer: layer,
               arrayLayerCount: 1
             }),
-            stencilStoreOp: "store",
+            stencilStoreOp: dsStoreOp,
             stencilLoadOp,
             depthClearValue: 1,
             depthLoadOp,
-            depthStoreOp: "store"
+            depthStoreOp: dsStoreOp
           };
         }
         const descriptor = {
@@ -54232,6 +54271,7 @@ ${parts.join("\n")}
         }
       }
       initGpuRenderTarget(renderTarget) {
+        var _a;
         renderTarget.isRoot = true;
         const gpuRenderTarget = new GpuRenderTarget();
         gpuRenderTarget.colorTargetCount = renderTarget.colorTextures.length;
@@ -54259,6 +54299,7 @@ ${parts.join("\n")}
               width: 0,
               height: 0,
               sampleCount: 4,
+              transient: colorTexture.source.transient,
               arrayLayerCount: colorTexture.source.arrayLayerCount
             });
             gpuRenderTarget.msaaTextures[i] = msaaTexture;
@@ -54268,6 +54309,7 @@ ${parts.join("\n")}
           gpuRenderTarget.msaaSamples = 4;
           if (renderTarget.depthStencilTexture) {
             renderTarget.depthStencilTexture.source.sampleCount = 4;
+            renderTarget.depthStencilTexture.source.transient = !!((_a = gpuRenderTarget.msaaTextures[0]) == null ? void 0 : _a.transient);
           }
         }
         return gpuRenderTarget;
@@ -54846,7 +54888,7 @@ ${parts.join("\n")}
         this.gpuTexture = null;
       }
     }
-    class GpuTextureSystem {
+    const _GpuTextureSystem = class _GpuTextureSystem {
       constructor(renderer) {
         this._gpuSamplers = /* @__PURE__ */ Object.create(null);
         this._bindGroupHash = /* @__PURE__ */ Object.create(null);
@@ -54858,12 +54900,12 @@ ${parts.join("\n")}
           onUnload: this.onSourceUnload.bind(this),
           name: "gpuTextureSource"
         });
-        const baseUploaders = {
+        const baseUploaders = __spreadValues$h({
           image: gpuUploadImageResource,
           buffer: gpuUploadBufferImageResource,
           video: gpuUploadVideoResource,
           compressed: gpuUploadCompressedTextureResource
-        };
+        }, _GpuTextureSystem.uploadExtensions);
         this._uploads = __spreadProps$a(__spreadValues$h({}, baseUploaders), {
           cube: createGpuUploadCubeTextureResource(baseUploaders)
         });
@@ -54891,10 +54933,18 @@ ${parts.join("\n")}
           const biggestDimension = Math.max(source.pixelWidth, source.pixelHeight);
           source.mipLevelCount = Math.floor(Math.log2(biggestDimension)) + 1;
         }
-        let usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST;
-        if (source.uploadMethodId !== "compressed") {
-          usage |= GPUTextureUsage.RENDER_ATTACHMENT;
-          usage |= GPUTextureUsage.COPY_SRC;
+        let usage;
+        if (source.sampleCount > 1) {
+          usage = GPUTextureUsage.RENDER_ATTACHMENT;
+          if (source.transient && this._renderer.device.extensions.transientAttachment) {
+            usage |= GPUTextureUsage.TRANSIENT_ATTACHMENT;
+          }
+        } else {
+          usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST;
+          if (source.uploadMethodId !== "compressed") {
+            usage |= GPUTextureUsage.RENDER_ATTACHMENT;
+            usage |= GPUTextureUsage.COPY_SRC;
+          }
         }
         const blockData = blockDataMap[source.format] || { blockBytes: 4, blockWidth: 1, blockHeight: 1 };
         const width = Math.ceil(source.pixelWidth / blockData.blockWidth) * blockData.blockWidth;
@@ -55052,14 +55102,23 @@ ${parts.join("\n")}
         this._gpuSamplers = null;
         this._bindGroupHash = null;
       }
-    }
+    };
     /** @ignore */
-    GpuTextureSystem.extension = {
+    _GpuTextureSystem.extension = {
       type: [
         ExtensionType.WebGPUSystem
       ],
       name: "texture"
     };
+    /**
+     * Optional uploaders registered via {@link ExtensionType.TextureUploaderWebGPU}. Each entry is
+     * merged into {@link _uploads} at construction time, so import order matters: register the
+     * extension before creating the renderer.
+     * @internal
+     */
+    _GpuTextureSystem.uploadExtensions = /* @__PURE__ */ Object.create(null);
+    let GpuTextureSystem = _GpuTextureSystem;
+    extensions.handleByMap(ExtensionType.TextureUploaderWebGPU, GpuTextureSystem.uploadExtensions);
 
     "use strict";
 
@@ -58044,7 +58103,7 @@ ${parts.join("\n")}
         const state = this.state;
         buffer.update(children, container._childrenDirty);
         container._childrenDirty = false;
-        state.blendMode = getAdjustedBlendModeBlend(container.blendMode, container.texture._source);
+        state.blendMode = getAdjustedBlendModeBlend(container.groupBlendMode, container.texture._source);
         const uniforms = this.localUniforms.uniforms;
         const transformationMatrix = uniforms.uTranslationMatrix;
         container.worldTransform.copyTo(transformationMatrix);
@@ -60315,7 +60374,7 @@ ${parts.join("\n")}
         const isWhitespace = whitespaceRegex.test(segment);
         const isNewline = isNewlineCharacter(segment);
         const isSpaceAtStart = matchedLine.length === 0 && isWhitespace;
-        if (isWhitespace && !isNewline && isSpaceAtStart) {
+        if (isWhitespace && !isNewline && isSpaceAtStart && (!currentLine || !currentLine.startsWith(segment))) {
           return;
         }
         if (!isNewline) matchedLine += segment;

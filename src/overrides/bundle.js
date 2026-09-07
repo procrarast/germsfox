@@ -2672,7 +2672,7 @@ function modules(ks) {
                     $('#tabs').children().each(function() {
                         let chatTab = $(this);
                         let lo = sender.indexOf('[Console]') > -1 ? '' : ':';
-                        let lp = sender.indexOf('[Console]') > -1 ? '' : "<p class='nowrap' style='color: " + li + "'>" + sender + '</p>';
+                        let lp = sender.indexOf('[Console]') > -1 ? '' : "<p class='nowrap' style='color: " + rgb + "'>" + sender + '</p>';
                         let lq = $("<div class='adminMessage' style='color: " + color + "'>" + lp + '<p>' + lo + ' ' + message + '</p></div>');
                         $(lq).appendTo(chatTab).hide().fadeIn(500);
                     });
@@ -3283,19 +3283,6 @@ function modules(ks) {
                 console.warn("Could not find texture for deletion!");
             }
 
-            updateMipmaps(isEnabled) {
-                this.mipmapping = isEnabled
-                for (const entry of this.entries.values()) {
-                    const texture = this.getTexture(entry);
-
-                    if (!texture)
-                        continue;
-
-                    texture.source.autoGenerateMipmaps = isEnabled;
-                    texture.source.update();
-                }
-            }
-
             getTexture(entry) { return entry.texture ?? null; }
 
             clear() {
@@ -3308,11 +3295,6 @@ function modules(ks) {
         }
 
         class NameCache extends TextureCache {
-            constructor(game) {
-                super(game);
-                this.mipmapping = this.game.settings.settings.textMipmaps;
-            }
-
             create(key, name, fontSize, fill, isLocked) {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -3351,7 +3333,7 @@ function modules(ks) {
                 let texture = new PIXI.Texture({ 
                     source: new PIXI.CanvasSource({ 
                         resource: canvas,
-                        autoGenerateMipmaps: this.mipmapping
+                        autoGenerateMipmaps: false
                     }) 
                 });
 
@@ -3360,11 +3342,6 @@ function modules(ks) {
         }
 
         class MassCache extends TextureCache {
-            constructor(game) {
-                super(game);
-                this.mipmapping = this.game.settings.settings.textMipmaps;
-            }
-
             create(massText, fontSize) {
                 this.lastAccess = Date.now();
 
@@ -3391,7 +3368,7 @@ function modules(ks) {
                 let texture = new PIXI.Texture({ 
                     source: new PIXI.CanvasSource({ 
                         resource: canvas,
-                        autoGenerateMipmaps: this.mipmapping
+                        autoGenerateMipmaps: false
                     }) 
                 });
 
@@ -3404,11 +3381,6 @@ function modules(ks) {
          */
 
         class SkinCache extends TextureCache {
-            constructor(game) {
-                super(game);
-                this.mipmapping = this.game.settings.settings.textureMipmaps;
-            }
-
             set(key, resource) {
                 this.entries.set(key, {
                     resource: resource,
@@ -3431,7 +3403,6 @@ function modules(ks) {
                 const resource = new SkinResource(
                     this.game.skinURLFrom(skinName),
                     isHighQuality,
-                    this.mipmapping
                 );
 
                 return this.set(skinName, resource);
@@ -3452,8 +3423,7 @@ function modules(ks) {
         }
 
         class SkinResource {
-            constructor(src, isHighQuality, mipmapped) {
-                this.mipmapped = mipmapped;
+            constructor(src, isHighQuality) {
                 this.texture = null;
                 this.size = isHighQuality ? 1024 : 512;
                 this.pending = new Map(); // Map of pending callbacks to run when image loads
@@ -3491,7 +3461,7 @@ function modules(ks) {
                 this.texture = new PIXI.Texture({ 
                     source: new PIXI.CanvasSource({ 
                         resource: canvas,
-                        autoGenerateMipmaps: this.mipmapped
+                        autoGenerateMipmaps: true
                     }) 
                 });
 
@@ -3928,7 +3898,7 @@ function modules(ks) {
 
                 // Initialize newly-added points by copying their nearest neighbor
                 if (target > copyCount && copyCount > 0) {
-                    for (let i = 0; i < target; i++) {
+                    for (let i = copyCount; i < target; i++) {
                         const oldF = (i / target) * oldCount;
                         const lo = Math.floor(oldF) % oldCount;
                         const hi = (lo + 1) % oldCount;
@@ -5114,7 +5084,7 @@ function modules(ks) {
                 this.send(new packet.Party(oL,oM));
             }
             setSkin(value) {
-                if (skin == '' || skin == 'None') {
+                if (value == '' || value == 'None') {
                     this.skin = '';
                 } else {
                     this.skin = value;
@@ -5803,8 +5773,6 @@ function modules(ks) {
                     'dynamicLinesplitAxis': true,
                     'diagonalLinesplits': true,
                     'webGPU': false,
-                    'textureMipmaps': true,
-                    'textMipmaps': false,
                     'deathFreecam': true,
                     'acidMode': false,
                     'bruhMode': false,
@@ -5916,14 +5884,6 @@ function modules(ks) {
                         for (const node of this.game.nodes.values()) {
                             node.animationDelay = value;
                         }
-                        break;
-                    case 'textureMipmaps':
-                        this.game.skins.updateMipmaps(value);
-                        this.game.updateTextureMipmaps();
-                        break;
-                    case 'textMipmaps':
-                        this.game.names.updateMipmaps(value);
-                        this.game.masses.updateMipmaps(value);
                         break;
                     case 'customTheme':
                         this.game.drawGrid();
@@ -6924,8 +6884,6 @@ function modules(ks) {
 
                 this.bruh = new Audio(`${extensionURL}sound/bruh.mp3`);
 
-                this.updateTextureMipmaps();
-
                 this.cellSize = this.cellTexture.frame.width / 2;
                 this.virusSize = this.virusTexture.frame.width / 2;
                 this.foodSize = this.foodTextures[0].frame.width / 2;
@@ -6971,13 +6929,6 @@ function modules(ks) {
 
             skinURLFrom(skin) {
                 return skin.includes('i.imgur.com/') ? skin : skin.includes('.png') ? 'res/skins/' + skin : 'res/skins/' + skin + '.png';
-            }
-
-            updateTextureMipmaps() {
-                for (const texture of this.gameTextures) {
-                    texture.source.autoGenerateMipmaps = this.settings.settings.textureMipmaps;
-                    texture.source.update();
-                }
             }
 
             counter() {
@@ -7158,9 +7109,8 @@ function modules(ks) {
                 let collisionNodes = new Set(); 
                 if (!this.collisionGrid) { 
                     this.collisionGrid = new CollisionGrid();
-                } else {
-                    this.collisionGrid.init(this.border[3] / 8); // Divide into an 8x8
                 }
+                this.collisionGrid.init(this.border[3] / 8);
 
                 for (const node of this.nodes.values()) {
                     if (this.collisionGrid.insert(node)) collisionNodes.add(node);
@@ -8524,8 +8474,6 @@ function modules(ks) {
                 ["highQualitySkins", "Hi-Res Skins"],
                 ["shortenMass", "Shorten Mass"],
                 ["hideMapGrid", "Hide Map Grid"],
-                ["textureMipmaps", "Texture Mipmapping"],
-                ["textMipmaps", "Text Mipmapping"],
                 ["acidMode", "Acid Mode"],
                 ["borderlessCells", "Borderless Cells"],
                 ["jellyPhysics", "Jelly Physics"],

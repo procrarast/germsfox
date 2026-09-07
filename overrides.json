@@ -7,7 +7,7 @@
       "redirect": { "extensionPath": "/src/overrides/bundle.js" }
     },
     "condition": {
-      "urlFilter": "https://germs.io/js/bundle.js?v=add385cb",
+      "urlFilter": "https://germs.io/js/bundle.js*",
       "resourceTypes": ["script"]
     }
   },
@@ -19,7 +19,7 @@
       "redirect": { "extensionPath": "/src/overrides/lib/pixi.js" }
     },
     "condition": {
-      "urlFilter": "https://germs.io/js/lib/pixi-legacy.min.js?v=7.2.2",
+      "urlFilter": "https://germs.io/js/lib/pixi-legacy.min.js*",
       "resourceTypes": ["script"]
     }
   }

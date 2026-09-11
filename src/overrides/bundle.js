@@ -7021,6 +7021,7 @@ function modules(ks) {
                 this.pool = new Pool(this);
                 this.foodEaten = 0;
                 this.highestMass = 0;
+                this.lastSubmittedMass = 0; // highestMass at the last community-leaderboard submission
                 this.timeAlive = 0;
                 this.leaderboardTime = 0;
                 this.cellsEaten = 0;
@@ -7161,6 +7162,7 @@ function modules(ks) {
                     setInterval(this.counter.bind(this), 1000);
                     setInterval(this.sendMouse.bind(this), 40);
                     setInterval(this.refreshMenuAds.bind(this), 120 * 1000);
+                    setInterval(this.submitLeaderboardScore.bind(this), 30 * 1000);
                     
                     this.skins.startCleanupInterval(10000);
                     this.names.startCleanupInterval(1000);
@@ -7996,22 +7998,33 @@ function modules(ks) {
                     this.feedInterval = null;
                 }
             }
+            // Community leaderboard submission (see the Germsfox bridge below) - only if logged
+            // in. login.uuid is set to the literal string 'logout' rather than cleared on
+            // logout, so that's excluded too. Uses the in-game nickname rather than the account
+            // name, since that's the name players actually recognize each other by - "one entry
+            // per account" still holds regardless, since that's keyed on client_id (a
+            // per-install id), not this name.
+            //
+            // Called both right at death (so a life's final mass is never missed even if it grew
+            // in the last few seconds before the next interval tick) and periodically while
+            // still alive (see the setInterval in pool.populate()'s callback), so a long life
+            // shows up on the daily leaderboard well before it ends. lastSubmittedMass makes
+            // each of those interval ticks a no-op unless there's an actual new high to report.
+            submitLeaderboardScore() {
+                if (!this.login.uuid || this.login.uuid === 'logout') return;
+                if (this.highestMass <= this.lastSubmittedMass) return;
+
+                this.lastSubmittedMass = this.highestMass;
+                window.postMessage({
+                    __germsfox: true,
+                    type: 'highscore',
+                    mode: this.network.mode,
+                    mass: ~~this.highestMass,
+                    name: this.settings.getItem('nick') || 'An unnamed cell',
+                }, '*');
+            }
             onDeath() {
-                // Community leaderboard submission (see the Germsfox bridge below) - only if
-                // logged in. login.uuid is set to the literal string 'logout' rather than
-                // cleared on logout, so that's excluded too.
-                // Uses the in-game nickname rather than the account name, since that's the name
-                // players actually recognize each other by - "one entry per account" still holds
-                // regardless, since that's keyed on client_id (a per-install id), not this name.
-                if (this.login.uuid && this.login.uuid !== 'logout' && this.highestMass > 0) {
-                    window.postMessage({
-                        __germsfox: true,
-                        type: 'death',
-                        mode: this.network.mode,
-                        mass: ~~this.highestMass,
-                        name: this.settings.getItem('nick') || 'An unnamed cell',
-                    }, '*');
-                }
+                this.submitLeaderboardScore();
 
                 document.getElementsByClassName('stats-food-eaten')[0].innerText = this.foodEaten;
                 document.getElementsByClassName('stats-highest-mass')[0].innerText = ~~this.highestMass;
@@ -8022,6 +8035,7 @@ function modules(ks) {
 
                 this.foodEaten = 0;
                 this.highestMass = 0;
+                this.lastSubmittedMass = 0; // highestMass at the last community-leaderboard submission
                 this.timeAlive = 0;
                 this.leaderboardTime = 0;
                 this.cellsEaten = 0;

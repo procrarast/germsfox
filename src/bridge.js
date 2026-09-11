@@ -24,11 +24,12 @@ window.addEventListener('message', (event) => {
             germsfoxPendingStateRequests.delete(data.requestId);
             resolve(data.state);
         }
-    } else if (data.type === 'death') {
-        // Unsolicited push from bundle.js's Game.onDeath() (only sent when logged in) - relayed
-        // to background.js since submitting to pishi.dev needs host_permissions/network access
-        // a content script doesn't have, and background.js is where the opt-out setting and
-        // per-install client ID live.
+    } else if (data.type === 'highscore') {
+        // Unsolicited push from bundle.js's Game.submitLeaderboardScore() (only sent when logged
+        // in, and only when it beats the last submission) - fired both at death and on an
+        // interval while still alive. Relayed to background.js since submitting to pishi.dev
+        // needs host_permissions/network access a content script doesn't have, and
+        // background.js is where the opt-out setting and per-install client ID live.
         chrome.runtime.sendMessage({
             action: 'submitScore',
             mode: data.mode,

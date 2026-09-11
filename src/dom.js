@@ -87,7 +87,10 @@ function renderDailyLeaderboardPanel() {
             if (await refresh()) break;
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        setInterval(refresh, 60000); // Daily leaderboard, not live game state - no need to poll fast
+        // 2x bundle.js's 30s score-submission interval - long enough not to hammer the server
+        // with ~50 concurrent players each polling, short enough that a new high score shows up
+        // reasonably quickly. Daily leaderboard, not live game state, so this doesn't need to be tight.
+        setInterval(refresh, 60000);
     })();
 
     // Switching modes shows the *previous* mode's leaderboard until the next 60s poll otherwise

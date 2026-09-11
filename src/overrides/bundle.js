@@ -2637,6 +2637,39 @@ function modules(ks) {
                     "glokk40spazz.gif",
                     "forward.gif"
                 ];
+
+                this.wahbasQuotes = [
+                    "Don't waste your time with him, he's a disgusting person.",
+                    "Hiding in your mother's house",
+                    "Who gave you permission to speak to me, slave?",
+                    "Long live Iran",
+                    "I will ride you",
+                    "I will make you an example for this game",
+                    "You son of a whore",
+                    "Jeffrey Epstein",
+                    "You and I are one",
+                    "f u c k y o u monkey",
+                    "You are a traitor, you son of a whore",
+                    "Shut up, you son of a bitch",
+                    "Your mother's a ss More beautiful",
+                    "Iran will have s ex with you",
+                    "Three lionesses confront a lion",
+                    "Three prostitutes facing a lion",
+                    "Hitler will come back to life again.",
+                    "I love China, the king of this planet.",
+                    "Bark like a dog, I won't listen to you.",
+                    "You are a good girl, Candy, hahahahaha",
+                    "You cannot rape my mother because you are a woman like her.",
+                    "The children will rape you",
+                    "I'm going to have sex with you and your mother, you son of a",
+                    "Do you want to suck my p e n is?",
+                    "spy I want you to suck my penis",
+                    "You will dwell in the fire of Hell, God willing.",
+                    "Your mom's a ss is ugly",
+                    "I will have sex with your mother spy",
+                    "Damn America and Israel, you terrorists!",
+                    "Now I understand how you understand. You understand with you"
+                ];
             }
             fetchEmotes() {
                 $.getJSON('php/Emotes.php', emotes => {
@@ -2659,6 +2692,12 @@ function modules(ks) {
                 $('#chat_input').focus();
             }
             send(lg) {
+                // /wahbas sends a random line from wahbasQuotes instead of the literal command -
+                // this is the single choke point all outgoing chat goes through (Enter-to-send,
+                // sendChatMessage(), etc.), so it applies no matter where the message came from.
+                if (lg.trim() === '/wahbas' && this.wahbasQuotes.length > 0) {
+                    lg = this.wahbasQuotes[Math.floor(Math.random() * this.wahbasQuotes.length)];
+                }
                 this.game.network.sendChat(lg, this.channel);
             }
 

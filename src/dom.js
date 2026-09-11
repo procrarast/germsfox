@@ -53,7 +53,9 @@ function renderDailyLeaderboardPanel() {
             panel.style.display = "none";
             return true;
         }
-        panel.style.display = "block";
+        // Still fetches and keeps the list populated even while hidden, so toggling the
+        // "Show daily leaderboard" setting back on doesn't need to wait for the next poll.
+        panel.style.display = settings.showDailyLeaderboard ? "block" : "none";
 
         list.replaceChildren();
         entries.slice(0, 3).forEach((entry, i) => {
@@ -939,8 +941,16 @@ function renderGeneralTabPane() {
 
     const leaderboardPill = createPill("Community Leaderboard");
     const leaderboardLabel = document.createElement('p');
-    leaderboardLabel.innerText = "When logged in, your account name and highest mass from each life are submitted to Germsfox's daily leaderboard (pishi.dev), shown below the in-game leaderboard.";
+    leaderboardLabel.innerText = "When logged in, your account name and highest mass are submitted to Germsfox's daily leaderboard (at pishi.dev).";
     const leaderboardOptOutCheckbox = createCheckbox("leaderboardOptOut", "Don't submit my scores");
+    const showDailyLeaderboardCheckbox = createCheckbox("showDailyLeaderboard", "Show daily leaderboard");
+    const showDailyLeaderboardInput = showDailyLeaderboardCheckbox.getElementsByTagName("input")[0];
+    showDailyLeaderboardInput.addEventListener("change", () => {
+        const panel = document.getElementById("germsfoxDailyLeaderboard");
+        if (!panel) return;
+        const hasEntries = panel.querySelector("ul").children.length > 0;
+        panel.style.display = showDailyLeaderboardInput.checked && hasEntries ? "block" : "none";
+    });
 
     const skinsPill = createPill("Custom Skins");
     const skinsExportButton = createDownloadButton("Export to File", "Export");
@@ -968,6 +978,7 @@ function renderGeneralTabPane() {
         leaderboardPill,
         leaderboardLabel,
         leaderboardOptOutCheckbox,
+        showDailyLeaderboardCheckbox,
 
         skinsPill,
         skinsExportButton,

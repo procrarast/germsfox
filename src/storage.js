@@ -98,6 +98,7 @@ const DEFAULT_SETTINGS = {
     enableAllColorButtons: false,
     enableOldSkinsButton: false,
     leaderboardOptOut: false,
+    showDailyLeaderboard: true,
 };
 
 const DEFAULT_GERMS_SETTINGS = {

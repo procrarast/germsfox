@@ -65,15 +65,21 @@ function renderDailyLeaderboardPanel() {
             const crown = document.createElement("i");
             crown.classList.add("fas", "fa-crown", "lbCrown", "lbCrown-" + (i + 1));
 
+            // name and mass stack vertically so short names still get the full row width
+            // instead of sharing it with a same-line mass value (was causing needless ellipsis)
+            const text = document.createElement("div");
+            text.className = "germsfoxDailyLeaderboardText";
+
             const name = document.createElement("span");
             name.className = "germsfoxDailyLeaderboardName";
             name.textContent = entry.name;
 
             const mass = document.createElement("span");
             mass.className = "germsfoxDailyLeaderboardMass";
-            mass.textContent = entry.mass;
+            mass.textContent = Number(entry.mass).toLocaleString("en-US");
 
-            li.append(crown, name, mass);
+            text.append(name, mass);
+            li.append(crown, text);
             list.appendChild(li);
         });
         return true;

@@ -1032,19 +1032,40 @@ input:focus + .slider.danger {
     gap: 6px;
     white-space: nowrap;
 }
+/* germs.io's own .lbCrown-1 is font-size: 11px; scoped to our panel only, so #leaderboard's
+ * own gold crown is untouched */
+#germsfoxDailyLeaderboardList .lbCrown-1 {
+    font-size: 14px;
+}
 .germsfoxDailyLeaderboardFirst {
-    font-size: 17px;
+    font-size: 15px;
     color: white;
 }
 .germsfoxDailyLeaderboardOther {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.55);
 }
+.germsfoxDailyLeaderboardText {
+    display: flex;
+    min-width: 0; /* lets the name ellipsis instead of overflowing the flex row */
+    flex: 1;
+}
+/* only #1 gets the name/mass stacked on separate lines - #2 and #3 stay on one row, as before */
+.germsfoxDailyLeaderboardFirst .germsfoxDailyLeaderboardText {
+    flex-direction: column;
+}
 .germsfoxDailyLeaderboardName {
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .germsfoxDailyLeaderboardMass {
-    margin-left: auto;
     opacity: 0.8;
+}
+.germsfoxDailyLeaderboardOther .germsfoxDailyLeaderboardMass {
+    margin-left: auto;
+}
+.germsfoxDailyLeaderboardFirst .germsfoxDailyLeaderboardMass {
+    font-size: 13px;
+    color: white;
+    opacity: 0.75; /* between the #1 name's solid white and .germsfoxDailyLeaderboardOther's 0.55 */
 }

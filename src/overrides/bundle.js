@@ -2883,6 +2883,12 @@ function modules(ks) {
                 this.lbList = document.getElementById('leaderboardList');
                 this.mapPlayer = $('#mapPlayer');
                 this.mapPlayerEl = this.mapPlayer[0];
+                // updateMinimap() moves this with a transform instead of top/left, so pin the
+                // origin once and let the translate carry the same numbers top/left used to.
+                // Safe to own the transform outright: germs.io's own #mapPlayer rule sets none,
+                // and centres the dot with negative margins, which transforms don't disturb.
+                this.mapPlayerEl.style.top = '0px';
+                this.mapPlayerEl.style.left = '0px';
                 this.leaderboard = $('#leaderboard');
                 this.mapSize = $('#map').width();
                 this.nodeX = 0;
@@ -2898,9 +2904,10 @@ function modules(ks) {
                 this.nodeX = this.game.camera.x / (this.game.border[3] * 2) * this.mapSize;
                 this.nodeY = this.game.camera.y / (this.game.border[3] * 2) * this.mapSize;
 
+                // Writing top/left relayouts the element every frame; a transform is
+                // composite-only, and it's one style write instead of two
                 const el = this.mapPlayerEl;
-                el.style.top = (this.nodeY + this.mapSize / 2) + 'px';
-                el.style.left = (this.nodeX + this.mapSize / 2) + 'px';
+                el.style.transform = `translate(${this.nodeX + this.mapSize / 2}px, ${this.nodeY + this.mapSize / 2}px)`;
 
                 if (this.game.playerCells.size > 0) {
                     const cell = this.game.aliveCell;
@@ -3239,6 +3246,60 @@ function modules(ks) {
             }
         }
 
+        // Slack around the viewport before a node is culled, in world units.
+        const CULL_MARGIN = 64;
+
+        /**
+         *  Raises PIXI's per-frame ceiling on separately-shaded objects.
+         *
+         *  Anything that can't be batched - every jelly cell, virus, food blob and ejected mass,
+         *  because each carries its own shader - takes one slot in the WebGPU uniform buffer
+         *  batch, and each slot is padded up to the GPU's minUniformBufferOffsetAlignment.
+         *  PIXI hard-codes that batch at Float32Array(65535) = 262140 bytes with no option to
+         *  configure it, so on a 128-byte-alignment GPU the limit is 2047 objects in one frame;
+         *  cross it and PIXI throws "ubo batch got too big" mid-render and the renderer dies.
+         *  Splitting into a crowded fight clears 2047 easily.
+         *
+         *  Measured on an Apple/metal-3 adapter: throws at exactly 2047 before this, and at
+         *  exactly UNIFORM_BATCH_RENDERABLES after. maxBufferSize there is 4 GiB, so a couple of
+         *  MiB is nothing - the 65535 is a PIXI default, not a hardware constraint.
+         *
+         *  This reaches into PIXI internals, so it is written to no-op rather than throw if a
+         *  future version reshapes them: losing the headroom is survivable, a crash on boot is
+         *  not. Applied before the first frame, while no bind group can reference the old buffer.
+         */
+        const UNIFORM_BATCH_RENDERABLES = 8192;
+
+        function growUniformBatch(renderer) {
+            const pipe = renderer?.renderPipes?.uniformBatch;
+            const batch = pipe?._batchBuffer;
+            const alignment = batch?._minUniformOffsetAlignment;
+
+            // No uniformBatch at all is just the WebGL backend, which doesn't have this limit.
+            // Anything else means a PIXI upgrade moved the internals this depends on - and since
+            // the only symptom would be the renderer dying again under load, that must be loud.
+            if (!pipe) return;
+            if (!batch?.data || !Array.isArray(pipe._buffers) || !alignment) {
+                console.warn('[Germsfox] Could not raise the PIXI uniform batch: its internals ' +
+                    'have changed shape. Jelly mode will crash again past a few thousand cells.');
+                return;
+            }
+
+            // Sized from the alignment so the object budget is the same on every GPU, rather
+            // than the byte count being the same and the budget varying with hardware
+            const floats = Math.ceil((UNIFORM_BATCH_RENDERABLES * alignment) / 4);
+            if (batch.data.length >= floats) return;
+
+            const grown = new Float32Array(floats);
+            batch.data = grown;
+            // The GPU-side buffers are constructed from this same array, so they have to be
+            // repointed too or they keep uploading the old one at the old size
+            for (const buffer of pipe._buffers) buffer.data = grown;
+        }
+
+        const ZOOM_MIN = 0.01;
+        const ZOOM_MAX = 5;
+
         class Camera {
             constructor(game) {
                 this.game = game;
@@ -3283,18 +3344,43 @@ function modules(ks) {
             }
 
             setPosition(x, y) {
-                if ((this.game.freeze || document.getElementById("menu").style.display !== "none") && this.game.freeSpec) return;
+                if (!this.menuEl) this.menuEl = document.getElementById("menu");
+                if ((this.game.freeze || this.menuEl.style.display !== "none") && this.game.freeSpec) return;
                 this.targetX = x;
                 this.targetY = y;
             }
 
-            changeZoom(amount) { this.userZoom *= Math.pow(0.9, amount); }
+            // Routed through setZoom so the clamp lives in exactly one place
+            changeZoom(amount) { this.setZoom(this.userZoom * Math.pow(0.9, amount)); }
 
-            setZoom(value) { this.userZoom = value; }
+            setZoom(value) { this.userZoom = Math.min(Math.max(value, ZOOM_MIN), ZOOM_MAX); }
 
-            get bounds() {
-                let top, right, bottom, left;
-                return [top, right, bottom, left];
+            /**
+             *  Recomputed once per frame so isVisible() stays a plain compare per node.
+             *  stage.x is width/2 - camera.x * renderZoom and the stage is scaled by renderZoom,
+             *  so a world point is on screen when it's within width/(2 * renderZoom) of the
+             *  camera. renderZoom can lerp toward 0, which makes these Infinity - that fails
+             *  open (everything visible), which is the right way round to fail.
+             */
+            updateBounds() {
+                const halfWidth = this.game.width / (2 * this.renderZoom);
+                const halfHeight = this.game.height / (2 * this.renderZoom);
+                this.viewLeft = this.x - halfWidth;
+                this.viewRight = this.x + halfWidth;
+                this.viewTop = this.y - halfHeight;
+                this.viewBottom = this.y + halfHeight;
+            }
+
+            // Deliberately generous: the bounds are a frame stale (refreshed before the node
+            // loop, which runs before camera.tick()), and a jelly cell's mesh reaches past its
+            // radius by its physics offsets, jagged spikes and border width. Over-reporting
+            // costs one wasted draw; under-reporting pops a cell out at the screen edge.
+            isVisible(x, y, radius) {
+                const reach = radius * 1.5 + CULL_MARGIN;
+                return x + reach >= this.viewLeft
+                    && x - reach <= this.viewRight
+                    && y + reach >= this.viewTop
+                    && y - reach <= this.viewBottom;
             }
             get viewRange() { return Math.max(this.game.width / 1080, this.game.height / 1920) * this.userZoom; }
             get cameraDelay() { return this._delay }
@@ -3450,39 +3536,42 @@ function modules(ks) {
             }
         }
 
-        class MassCache extends TextureCache {
-            create(massText, fontSize) {
-                this.lastAccess = Date.now();
+        /**
+         *  Mass labels are the most volatile text in the game: with "Shorten Mass" off the label
+         *  is the raw mass value, so the key space is unbounded and nearly every update
+         *  rasterized a fresh canvas and GPU texture faster than the cache could reclaim them.
+         *  The glyph set is tiny and fixed, so a bitmap font rasterizes it once up front and
+         *  every label draws from that one atlas instead.
+         */
+        const MASS_FONT = 'GermsfoxMass';
+        const MASS_FONT_SIZE = 75;       // atlas size, and the rendered size for shortened mass
+        const MASS_FONT_SIZE_FULL = 60;  // unshortened values are longer, so they render smaller
 
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const strokeWidth = fontSize / 6;
-                const font = `bold ${fontSize}px Ubuntu`;
-                const pad = Math.ceil(strokeWidth / 2);
+        /**
+         *  The old canvas label was ceil(fontSize * 1.5) tall plus stroke padding, and an
+         *  anchor.y of -0.8 pushed it that far below the cell's centre. A bitmap font's line
+         *  metrics aren't that height, so anchoring the same way would move every label.
+         *  Deriving the offset from the old geometry keeps them exactly where they were.
+         */
+        function massLabelOffset(fontSize) {
+            return 0.8 * (Math.ceil(fontSize * 1.5) + 2 * Math.ceil(fontSize / 12));
+        }
 
-                ctx.font = font;
-                const measured = ctx.measureText(massText);
-                canvas.width = Math.ceil(measured.width) + pad * 2;
-                canvas.height = Math.ceil(fontSize * 1.5) + pad * 2;
-
-                ctx.font = font;
-                ctx.textBaseline = 'top';
-                ctx.lineJoin = 'round';
-                ctx.lineWidth = strokeWidth;
-                ctx.strokeStyle = 'black';
-                ctx.strokeText(massText, pad, pad);
-                ctx.fillStyle = 'white';
-                ctx.fillText(massText, pad, pad);
-
-                let texture = new PIXI.Texture({ 
-                    source: new PIXI.CanvasSource({ 
-                        resource: canvas,
-                        autoGenerateMipmaps: false
-                    }) 
-                });
-
-                return this.set(massText, texture);
-            }
+        function installMassFont() {
+            PIXI.BitmapFont.install({
+                name: MASS_FONT,
+                style: {
+                    fontFamily: 'Ubuntu',
+                    fontSize: MASS_FONT_SIZE,
+                    fontWeight: 'bold',
+                    fill: 'white',
+                    stroke: { color: 'black', width: MASS_FONT_SIZE / 6, join: 'round' },
+                },
+                chars: [['0', '9'], '.kM'],
+                // Defaults to 4, which would clip a stroke this thick - the stroke straddles
+                // the glyph edge, so half its width has to fit outside
+                padding: Math.ceil(MASS_FONT_SIZE / 12) + 2,
+            });
         }
 
         /**
@@ -3607,6 +3696,22 @@ function modules(ks) {
 
         const LOD_SCALE = 25;
 
+        // How close a lerped value gets before it's snapped onto its target outright.
+        const CONVERGE_EPSILON = 0.01;
+
+        /**
+         *  Breaks depth ties between cells that quantise to the same integer size, so their draw
+         *  order stays put instead of shuffling whenever a node is added or removed.
+         *
+         *  The modulo is the point: node ids arrive as uint32 straight off the wire, and the old
+         *  unbounded `id * 0.00001` would exceed a whole size unit once ids passed 100000 - at
+         *  which point the tiebreak outweighs size itself and small cells start painting over
+         *  large ones. Bounded, it can only ever order cells that were already tied.
+         */
+        function zOrderTiebreak(id) {
+            return (id % 100000) * 0.00001;
+        }
+
         class Renderer {
             constructor(game) {
                 this.game = game;
@@ -3629,9 +3734,11 @@ function modules(ks) {
                 this.x = node.x;
                 this.y = node.y;
 
-                this.root.zIndex = this.size + node.id * 0.000001;
+                this.root.zIndex = (this.size | 0) + zOrderTiebreak(node.id); // same form as tick()
                 this.root.alpha = 1;
                 this.root.visible = true;
+                this.onScreen = true;
+                this.hidden = false; // set by settings that suppress a whole node type, e.g. hideFood
                 this.animationDelay = this.game.settings.settings.animationDelay;
                 this.game.cellContainer.addChild(this.root);
             }
@@ -3668,11 +3775,38 @@ function modules(ks) {
                 
                 // Update renderer size (not node size!)
                 this.size = lerp(this.size, this.node.size, this.delta);
-                this.root.zIndex = this.size + this.node.id * 0.00001;
-                
+
+                // lerp approaches its target asymptotically and never actually arrives, so a
+                // settled cell would still register a microscopic change every frame forever.
+                // Snapping makes "has this stopped moving?" answerable with an equality check,
+                // which is what lets the writes below (and the uniform upload) go quiet.
+                if (Math.abs(this.x - this.node.x) < CONVERGE_EPSILON) this.x = this.node.x;
+                if (Math.abs(this.y - this.node.y) < CONVERGE_EPSILON) this.y = this.node.y;
+                if (Math.abs(this.size - this.node.size) < CONVERGE_EPSILON) this.size = this.node.size;
+
+                // Quantised: any zIndex write marks the whole cellContainer sortDirty, and
+                // re-sorting thousands of children costs far more than the sub-unit ordering
+                // precision given up here. Cells within 1 unit tie and fall back to id order.
+                const zIndex = (this.size | 0) + zOrderTiebreak(this.node.id);
+                if (zIndex !== this.root.zIndex) this.root.zIndex = zIndex;
+
                 // Update root
-                this.root.x = this.x;
-                this.root.y = this.y;
+                if (this.root.x !== this.x) this.root.x = this.x;
+                if (this.root.y !== this.y) this.root.y = this.y;
+
+                /**
+                 *  Nothing was ever culled here, so every node in the game was submitted to the
+                 *  renderer whether or not it was on screen. In jelly mode each Mesh takes a
+                 *  slot in the WebGPU uniform buffer batch (see growUniformBatch), and crossing
+                 *  that budget kills the renderer mid-frame. An invisible container never
+                 *  reaches the render pipe, so it costs no slot - culling is what keeps the
+                 *  budget proportional to what's on screen rather than to lobby size.
+                 *
+                 *  This only gates visibility - the physics, geometry and position work above
+                 *  still runs for culled nodes, so nothing about their state can drift.
+                 */
+                this.onScreen = this.game.camera.isVisible(this.x, this.y, this.size);
+                this.root.visible = this.onScreen && !this.hidden;
 
                 const scale = this.size * this.game.camera.renderZoom;
                 const LOD = Math.min(Math.floor(scale / LOD_SCALE), 2);
@@ -3789,9 +3923,21 @@ function modules(ks) {
 
             canDisplay(preference) {
                 if (preference === 'all') return true;
-                if (preference === 'party') return !!this.game.party?.hasOwnProperty(this.parent);
-                if (preference === 'self') return this.game.myCells.has(this.id);
+                // this.parent/this.id live on the node, not the renderer - reading them here
+                // made both branches always false, so 'party' and 'self' displayed nothing
+                if (preference === 'party') return !!this.game.party?.hasOwnProperty(this.node.parent);
+                if (preference === 'self') return this.game.myCells.has(this.node.id);
                 return false;
+            }
+
+            // Both renderer families scale a container by size/textureSize every frame. Skipped
+            // once the cell has settled, since a scale write dirties the transform of everything
+            // beneath it - only answerable because tick() snaps size onto its target.
+            applyScale(container) {
+                const scale = this.size / this.textureSize;
+                if (scale === this._lastScale) return;
+                this._lastScale = scale;
+                container.scale.set(scale);
             }
 
             setSize() {
@@ -3800,8 +3946,8 @@ function modules(ks) {
                 const size = this.node.size;
                 
                 // Hide the texture if...
-                let zoomThreshold = 32 + Math.sqrt(this.game.nodes.size)
-                
+                let zoomThreshold = 32 + this.game.nodeCountRoot;
+
                 if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
 
                 if (size * this.game.camera.renderZoom < zoomThreshold || this.node.eaten) {
@@ -3813,36 +3959,33 @@ function modules(ks) {
                 if (this.game.updateTime - this.lastMassUpdate < 100)
                     return;
 
-                // Release the old mass texture
-                if (this.heldMass) this.game.masses.release(this.heldMass);
+                this.lastMassUpdate = this.game.updateTime;
 
                 const mass = Math.floor(size * size / 100);
-                const massKey = this.game.settings.settings.shortenMass ? this.shortStringFrom(mass) : mass.toString();
-                
-                // Set and hold the new mass texture
-                let texture = this.game.masses.get(massKey);
+                const shorten = this.game.settings.settings.shortenMass;
+                const massText = shorten ? this.shortStringFrom(mass) : mass.toString();
+                const fontSize = shorten ? MASS_FONT_SIZE : MASS_FONT_SIZE_FULL;
 
-                if (texture === null) {
-                    texture = this.game.masses.create(
-                        massKey, 
-                        this.game.settings.settings.shortenMass ? 75 : 60, 
-                    );
-                }
-
-                this.game.masses.hold(massKey);
-                this.heldMass = massKey;
-
-                // Create and append massSprite if it doesn't exist and bind the texture if it isn't already
-                if (this.massSprite) { 
+                if (this.massSprite) {
                     this.massSprite.visible = true;
-                    this.massSprite.texture = texture;
+                    // Most updates land on the same text, and assigning .text re-lays out the
+                    // glyphs whether or not it actually changed
+                    if (this.massSprite.text !== massText) this.massSprite.text = massText;
+                    // Only moves when the shortenMass setting is toggled mid-game
+                    if (this.massSprite.style.fontSize !== fontSize) {
+                        this.massSprite.style.fontSize = fontSize;
+                        this.massSprite.y = massLabelOffset(fontSize);
+                    }
                 } else {
-                    this.massSprite = new PIXI.Sprite(texture);
-                    this.massSprite.anchor.set(0.5, -0.8);
+                    this.massSprite = new PIXI.BitmapText({
+                        text: massText,
+                        style: { fontFamily: MASS_FONT, fontSize },
+                    });
+                    this.massSprite.anchor.set(0.5, 0);
+                    this.massSprite.y = massLabelOffset(fontSize);
                     this.massSprite.zIndex = 1;
                     this.uiRoot.addChild(this.massSprite);
                 }
-                this.lastMassUpdate = this.game.updateTime;
             }
 
             /**
@@ -3864,11 +4007,9 @@ function modules(ks) {
              */
 
             removeMass() {
-                if (this.heldMass) {
-                    this.game.masses.release(this.heldMass);
-                    this.heldMass = null;
-                    this.massSprite.texture = PIXI.Texture.EMPTY;
-                }
+                // setSize() turns it back on with the new node's value when the renderer is
+                // checked back out of the pool
+                if (this.massSprite) this.massSprite.visible = false;
             }
 
             removeName() {
@@ -3924,11 +4065,12 @@ function modules(ks) {
         const JELLY_WOBBLE   = 0.6;   // idle jitter to keep surface wobbly
         const JELLY_PPU      = 0.1;
         const JELLY_POINTS_MIN = 5;
-        // Past this many points a cell is already visually smooth (especially with AA), and every
-        // additional point costs a physics sample, ~9 geometry writes, and a spot in every collision
-        // check against it. Uncapped, a size-500 cell hits 320 points, and every huge blob near it
-        // pays for that in updateCollisionGrid()'s O(pointsA + pointsB)-per-pair atan2 loop.
-        const JELLY_POINTS_MAX = 64;
+        const JELLY_POINTS_MAX = 128;
+
+        // How far either side of a cell's surface counts as contact, in world units.
+        const JELLY_CONTACT_BAND = 12;
+
+        const JELLY_COLLISION_IMPULSE = 0.12;
 
         class JellyRenderer extends Renderer {
             init(node) {
@@ -3958,18 +4100,17 @@ function modules(ks) {
                 this.offsetsTmp  = null;
                 this.velocitiesTmp = null;
                 this.cellOffset  = null;
-                this.wrappedOffset = null;
                 this.skinTexture = null;
+                this._offsetBuffer = null;
 
                 super.destroy(); // omg like helldivers???!!!!?!?
             }
 
             clean() {
+                // The point buffers deliberately survive pooling - nulling them here meant every
+                // checkout reallocated all five, which is most of what the pool exists to avoid.
+                // initPoints() zeroes them on the way back out.
                 this.skinTexture = null;
-                this.offsets = null;
-                this.velocities = null;
-                this.offsetsTmp = null;
-                this.velocitiesTmp = null;
                 super.clean();
             }
 
@@ -3977,6 +4118,7 @@ function modules(ks) {
                 if (this.LOD !== value) {
                     if (value === 0) {
                         this.offsets.fill(0);
+                        this.geometryDirty = true;
                     }
                     this.LOD = value;
                 }
@@ -3987,14 +4129,35 @@ function modules(ks) {
                 this.cellMesh.shader.resources.uSampler = this.skinTexture.source.style;
             }
 
+            /**
+             *  Every point buffer is exactly n+1 long, and slot n mirrors slot 0. That spare
+             *  slot is what lets updateGeometry() stamp the ring straight into the vertex
+             *  buffer three times with no wrap-around copy and no intermediate array.
+             *
+             *  Float32 rather than Float64: these are small offsets in world units, nowhere
+             *  near f32's precision limit, and the vertex buffer they feed is f32 anyway - the
+             *  old f64 arrays had to be narrowed on the way through every single frame.
+             */
+            allocatePoints(n) {
+                this.offsets       = new Float32Array(n + 1);
+                this.velocities    = new Float32Array(n + 1);
+                this.offsetsTmp    = new Float32Array(n + 1);
+                this.velocitiesTmp = new Float32Array(n + 1);
+                this.cellOffset    = new Float32Array(1 + (n + 1) * 3);
+            }
+
             initPoints(target) {
-                this.offsets     = new Float64Array(target);
-                this.velocities  = new Float64Array(target);
-                this.offsetsTmp  = new Float64Array(target);
-                this.velocitiesTmp = new Float64Array(target);
-                this.numPoints   = target;
-                this.pointCapacity = target;
-                this.allocateBuffers(target);
+                // Straight reuse when the buffers already fit, which is the whole point of the
+                // pool: food churns hardest and its topology never changes, so a recycled food
+                // renderer allocates nothing at all
+                if (this.offsets?.length === target + 1) {
+                    this.offsets.fill(0);
+                    this.velocities.fill(0);
+                } else {
+                    this.allocatePoints(target);
+                }
+                this.numPoints = target;
+                this.geometryDirty = true;
             }
 
             resizePoints(target) {
@@ -4004,42 +4167,30 @@ function modules(ks) {
                 const oldVel = this.velocities;
                 const oldCount = this.numPoints;
 
-                const newOff = new Float64Array(target);
-                const newVel = new Float64Array(target);
+                // Reallocating outright rather than growing into spare capacity: a cell's point
+                // count changes at most ~16 times across its entire life (and never at all for
+                // food), so capacity bookkeeping would cost more complexity than it ever saves.
+                this.allocatePoints(target);
+                const off = this.offsets;
+                const vel = this.velocities;
 
                 const copyCount = Math.min(oldCount, target);
-                newOff.set(oldOff.subarray(0, copyCount));
-                newVel.set(oldVel.subarray(0, copyCount));
+                off.set(oldOff.subarray(0, copyCount));
+                vel.set(oldVel.subarray(0, copyCount));
 
                 // Initialize newly-added points by copying their nearest neighbor
-                if (target > copyCount && copyCount > 0) {
-                    for (let i = copyCount; i < target; i++) {
-                        const oldF = (i / target) * oldCount;
-                        const lo = Math.floor(oldF) % oldCount;
-                        const hi = (lo + 1) % oldCount;
-                        const t = oldF - Math.floor(oldF);
-                        newOff[i] = oldOff[lo] * (1 - t) + oldOff[hi] * t;
-                        newVel[i] = oldVel[lo] * (1 - t) + oldVel[hi] * t;
-                    }
+                for (let i = copyCount; i < target; i++) {
+                    const oldF = (i / target) * oldCount;
+                    const lo = Math.floor(oldF) % oldCount;
+                    const hi = (lo + 1) % oldCount;
+                    const t = oldF - Math.floor(oldF);
+                    off[i] = oldOff[lo] * (1 - t) + oldOff[hi] * t;
+                    vel[i] = oldVel[lo] * (1 - t) + oldVel[hi] * t;
                 }
 
-                this.offsets = newOff;
-                this.velocities = newVel;
-                this.offsetsTmp = new Float64Array(target);
-                this.velocitiesTmp = new Float64Array(target);
+                off[target] = off[0]; // re-establish the wrap slot
                 this.numPoints = target;
-
-                if (!this.pointCapacity || target > this.pointCapacity) {
-                    this.pointCapacity = target + 16;
-                    this.allocateBuffers(this.pointCapacity);
-                } else {
-                    this.allocateBuffers(target);
-                }
-            }
-
-            allocateBuffers(n) {
-                const vertCount = 1 + (n + 1) * 3;
-                this.cellOffset = new Float32Array(vertCount);
+                this.geometryDirty = true;
             }
 
             /**
@@ -4055,21 +4206,33 @@ function modules(ks) {
                 const velsNew = this.velocitiesTmp;
                 const offsNew = this.offsetsTmp;
 
+                // Ternaries rather than modulo: only the first and last point wrap, so every
+                // other iteration was paying for two divisions to find an index it could have
+                // just incremented.
                 for (let i = 0; i < n; i++) {
-                    const spring  = -JELLY_SPRING * offsTmp[i];
-                    const lateral = JELLY_TENSION * (offsTmp[(i - 1 + n) % n] + offsTmp[(i + 1) % n] - 2 * offsTmp[i]);
+                    const here    = offsTmp[i];
+                    const before  = offsTmp[i === 0 ? n - 1 : i - 1];
+                    const after   = offsTmp[i === n - 1 ? 0 : i + 1];
+                    const spring  = -JELLY_SPRING * here;
+                    const lateral = JELLY_TENSION * (before + after - 2 * here);
                     const noise   = (Math.random() - 0.5) * JELLY_WOBBLE;
                     velsNew[i] = (velsTmp[i] + spring + lateral + noise) * JELLY_VELOCITY_DECAY;
                 }
 
+                // Single-argument Math.min returns its argument, so the old Math.min(Math.max(..))
+                // only ever applied the lower clamp. Dropping it changes nothing; no upper clamp
+                // is invented here, since there has never been one to preserve.
+                const minOffset = -this.size / 2;
                 for (let i = 0; i < n; i++) {
-                    offsNew[i] = Math.min(Math.max(offsTmp[i] + velsNew[i], -this.size / 2));
+                    offsNew[i] = Math.max(offsTmp[i] + velsNew[i], minOffset);
                 }
 
-                this.velocities = velsNew; 
+                this.velocities = velsNew;
                 this.velocitiesTmp = velsTmp;
-                this.offsets = offsNew; 
+                this.offsets = offsNew;
                 this.offsetsTmp = offsTmp;
+                offsNew[n] = offsNew[0]; // keep the wrap slot in step with the ring it mirrors
+                this.geometryDirty = true;
             }
 
             /**
@@ -4084,30 +4247,36 @@ function modules(ks) {
              */
             updateGeometry() {
                 const n = this.numPoints;
+
+                // The offsets only move when stepPhysics() runs or the topology changes, and at
+                // LOD 0 stepPhysics is skipped entirely - so for every distant or tiny cell this
+                // was copying an unchanged array three times and re-uploading it to the GPU
+                // every frame, forever. Nothing below needs to happen unless something moved.
+                if (!this.geometryDirty && this.cellMesh && n === this._meshN) return;
+                this.geometryDirty = false;
+
+                // offsets is already f32 and already carries its own wrap slot, so the three
+                // rings are stamped straight from it - no conversion buffer in between
                 const offsets = this.offsets;
                 const off = this.cellOffset;
+
+                off.set(offsets, 1);
+                off.set(offsets, 1 + (n + 1));
+                off.set(offsets, 1 + (n + 1) * 2);
+
+                const indices = this.getIndices(n);
+                this.updateMesh(off, indices, n);
+            }
+
+            // Bases are fully determined by n, so they're derived here rather than threaded
+            // through from the caller
+            getIndices(n) {
+                let cached = JellyRenderer._cellIdxCaches.get(n);
+                if (cached) return cached;
 
                 const innerFillBase   = 1;
                 const innerBorderBase = innerFillBase + (n + 1);
                 const outerBase       = innerBorderBase + (n + 1);
-
-                if (!this.wrappedOffset || this.wrappedOffset.length !== n + 1) {
-                    this.wrappedOffset = new Float32Array(n + 1);
-                }
-                this.wrappedOffset.set(offsets); // f64 -> f32, index 0..n-1
-                this.wrappedOffset[n] = offsets[0]; // the i===n vertex wraps back to angle 0
-
-                off.set(this.wrappedOffset, innerFillBase);
-                off.set(this.wrappedOffset, innerBorderBase);
-                off.set(this.wrappedOffset, outerBase);
-
-                const indices = this.getIndices(n, innerFillBase, innerBorderBase, outerBase);
-                this.updateMesh(off, indices, n);
-            }
-
-            getIndices(n, innerFillBase, innerBorderBase, outerBase) {
-                let cached = JellyRenderer._cellIdxCaches.get(n);
-                if (cached) return cached;
 
                 const idx = new Uint32Array(n * 3 + n * 6);
                 let p = 0;
@@ -4235,6 +4404,9 @@ function modules(ks) {
                     this.root.addChild(mesh);
                     this.cellMesh = mesh;
                     this._meshN = n;
+                    // Resolved once per geometry instead of twice per frame - getBuffer() is a
+                    // string-keyed search through the geometry's attributes
+                    this._offsetBuffer = geometry.getBuffer('aOffset');
                     if (this.skinTexture) this.applySkinTexture();
                 } else if (n !== this._meshN) {
                     // Topology differs from whatever this mesh was last built for
@@ -4243,11 +4415,12 @@ function modules(ks) {
                     mesh.geometry = this.buildGeometry(offsetBuf, indices, staticAttrs);
                     oldGeometry.destroy(true);
                     this._meshN = n;
+                    this._offsetBuffer = mesh.geometry.getBuffer('aOffset');
                 } else {
                     // Only the physics offsets change frame-to-frame now — direction, ring,
                     // jag and border flag were already uploaded once for this topology.
-                    mesh.geometry.getBuffer('aOffset').data = offsetBuf;
-                    mesh.geometry.getBuffer('aOffset').update();
+                    this._offsetBuffer.data = offsetBuf;
+                    this._offsetBuffer.update();
                 }
                 mesh.visible = true;
             }
@@ -4284,6 +4457,7 @@ function modules(ks) {
                 resources.cellUniforms.uniforms.uBorderColor.set([br, bg, bb, 1]);
                 resources.sizeUniforms.uniforms.uSize = this.size;
                 resources.sizeUniforms.uniforms.uBorderWidth = this.borderWidth;
+                this._lastUploadedSize = this.size;
             }
 
             // Updates just the size uniform — called every tick(), since size lerps every
@@ -4291,6 +4465,11 @@ function modules(ks) {
             // they're refreshed on demand via updateCellUniforms() instead.
             updateSizeUniform() {
                 if (!this.cellMesh) return;
+                // Writing a uniform dirties this cell's whole uniform block and schedules a
+                // re-upload, so a cell that has finished growing shouldn't write one at all.
+                // Only answerable because tick() snaps size to its target - see CONVERGE_EPSILON.
+                if (this.size === this._lastUploadedSize) return;
+                this._lastUploadedSize = this.size;
                 this.cellMesh.shader.resources.sizeUniforms.uniforms.uSize = this.size;
             }
 
@@ -4522,7 +4701,8 @@ function modules(ks) {
         class PlayerJellyRenderer extends JellyRenderer {
             tick() {
                 if (!super.tick()) return;
-                this.uiRoot.scale.set(this.size / this.textureSize);
+
+                this.applyScale(this.uiRoot);
             }
             init(node) {
                 super.init(node);
@@ -4588,7 +4768,7 @@ function modules(ks) {
         class FoodJellyRenderer extends JellyRenderer {
             init(node) {
                 super.init(node);
-                this.root.visible = !this.game.settings.settings.hideFood;
+                this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
                 this.root.rotation = this.node.rotation; 
             }
 
@@ -4628,7 +4808,7 @@ function modules(ks) {
             tick() {
                 if (!super.tick()) return false;
 
-                this.root.scale.set(this.size / this.textureSize);
+                this.applyScale(this.root);
             }
 
             // Creates a Sprite with a texture defined by each node type
@@ -4644,8 +4824,11 @@ function modules(ks) {
             }
 
             removeSkinTexture() {
-                this.skinSprite.removeAllListeners();
-                this.skinSprite.texture = PIXI.Texture.EMPTY;
+                // Going through the getter would *create* a skin sprite just to blank it, which
+                // is exactly what happens tearing down a cell whose skin never finished loading
+                if (!this._skinSprite) return;
+                this._skinSprite.removeAllListeners();
+                this._skinSprite.texture = PIXI.Texture.EMPTY;
             }
 
             get skinSprite() {
@@ -4725,7 +4908,7 @@ function modules(ks) {
             init(node) {
                 super.init(node);
                 this.sprite.texture = this.texture; // Update shape texture
-                this.root.visible = !this.game.settings.settings.hideFood;
+                this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
                 this.root.rotation = this.node.rotation; 
             }
 
@@ -5795,6 +5978,11 @@ function modules(ks) {
 
                 // Whole packet is settled now - safe to read mass/score/cell count.
                 this.game.ui.updateDebugHTML();
+
+                // Positions just changed, so the broad-phase buckets are stale. Rebuilding is
+                // deferred to the next updateCollisionGrid() rather than done here, so a burst
+                // of packets in one frame only costs one rebuild.
+                this.game.gridDirty = true;
             }
 
             filterColor(baseHex, filterHex) {
@@ -6189,7 +6377,7 @@ function modules(ks) {
                     case 'hideFood':
                         for (const node of this.game.nodes.values()) {
                             if (node.type === nodeType.Food)
-                                node.renderer.root.visible = !value;
+                                node.renderer.hidden = value;
                         }
                         break;
                     case 'hideXP':
@@ -6908,6 +7096,12 @@ function modules(ks) {
             }
         }
 
+        // Sector size is the map half-width over this. The tradeoff: smaller sectors mean a
+        // tighter candidate set for the narrow phase, but a big cell then spans (and is
+        // inserted into) many more of them. Worth tuning against a real profile - if
+        // cleanThreshold() is firing often, sectors are too crowded and this wants to go up.
+        const COLLISION_SECTOR_DIVISOR = 8;
+
         class CollisionGrid {
             constructor() {
                 this.sectors = new Map();
@@ -6915,8 +7109,16 @@ function modules(ks) {
                 this.stamps = new Map();
             }
 
+            // Empties the grid without discarding the sector arrays - clearing the Map would
+            // throw every array away and reallocate the whole set on the next insert pass.
+            // Sectors are keyed by coordinate, so an emptied one is reused the moment its
+            // patch of map is occupied again; the leftovers are bounded by map area.
             init(cellSize) {
-                this.sectors.clear();
+                for (const sector of this.sectors.values()) {
+                    sector.length = 0;
+                    sector.minLOD = 0;
+                    sector.locked = false;
+                }
                 this.stamps.clear();
                 this.sectorSize = cellSize;
             }
@@ -7003,6 +7205,7 @@ function modules(ks) {
                     'y': 0
                 };
                 this.nodes = new Map();         // Map of all nodes by ID
+                this.nodeCountRoot = 0;         // sqrt(nodes.size), refreshed once per render()
                 this.playerCells = new Set();   // Set of player's cell nodes
                 this.myCells = new Set();       // Set of player's cell IDs
                 this.leaderboard = [];
@@ -7012,7 +7215,6 @@ function modules(ks) {
                 this.settings = new Settings(this);
                 this.skins = new SkinCache(this);
                 this.names = new NameCache(this);
-                this.masses = new MassCache(this);
                 this.camera = new Camera(this);
                 this.network = new Network(this);
                 this.ui = new GameUI(this);
@@ -7090,7 +7292,13 @@ function modules(ks) {
                     },
                 });
 
+                growUniformBatch(this.renderer);
+
                 await document.fonts.load('bold 32px Ubuntu');
+
+                // Has to follow the await - installing before the face resolves bakes a
+                // fallback font into the atlas, and the atlas is rasterized only once.
+                installMassFont();
 
                 this.stage = new PIXI.Container();
                 this.stage.eventMode = 'none';
@@ -7166,7 +7374,6 @@ function modules(ks) {
                     
                     this.skins.startCleanupInterval(10000);
                     this.names.startCleanupInterval(1000);
-                    this.masses.startCleanupInterval(500);
 
                     this.ticker = new PIXI.Ticker();
 
@@ -7354,18 +7561,36 @@ function modules(ks) {
                 }
             }
 
-            updateCollisionGrid() {
-                let collisionNodes = new Set(); 
-                if (!this.collisionGrid) { 
-                    this.collisionGrid = new CollisionGrid();
-                }
-                this.collisionGrid.init(this.border[3] / 8);
+            /**
+             *  Broad phase. Buckets every node by its renderer position so the narrow phase
+             *  below only has to test plausible pairs.
+             *
+             *  This used to run every frame, which meant a fresh Set, a cleared sector Map and
+             *  a fresh array per sector 60+ times a second. It doesn't need to: renderer
+             *  positions only meaningfully move when the server sends a node update, and
+             *  between packets they lerp by a few units - far below sector granularity. So it's
+             *  gated on gridDirty, set wherever membership changes (addNode/removeNode) or
+             *  positions do (the end of a node-update packet). The narrow phase still runs
+             *  every frame off live positions, so the wobble is unchanged.
+             */
+            rebuildCollisionGrid() {
+                if (!this.collisionGrid) this.collisionGrid = new CollisionGrid();
+                if (!this.collisionNodes) this.collisionNodes = new Set();
+
+                this.collisionGrid.init(this.border[3] / COLLISION_SECTOR_DIVISOR);
+                this.collisionNodes.clear();
 
                 for (const node of this.nodes.values()) {
-                    if (this.collisionGrid.insert(node)) collisionNodes.add(node);
+                    if (this.collisionGrid.insert(node)) this.collisionNodes.add(node);
                 }
 
-                for (const A of collisionNodes) {
+                this.gridDirty = false;
+            }
+
+            updateCollisionGrid() {
+                if (this.gridDirty || !this.collisionGrid) this.rebuildCollisionGrid();
+
+                for (const A of this.collisionNodes) {
                     const Ar = A.renderer;
                     if (Ar.LOD < 2) continue;
 
@@ -7405,6 +7630,11 @@ function modules(ks) {
                         const Binverse    = BnumPoints / (2 * Math.PI);
                         const Ainverse    = AnumPoints / (2 * Math.PI);
 
+                        // Sized per cell, so both sides of the pair deform by a comparable
+                        // fraction of their own radius instead of the smaller one dominating
+                        const Aimpulse    = JELLY_COLLISION_IMPULSE * Math.sqrt(Asize);
+                        const Bimpulse    = JELLY_COLLISION_IMPULSE * Math.sqrt(Bsize);
+
                         // A's points against B's surface
                         for (let i = 0; i < AnumPoints; i++) {
                             const wx = Ax + Acos[i] * (Asize + Aoffsets[i] * 2);
@@ -7416,10 +7646,10 @@ function modules(ks) {
                             if (angle < 0) angle += 2 * Math.PI;
                             const j = Math.round(angle * Binverse) % BnumPoints;
                             const Bsurface = Bsize + Boffsets[j];
-                            const outer = Bsurface + 12;
-                            const inner = Bsurface - 12;
+                            const outer = Bsurface + JELLY_CONTACT_BAND;
+                            const inner = Bsurface - JELLY_CONTACT_BAND;
                             if (pointDistSq < outer * outer && pointDistSq > inner * inner) {
-                                Avel[i] -= 1;
+                                Avel[i] -= Aimpulse;
                             }
                         }
 
@@ -7434,10 +7664,10 @@ function modules(ks) {
                             if (angle < 0) angle += 2 * Math.PI;
                             const j = Math.round(angle * Ainverse) % AnumPoints;
                             const Asurface = Asize + Aoffsets[j];
-                            const outer = Asurface + 12;
-                            const inner = Asurface - 12;
+                            const outer = Asurface + JELLY_CONTACT_BAND;
+                            const inner = Asurface - JELLY_CONTACT_BAND;
                             if (pointDistSq < outer * outer && pointDistSq > inner * inner) {
-                                Bvel[i] -= 1;
+                                Bvel[i] -= Bimpulse;
                             }
                         }
                     });
@@ -7447,6 +7677,16 @@ function modules(ks) {
             render(tick) {
                 this.updateTime = performance.now();
                 this.delta = Math.min(1, Math.max(0, tick.deltaTime));
+
+                // Feeds every renderer's mass-label zoom threshold, which is otherwise the same
+                // sqrt recomputed once per cell per call (setSize also runs off the node packet,
+                // where being one frame stale doesn't matter)
+                this.nodeCountRoot = Math.sqrt(this.nodes.size);
+
+                // Before the node loop so every renderer culls against the same viewport.
+                // camera.tick() runs after the loop, so this trails a frame - the margin in
+                // isVisible() covers it.
+                this.camera.updateBounds();
 
                 if (this.settings.settings.jellyPhysics && this.nodes.size < 512) this.updateCollisionGrid();
 
@@ -7796,7 +8036,6 @@ function modules(ks) {
                 // Clear texture caches
                 this.names.clear();
                 this.skins.clear();
-                this.masses.clear();
             }
 
             refreshMenuAds() {
@@ -7859,10 +8098,15 @@ function modules(ks) {
                 this.playerCells.delete(node);
                 this.myCells.delete(node.id);
                 this.pool.putNode(node);
+                // Also covers the eaten fade-out, which removes nodes from Renderer.tick()
+                // between packets - a pooled node left in a stale sector can be checked back
+                // out at a new position and collide with things it isn't touching.
+                this.gridDirty = true;
             }
 
             addNode(node) {
                 this.nodes.set(node.id, node);
+                this.gridDirty = true;
 
                 // Do I own this cell?
                 if (this.myCells.has(node.id) && !this.playerCells.has(node)) {

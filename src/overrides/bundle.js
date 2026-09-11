@@ -2632,7 +2632,7 @@ function modules(ks) {
                     "FAGTASTIC.gif",
                     "catNekoAtsume.gif",
                     "scanning.gif",
-                    "gsGM.gif",
+                    "gsGM.png",
                     "MASS.png",
                     "glokk40spazz.gif",
                     "forward.gif"
@@ -2713,20 +2713,30 @@ function modules(ks) {
                             parent: parent
                         };
 
-                        for (const key in this.emotes) {
-                            const filename = this.emotes[key];
+                        // Unlike emotes (embedded anywhere in the message as a substring),
+                        // a sticker only fires when the *entire* message is exactly its keyword.
+                        const stickerFilename = this.germsfoxStickers.find(filename =>
+                            message.trim() === filename.slice(0, filename.lastIndexOf(".")));
 
-                            message = message.replaceAllPoly(
-                                key,
-                                '<img class="chatEmote" src="res/emotes/' + filename + '">'
-                            );
-                        }
+                        if (stickerFilename) {
+                            const key = stickerFilename.slice(0, stickerFilename.lastIndexOf("."));
+                            message = '<img class="germsfoxSticker" alt="' + key + '" data-filename="' + stickerFilename + '">';
+                        } else {
+                            for (const key in this.emotes) {
+                                const filename = this.emotes[key];
 
-                        for (const filename of this.germsfoxEmotes) {
-                            const key = filename.slice(0, filename.lastIndexOf("."));
+                                message = message.replaceAllPoly(
+                                    key,
+                                    '<img class="chatEmote" src="res/emotes/' + filename + '">'
+                                );
+                            }
 
-                            message = message.replaceAllPoly(key, 
-                                '<img class="germsfoxEmote" alt="' + key + '" data-filename="' + filename + '">');
+                            for (const filename of this.germsfoxEmotes) {
+                                const key = filename.slice(0, filename.lastIndexOf("."));
+
+                                message = message.replaceAllPoly(key,
+                                    '<img class="germsfoxEmote" alt="' + key + '" data-filename="' + filename + '">');
+                            }
                         }
 
                         if (message.replace(/<img\b[^>]*>/g, "").trim() === "") {
@@ -2810,6 +2820,20 @@ function modules(ks) {
             }
         }
 
+        // Per-mode cell-split cap, keyed by network.mode's exact display name. Not provided by
+        // the server anywhere we can read (modes[mode].max is server player-slot capacity, a
+        // different thing entirely), so these just mirror the game's own known limits.
+        const CELL_COUNT_CAPS = {
+            'FFA': 32,
+            'Dream': 64,
+            'Ultra': 200,
+            'Infinity': 500,
+            'Self Feed': 200,
+            'Virus Feed': 48,
+            'Crazy': 64,
+            'Bots': 128,
+        };
+
         class GameUI {
             constructor(game) {
                 this.game = game;
@@ -2819,25 +2843,40 @@ function modules(ks) {
                 this.resetText = document.getElementById('resetText');
                 this.lbList = document.getElementById('leaderboardList');
                 this.mapPlayer = $('#mapPlayer');
+                this.mapPlayerEl = this.mapPlayer[0];
                 this.leaderboard = $('#leaderboard');
                 this.mapSize = $('#map').width();
                 this.nodeX = 0;
                 this.nodeY = 0;
-                setInterval(this.updateDebugHTML.bind(this), 500);
+                // Updated from Network.handleNodes() once a whole node-update packet has been
+                // processed, rather than on a timer - a timer can fire mid-packet (after some
+                // nodes in the batch have been added/removed but not all), reporting a
+                // transient, desynced mass/score/cell count.
             }
+            // Runs every rendered frame, so avoid rewriting DOM/style properties that haven't
+            // actually changed since the last call (jQuery's .css() doesn't diff for us).
             updateMinimap() {
                 this.nodeX = this.game.camera.x / (this.game.border[3] * 2) * this.mapSize;
                 this.nodeY = this.game.camera.y / (this.game.border[3] * 2) * this.mapSize;
-                this.mapPlayer.css({
-                    'top': this.nodeY + this.mapSize / 2,
-                    'left': this.nodeX + this.mapSize / 2
-                });
+
+                const el = this.mapPlayerEl;
+                el.style.top = (this.nodeY + this.mapSize / 2) + 'px';
+                el.style.left = (this.nodeX + this.mapSize / 2) + 'px';
+
                 if (this.game.playerCells.size > 0) {
-                    if (this.game.aliveCell.renderer.heldSkin) {
-                        this.mapPlayer.css('background-image', 'url(' + this.game.skinURLFrom(this.game.aliveCell.skin) + ')');
-                        this.mapPlayer.css('border', '1px solid ' + this.game.aliveCell.rgb);
-                    } else {
-                        this.mapPlayer.css('background-color', this.game.aliveCell.rgb);
+                    const cell = this.game.aliveCell;
+                    if (cell.renderer.heldSkin) {
+                        if (this._mapSkin !== cell.skin) {
+                            this._mapSkin = cell.skin;
+                            el.style.backgroundImage = 'url(' + this.game.skinURLFrom(cell.skin) + ')';
+                        }
+                        if (this._mapBorderRgb !== cell.rgb) {
+                            this._mapBorderRgb = cell.rgb;
+                            el.style.border = '1px solid ' + cell.rgb;
+                        }
+                    } else if (this._mapBgRgb !== cell.rgb) {
+                        this._mapBgRgb = cell.rgb;
+                        el.style.backgroundColor = cell.rgb;
                     }
                 }
             }
@@ -2846,6 +2885,11 @@ function modules(ks) {
                 this.mapPlayer.css('background-color', 'rgba(255, 255, 255, 0.5)');
                 this.mapPlayer.css('background-image', 'none');
                 this.mapPlayer.css('border', '2px solid rgba(0,0,0, 0.2);');
+                // Invalidate updateMinimap()'s dedupe cache so respawning with the same
+                // skin/color re-applies it instead of being skipped as a no-op change.
+                this._mapSkin = undefined;
+                this._mapBorderRgb = undefined;
+                this._mapBgRgb = undefined;
             }
             updateLeaderboardHTML() {
                 let leaderboardHTML = '';
@@ -2880,7 +2924,7 @@ function modules(ks) {
                                 myPlayerHTML = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
                                 if (player.rank > 2 && player.rank < 10) {
                                     var lM = 'background-color: ' + this.game.aliveCell.rgb + ';';
-                                    if (this.game.aliveCell.heldSkin) {
+                                    if (this.game.aliveCell.renderer.heldSkin) {
                                         lM += 'background-image: url(' + this.game.skinURLFrom(this.game.aliveCell.skin) + ');';
                                         lM += 'border: 1px solid ' + this.game.aliveCell.rgb + ';';
                                     }
@@ -2939,7 +2983,7 @@ function modules(ks) {
                 const debugHTML = [
                     '<b>Mass:</b> ' + this.getMass(),
                     '<b>Score:</b> ' + this.getScore(),
-                    '<b>Cells:</b> ' + game.myCells.size,
+                    '<b>Cells:</b> ' + this.getCellCountHTML(),
                     '<b>FPS:</b> ' + this.getFPSHTML(),
                     '<b>PING:</b> ' + this.getPingHTML()
                 ];
@@ -3069,9 +3113,35 @@ function modules(ks) {
             getMass() {
                 let total = 0;
                 for (const cell of this.game.playerCells) {
+                    // Eaten cells stay in playerCells (at half their pre-eaten size) for the
+                    // duration of their fade-out animation - removeNode() only runs once that
+                    // finishes, in the render loop, not as soon as the server says they're gone.
+                    if (cell.eaten) continue;
                     total += cell.size ** 2;
                 }
                 return ~~(total / 100);
+            }
+            getCellCount() {
+                let count = 0;
+                for (const cell of this.game.playerCells) {
+                    if (!cell.eaten) count++;
+                }
+                return count;
+            }
+            getCellCountHTML() {
+                const count = this.getCellCount();
+                const max = CELL_COUNT_CAPS[this.game.network.mode];
+                if (!max) return String(count); // Unrecognized mode name - just show the raw count
+
+                let color;
+                if (count >= max) {
+                    color = '#ff0000';
+                } else if (count > max / 2) {
+                    color = 'yellow';
+                } else {
+                    color = 'white';
+                }
+                return '<font color="' + color + '">' + count + ' / ' + max + '</font>';
             }
             getScore() {
                 const mass = this.getMass();
@@ -3815,13 +3885,18 @@ function modules(ks) {
         const JELLY_WOBBLE   = 0.6;   // idle jitter to keep surface wobbly
         const JELLY_PPU      = 0.1;
         const JELLY_POINTS_MIN = 5;
+        // Past this many points a cell is already visually smooth (especially with AA), and every
+        // additional point costs a physics sample, ~9 geometry writes, and a spot in every collision
+        // check against it. Uncapped, a size-500 cell hits 320 points, and every huge blob near it
+        // pays for that in updateCollisionGrid()'s O(pointsA + pointsB)-per-pair atan2 loop.
+        const JELLY_POINTS_MAX = 64;
 
         class JellyRenderer extends Renderer {
             init(node) {
                 super.init(node);
                 this.initPoints(this.targetPointsAmount);
                 this.updateGeometry();
-                this.updateColorUniforms();
+                this.updateCellUniforms();
             }
 
             tick() {
@@ -3829,6 +3904,7 @@ function modules(ks) {
                 this.resizePoints(this.targetPointsAmount);
                 if (this.LOD > 0) this.stepPhysics();
                 this.updateGeometry();
+                this.updateSizeUniform();
                 return true;
             }
 
@@ -3842,9 +3918,8 @@ function modules(ks) {
                 this.velocities  = null;
                 this.offsetsTmp  = null;
                 this.velocitiesTmp = null;
-                this.cellVerts   = null;
-                this.cellUVs     = null;
-                this.cellBorder  = null;
+                this.cellOffset  = null;
+                this.wrappedOffset = null;
                 this.skinTexture = null;
 
                 super.destroy(); // omg like helldivers???!!!!?!?
@@ -3870,6 +3945,7 @@ function modules(ks) {
 
             applySkinTexture() {
                 this.cellMesh.shader.resources.uTexture = this.skinTexture.source;
+                this.cellMesh.shader.resources.uSampler = this.skinTexture.source.style;
             }
 
             initPoints(target) {
@@ -3924,8 +4000,7 @@ function modules(ks) {
 
             allocateBuffers(n) {
                 const vertCount = 1 + (n + 1) * 3;
-                this.cellVerts = new Float32Array(vertCount * 2);
-                this.cellUVs   = new Float32Array(vertCount * 2);
+                this.cellOffset = new Float32Array(vertCount);
             }
 
             /**
@@ -3958,42 +4033,37 @@ function modules(ks) {
                 this.offsetsTmp = offsTmp;
             }
 
+            /**
+             *  The only thing that changes frame-to-frame here is the physics offset at each
+             *  angle (this.offsets, still driven by stepPhysics()/collisions exactly as before).
+             *  Direction, ring selection, jaggedness and the fill/border flag are purely a
+             *  function of topology (n) and are baked once by getStaticAttrs() and cached.
+             *  Reconstructing world-space position/UV from offset+size is left to the vertex
+             *  shader (see uSize/uBorderWidth below), so this only needs to stamp the current
+             *  offsets into the three vertex rings that share them — no trig, no per-vertex
+             *  min/max, and nothing to compute for the fill/UV math anymore.
+             */
             updateGeometry() {
                 const n = this.numPoints;
                 const offsets = this.offsets;
-                const size = this.size;
-                const { cos, sin } = this.angleCache(n);
-                const verts = this.cellVerts, uvs = this.cellUVs;
+                const off = this.cellOffset;
 
                 const innerFillBase   = 1;
                 const innerBorderBase = innerFillBase + (n + 1);
                 const outerBase       = innerBorderBase + (n + 1);
-                const border = this.getBorderAttr(n, innerBorderBase, outerBase);
 
-                this.setVec2(verts, 0, 0, 0);
-                this.setVec2(uvs, 0, 0.5, 0.5);
-
-                for (let i = 0; i <= n; i++) {
-                    const j = i % n;
-                    const jag = this.jaggedOffset(j);
-                    const fillR  = size + offsets[j] + jag;
-                    const outerR = fillR + this.borderWidth / 2;
-                    const innerR = Math.max(fillR - this.borderWidth / 2, 0);
-                    const c = cos[j], s = sin[j];
-                    const uvRadius = size > 0 ? innerR / size : 0;
-
-                    this.setVec2(verts, innerFillBase + i, c * innerR, s * innerR);
-                    this.setVec2(uvs, innerFillBase + i, 0.5 + 0.5 * c * uvRadius, 0.5 + 0.5 * s * uvRadius);
-
-                    this.setVec2(verts, innerBorderBase + i, c * innerR, s * innerR);
-                    this.setVec2(uvs, innerBorderBase + i, 0, 0);
-
-                    this.setVec2(verts, outerBase + i, c * outerR, s * outerR);
-                    this.setVec2(uvs, outerBase + i, 0, 0);
+                if (!this.wrappedOffset || this.wrappedOffset.length !== n + 1) {
+                    this.wrappedOffset = new Float32Array(n + 1);
                 }
+                this.wrappedOffset.set(offsets); // f64 -> f32, index 0..n-1
+                this.wrappedOffset[n] = offsets[0]; // the i===n vertex wraps back to angle 0
+
+                off.set(this.wrappedOffset, innerFillBase);
+                off.set(this.wrappedOffset, innerBorderBase);
+                off.set(this.wrappedOffset, outerBase);
 
                 const indices = this.getIndices(n, innerFillBase, innerBorderBase, outerBase);
-                this.updateMesh(verts, uvs, indices, border, n);
+                this.updateMesh(off, indices, n);
             }
 
             getIndices(n, innerFillBase, innerBorderBase, outerBase) {
@@ -4023,36 +4093,103 @@ function modules(ks) {
                 return idx;
             }
 
-            buildGeometry(verts, uvs, indices, border) {
-                const geometry = new PIXI.MeshGeometry({ positions: verts, indices });
-                geometry.addAttribute('aUV', {
+            // Static per-topology attributes: unit direction, which radius ring a vertex
+            // belongs to, its jagged-spike offset, and the fill/border flag. None of these
+            // depend on physics state or size, so they're computed once per (subclass, n)
+            // and reused for the lifetime of the session — this is the data that used to be
+            // rebuilt (with trig!) into cellVerts/cellUVs on every single frame.
+            getStaticAttrs(n) {
+                const key = this.constructor.name + ':' + n;
+                let cached = JellyRenderer._staticAttrCaches.get(key);
+                if (cached) return cached;
+
+                const vertCount = 1 + (n + 1) * 3;
+                const aDir    = new Float32Array(vertCount * 2); // hub stays (0,0)
+                const aOuter  = new Float32Array(vertCount);     // 1 = outer ring, else inner/fill
+                const aJag    = new Float32Array(vertCount);
+                const aBorder = new Float32Array(vertCount);     // 1 = border ring (no texture)
+
+                const { cos, sin } = this.angleCache(n);
+                const innerFillBase   = 1;
+                const innerBorderBase = innerFillBase + (n + 1);
+                const outerBase       = innerBorderBase + (n + 1);
+
+                for (let i = 0; i <= n; i++) {
+                    const j = i % n;
+                    const jag = this.jaggedOffset(j);
+                    const c = cos[j], s = sin[j];
+
+                    this.setVec2(aDir, innerFillBase + i, c, s);
+                    aJag[innerFillBase + i] = jag;
+
+                    this.setVec2(aDir, innerBorderBase + i, c, s);
+                    aJag[innerBorderBase + i] = jag;
+                    aBorder[innerBorderBase + i] = 1;
+
+                    this.setVec2(aDir, outerBase + i, c, s);
+                    aJag[outerBase + i] = jag;
+                    aBorder[outerBase + i] = 1;
+                    aOuter[outerBase + i] = 1;
+                }
+
+                cached = { aDir, aOuter, aJag, aBorder };
+                JellyRenderer._staticAttrCaches.set(key, cached);
+                return cached;
+            }
+
+            buildGeometry(offsetBuf, indices, staticAttrs) {
+                // "positions" here is really the static unit-direction attribute (aDir) — the
+                // vertex shader reconstructs the actual radius from uSize/aOffset/aJag/aOuter.
+                // MeshGeometry still wants a position buffer under the hood, but nothing in this
+                // codebase relies on PIXI's own bounds/culling for these meshes (cullable is
+                // never enabled, and pointer events are off), so repurposing it is safe.
+                // MeshGeometry always wants a uvs buffer and silently allocates a same-size zero-
+                // filled one if omitted (and warns that it's unused by our shader). Nothing reads
+                // aUV here, so just point it at aDir instead of paying for a throwaway buffer.
+                const geometry = new PIXI.MeshGeometry({ positions: staticAttrs.aDir, uvs: staticAttrs.aDir, indices });
+                geometry.addAttribute('aOffset', {
                     buffer: new PIXI.Buffer({
-                        data: uvs,
+                        data: offsetBuf,
                         usage: PIXI.BufferUsage.VERTEX | PIXI.BufferUsage.COPY_DST,
                     }),
-                    format: 'float32x2',
+                    format: 'float32',
+                });
+                // Static attributes are never rewritten after creation, so plain VERTEX usage is
+                // enough — no COPY_DST needed. WebGPU's GPUBufferDescriptor.usage has no default
+                // (unlike WebGL), so this is required, not just an optimization.
+                geometry.addAttribute('aOuter', {
+                    buffer: new PIXI.Buffer({ data: staticAttrs.aOuter, usage: PIXI.BufferUsage.VERTEX }),
+                    format: 'float32',
+                });
+                geometry.addAttribute('aJag', {
+                    buffer: new PIXI.Buffer({ data: staticAttrs.aJag, usage: PIXI.BufferUsage.VERTEX }),
+                    format: 'float32',
                 });
                 geometry.addAttribute('aBorder', {
-                    buffer: new PIXI.Buffer({
-                        data: border,
-                        usage: PIXI.BufferUsage.VERTEX | PIXI.BufferUsage.COPY_DST,
-                    }),
+                    buffer: new PIXI.Buffer({ data: staticAttrs.aBorder, usage: PIXI.BufferUsage.VERTEX }),
                     format: 'float32',
                 });
                 return geometry;
             }
 
-            updateMesh(verts, uvs, indices, border, n) {
+            updateMesh(offsetBuf, indices, n) {
                 let mesh = this.cellMesh;
 
                 if (!mesh) {
-                    const geometry = this.buildGeometry(verts, uvs, indices, border);
+                    const staticAttrs = this.getStaticAttrs(n);
+                    const geometry = this.buildGeometry(offsetBuf, indices, staticAttrs);
                     const shader = new PIXI.Shader({
                         glProgram: JellyRenderer.jellyGlProgram,
                         gpuProgram: JellyRenderer.jellyGpuProgram,
                         resources: {
                             uTexture: PIXI.Texture.EMPTY.source,
+                            // WGSL needs the sampler wired up as its own resource — PIXI doesn't
+                            // derive it from uTexture, and it must be kept in sync whenever the
+                            // texture is swapped (see applySkinTexture/removeSkinTexture) or the
+                            // GPU bind group ends up with a stale/undestroyed sampler reference.
+                            uSampler: PIXI.Texture.EMPTY.source.style,
                             cellUniforms: this.buildColorUniforms(),
+                            sizeUniforms: this.buildSizeUniforms(),
                         },
                     });
                     mesh = new PIXI.Mesh({ geometry, shader });
@@ -4062,17 +4199,25 @@ function modules(ks) {
                     if (this.skinTexture) this.applySkinTexture();
                 } else if (n !== this._meshN) {
                     // Topology differs from whatever this mesh was last built for
+                    const staticAttrs = this.getStaticAttrs(n);
                     const oldGeometry = mesh.geometry;
-                    mesh.geometry = this.buildGeometry(verts, uvs, indices, border);
+                    mesh.geometry = this.buildGeometry(offsetBuf, indices, staticAttrs);
                     oldGeometry.destroy(true);
                     this._meshN = n;
                 } else {
-                    mesh.geometry.getBuffer('aPosition').data = verts; mesh.geometry.getBuffer('aPosition').update();
-                    mesh.geometry.getBuffer('aUV').data = uvs;         mesh.geometry.getBuffer('aUV').update();
+                    // Only the physics offsets change frame-to-frame now — direction, ring,
+                    // jag and border flag were already uploaded once for this topology.
+                    mesh.geometry.getBuffer('aOffset').data = offsetBuf;
+                    mesh.geometry.getBuffer('aOffset').update();
                 }
                 mesh.visible = true;
             }
 
+            // Fragment-only (fill/border color for the skin-blend mix). Kept separate from
+            // sizeUniforms below: WGSL compiles vertex/fragment as independent modules, and
+            // PIXI's bind-group layout scanner doesn't dedupe a uniform declared in both — it
+            // double-counts the binding and corrupts later slots, so a uniform block must only
+            // be declared in the WGSL module(s) that actually use it.
             buildColorUniforms() {
                 const [fr, fg, fb] = this.unpackColor(this.node.color);
                 const [br, bg, bb] = this.unpackColor(this.borderColor(this.node.color));
@@ -4082,31 +4227,37 @@ function modules(ks) {
                 });
             }
 
-            updateColorUniforms() {
+            // Vertex-only (drives the radius reconstruction) — see buildColorUniforms() above
+            // for why this isn't folded into the same group.
+            buildSizeUniforms() {
+                return new PIXI.UniformGroup({
+                    uSize:        { value: this.size, type: 'f32' },
+                    uBorderWidth: { value: this.borderWidth, type: 'f32' },
+                });
+            }
+
+            updateCellUniforms() {
                 if (!this.cellMesh) return;
                 const [fr, fg, fb] = this.unpackColor(this.node.color);
                 const [br, bg, bb] = this.unpackColor(this.borderColor(this.node.color));
-                const u = this.cellMesh.shader.resources.cellUniforms.uniforms;
-                u.uFillColor.set([fr, fg, fb, this.fillAlpha]);
-                u.uBorderColor.set([br, bg, bb, 1]);
+                const resources = this.cellMesh.shader.resources;
+                resources.cellUniforms.uniforms.uFillColor.set([fr, fg, fb, this.fillAlpha]);
+                resources.cellUniforms.uniforms.uBorderColor.set([br, bg, bb, 1]);
+                resources.sizeUniforms.uniforms.uSize = this.size;
+                resources.sizeUniforms.uniforms.uBorderWidth = this.borderWidth;
+            }
+
+            // Updates just the size uniform — called every tick(), since size lerps every
+            // frame during growth/shrink animations. Color/border width rarely change, so
+            // they're refreshed on demand via updateCellUniforms() instead.
+            updateSizeUniform() {
+                if (!this.cellMesh) return;
+                this.cellMesh.shader.resources.sizeUniforms.uniforms.uSize = this.size;
             }
 
             static _angleCaches  = new Map();
             static _cellIdxCaches = new Map();
-            static _borderCaches = new Map();
-
-            getBorderAttr(n, innerBorderBase, outerBase) {
-                let cached = JellyRenderer._borderCaches.get(n);
-                if (cached) return cached;
-                const vertCount = 1 + (n + 1) * 3;
-                const arr = new Float32Array(vertCount); // fill verts stay 0 by default
-                for (let i = 0; i <= n; i++) {
-                    arr[innerBorderBase + i] = 1;
-                    arr[outerBase + i] = 1;
-                }
-                JellyRenderer._borderCaches.set(n, arr);
-                return arr;
-            }
+            static _staticAttrCaches = new Map();
 
             angleCache(n) {
                 let c = JellyRenderer._angleCaches.get(n);
@@ -4149,6 +4300,7 @@ function modules(ks) {
             removeSkinTexture() {
                 if (!this.cellMesh) return;
                 this.cellMesh.shader.resources.uTexture = PIXI.Texture.EMPTY.source;
+                this.cellMesh.shader.resources.uSampler = PIXI.Texture.EMPTY.source.style;
                 this.skinTexture = null; // Hopefully this doesn't break anything
             }
 
@@ -4158,17 +4310,23 @@ function modules(ks) {
             get borderWidth() { return 12; }
             get targetPointsAmount() {
                 const raw = 2 * Math.PI * this.node.size * JELLY_PPU;
-                const base = Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN);
+                const base = Math.min(Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN), JELLY_POINTS_MAX);
 
                 const divisor = this.LOD === 2 ? 1 : this.LOD === 1 ? 2 : 3;
-                return Math.max(Math.ceil(base / divisor / 8) * 8, JELLY_POINTS_MIN);
+                return Math.min(Math.max(Math.ceil(base / divisor / 8) * 8, JELLY_POINTS_MIN), JELLY_POINTS_MAX);
             }
-            
+
             // This program is used in each cell's respective shader.
             static jellyGlProgram = PIXI.GlProgram.from({
                 vertex: `#version 300 es
+                    // aPosition holds the static unit direction for this vertex's angle (or
+                    // (0,0) for the hub) — the actual radius is reconstructed here from the
+                    // live physics offset (aOffset) plus this cell's current size, exactly
+                    // like the old CPU-side updateGeometry() used to compute per vertex.
                     in vec2 aPosition;
-                    in vec2 aUV;
+                    in float aOffset;
+                    in float aOuter;
+                    in float aJag;
                     in float aBorder;
                     out vec4 vColor;
                     out vec2 vUV;
@@ -4179,14 +4337,26 @@ function modules(ks) {
                     uniform vec2 uResolution;
                     uniform mat3 uTransformMatrix;
                     uniform vec4 uColor;
+                    uniform float uSize;
+                    uniform float uBorderWidth;
                     void main(void) {
                         mat3 worldTransformMatrix = uWorldTransformMatrix;
                         mat3 modelMatrix = uTransformMatrix;
+
+                        float fillR = uSize + aOffset + aJag;
+                        float halfBorder = uBorderWidth * 0.5;
+                        float outerR = fillR + halfBorder;
+                        float innerR = max(fillR - halfBorder, 0.0);
+                        float r = aOuter > 0.5 ? outerR : innerR;
+                        vec2 position = aPosition * r;
+
+                        float uvR = uSize > 0.0 ? (innerR / uSize) : 0.0;
+                        vUV = aBorder > 0.5 ? vec2(0.0) : vec2(0.5 + 0.5 * aPosition.x * uvR, 0.5 + 0.5 * aPosition.y * uvR);
+
                         vColor = uColor;
-                        vUV = aUV;
                         vBorder = aBorder;
                         mat3 mvp = uProjectionMatrix * worldTransformMatrix * modelMatrix;
-                        gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
+                        gl_Position = vec4((mvp * vec3(position, 1.0)).xy, 0.0, 1.0);
                         vColor *= uWorldColorAlpha;
                     }
                 `,
@@ -4224,8 +4394,17 @@ function modules(ks) {
                             uTransformMatrix: mat3x3<f32>,
                             uColor: vec4<f32>,
                         };
+                        // Its own group because WGSL compiles vertex/fragment as independent
+                        // modules and PIXI's bind-group layout scanner doesn't dedupe a uniform
+                        // declared in both — sharing cellUniforms (fragment's group 2) here
+                        // double-counted that binding and corrupted the rest of the layout.
+                        struct SizeUniforms {
+                            uSize: f32,
+                            uBorderWidth: f32,
+                        };
                         @group(0) @binding(0) var<uniform> globalUniforms: GlobalUniforms;
                         @group(1) @binding(0) var<uniform> localUniforms: LocalUniforms;
+                        @group(3) @binding(0) var<uniform> sizeUniforms: SizeUniforms;
 
                         struct VSOutput {
                             @builtin(position) position: vec4<f32>,
@@ -4234,17 +4413,37 @@ function modules(ks) {
                             @location(2) vBorder: f32,
                         };
 
+                        // aPosition holds the static unit direction for this vertex's angle (or
+                        // (0,0) for the hub) — the actual radius is reconstructed here from the
+                        // live physics offset (aOffset) plus this cell's current size, exactly
+                        // like the old CPU-side updateGeometry() used to compute per vertex.
                         @vertex
                         fn main(
                             @location(0) aPosition: vec2<f32>,
-                            @location(1) aUV: vec2<f32>,
-                            @location(2) aBorder: f32,
+                            @location(1) aOffset: f32,
+                            @location(2) aOuter: f32,
+                            @location(3) aJag: f32,
+                            @location(4) aBorder: f32,
                         ) -> VSOutput {
                             var out: VSOutput;
+
+                            let fillR = sizeUniforms.uSize + aOffset + aJag;
+                            let halfBorder = sizeUniforms.uBorderWidth * 0.5;
+                            let outerR = fillR + halfBorder;
+                            let innerR = max(fillR - halfBorder, 0.0);
+                            let r = select(innerR, outerR, aOuter > 0.5);
+                            let position = aPosition * r;
+
+                            let uvR = select(0.0, innerR / sizeUniforms.uSize, sizeUniforms.uSize > 0.0);
+                            out.vUV = select(
+                                vec2<f32>(0.5 + 0.5 * aPosition.x * uvR, 0.5 + 0.5 * aPosition.y * uvR),
+                                vec2<f32>(0.0),
+                                aBorder > 0.5
+                            );
+
                             let mvp = globalUniforms.uProjectionMatrix * globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix;
-                            out.position = vec4<f32>((mvp * vec3<f32>(aPosition, 1.0)).xy, 0.0, 1.0);
+                            out.position = vec4<f32>((mvp * vec3<f32>(position, 1.0)).xy, 0.0, 1.0);
                             out.vColor = localUniforms.uColor * globalUniforms.uWorldColorAlpha;
-                            out.vUV = aUV;
                             out.vBorder = aBorder;
                             return out;
                         }
@@ -4339,7 +4538,7 @@ function modules(ks) {
 
             get targetPointsAmount() {
                 const raw = 2 * Math.PI * this.node.size * JELLY_PPU;
-                return Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN);
+                return Math.min(Math.max(Math.ceil(raw / 8) * 8, JELLY_POINTS_MIN), JELLY_POINTS_MAX);
             }
             get fillAlpha() { return 0.5; }
             get textureSize() { return this.game.virusSize; }
@@ -5032,7 +5231,13 @@ function modules(ks) {
                 }
                 this.game.settings.setItem('lastMode', mode);
                 var oz = ow[1];
+                const previousMode = this.mode;
                 this.mode = ow[0];
+                if (this.mode !== previousMode) {
+                    // Lets the daily leaderboard panel clear its (now wrong-mode) display and
+                    // refetch immediately, instead of showing stale data until its next poll.
+                    window.postMessage({ __germsfox: true, type: 'modeChange', mode: this.mode }, '*');
+                }
                 this.server = oz.name;
                 this.ip = 'wss://' + this.domain + ':' + oz.port;
                 var oA = this.getParameterByName('ip');
@@ -5403,10 +5608,11 @@ function modules(ks) {
                 this.game.myCells.add(id); // id of node owned by player
 
                 if (this.game.nodes.has(id)) {
-                    // This has never fired once, but I'm keeping it 
-                    console.warn("!!!!! CAUGHT EXISTING NODE OWNED BY PLAYER !!!!!"); 
+                    // This has never fired once, but I'm keeping it
+                    console.warn("!!!!! CAUGHT EXISTING NODE OWNED BY PLAYER !!!!!");
+                    const node = this.game.nodes.get(id);
                     if (!this.game.aliveCell) this.game.aliveCell = node;
-                    this.game.playerCells.add(this.game.nodes.get(id));
+                    this.game.playerCells.add(node);
                 }
             }
 
@@ -5544,9 +5750,12 @@ function modules(ks) {
                 for (let i = 0; i < destroyCount; i++) {
                     let node = this.game.nodes.get(buffer.readUInt32());
                     if (node && !node.eaten) {
-                       this.game.removeNode(node); 
+                       this.game.removeNode(node);
                     }
                 }
+
+                // Whole packet is settled now - safe to read mass/score/cell count.
+                this.game.ui.updateDebugHTML();
             }
 
             filterColor(baseHex, filterHex) {
@@ -5869,13 +6078,6 @@ function modules(ks) {
                     case 'webGPU':
                         const acidModeInput = document.getElementById("acidMode").parentElement.parentElement;
                         acidModeInput.style.display = value ? "none" : "block";
-                        const jellyPhysicsInputCheckbox = document.getElementById("jellyPhysics");
-                        const jellyPhysicsInput = jellyPhysicsInputCheckbox.parentElement.parentElement;
-                        jellyPhysicsInput.style.display = value ? "none" : "block";
-                        if (value) {
-                            this.game.settings.setItem('jellyPhysics', false);
-                            jellyPhysicsInputCheckbox.checked = false;
-                        }
                         break;
                     case 'cameraDelay':
                         this.game.camera.cameraDelay = value;
@@ -5895,13 +6097,16 @@ function modules(ks) {
                         break;
                     case 'borderlessCells':
                         this.game.cellTexture = value ? this.game.spriteSheet.textures.borderlessCell : this.game.spriteSheet.textures.cell;
+                        // Jelly renderers draw their own border via shader and have no .sprite/.updateBorder,
+                        // so this texture swap only applies to SpriteRenderer-backed cells.
                         for (const node of this.game.nodes.values()) {
                             if (node.type !== nodeType.Player) continue;
+                            if (!node.renderer.sprite) continue;
                             node.renderer.updateBorder();
                             node.renderer.sprite.texture = this.game.cellTexture;
                         }
                         for (const node of this.game.pool.playerPool) {
-                            node.renderer.sprite.texture = this.game.cellTexture;
+                            if (node.renderer.sprite) node.renderer.sprite.texture = this.game.cellTexture;
                         }
                         break;
                     case 'highQualitySkins':
@@ -6005,6 +6210,7 @@ function modules(ks) {
                 this.bucksShop = qM.Shop.Bucks;
                 this['boostShop'] = qM.Shop['Boosts'];
                 this.uuid = qM.uuid;
+                this.name = qM.Name; // Same value rendered into #loginName below
                 this['customSkin'] = parseInt(qM['Custom Skin']) == 1;
                 this.lockedExpire = parseInt(qM['LockedExpire']);
                 this.xp = parseInt(qM.XP);
@@ -6866,7 +7072,9 @@ function modules(ks) {
 
                 this.gridTexture = PIXI.Assets.get('grid');
                 this.gridTexture.source.scaleMode = 'nearest';
+                this.gridTexture.source.autoGenerateMipmaps = true;
                 this.hexTexture = PIXI.Assets.get('hex');
+                this.hexTexture.source.autoGenerateMipmaps = true;
                 this.arrowTexture = PIXI.Assets.get('arrow');
 
                 this.cellTexture = this.settings.settings.borderlessCells ? this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
@@ -7750,6 +7958,20 @@ function modules(ks) {
                 }
             }
             onDeath() {
+                // Community leaderboard submission (see the Germsfox bridge below) - only if
+                // logged in, since the submitted name is the real account name, not the
+                // (spoofable, optional) in-game nickname. login.uuid is set to the literal
+                // string 'logout' rather than cleared on logout, so that's excluded too.
+                if (this.login.uuid && this.login.uuid !== 'logout' && this.login.name && this.highestMass > 0) {
+                    window.postMessage({
+                        __germsfox: true,
+                        type: 'death',
+                        mode: this.network.mode,
+                        mass: ~~this.highestMass,
+                        name: this.login.name,
+                    }, '*');
+                }
+
                 document.getElementsByClassName('stats-food-eaten')[0].innerText = this.foodEaten;
                 document.getElementsByClassName('stats-highest-mass')[0].innerText = ~~this.highestMass;
                 document.getElementsByClassName('stats-time-alive')[0].innerText = this.timeAlive.toString().toMMSS();
@@ -8269,6 +8491,10 @@ function modules(ks) {
         self.setRegion = instance.setRegion.bind(instance);
         self.auth = instance.login.auth.bind(instance.login);
         self.addEmote = instance.chat.addEmote.bind(instance.chat);
+        // Unlike addEmote (inserts into #chat_input for the player to send themselves), this
+        // sends immediately without touching #chat_input at all - used for stickers, so
+        // whatever the player was already typing is left completely untouched.
+        self.sendChatMessage = instance.chat.send.bind(instance.chat);
         self.logout = instance.login.logout.bind(instance.login);
         self.custom = instance.login.custom.bind(instance.login);
         self.redeemGift = instance.login.redeemGift.bind(instance.login);
@@ -8286,6 +8512,72 @@ function modules(ks) {
         self.redeemCode = instance.login.redeemCode.bind(instance.login);
         self.buyBucks = instance.login.buyBucks.bind(instance.login);
         self.prerollComplete = instance.prerollComplete.bind(instance);
+
+        // ===== Germsfox bridge =====
+        // The extension's content scripts run in an isolated JS world and can't read
+        // `instance`/`game` state or call its methods directly — historically this meant
+        // scraping rendered DOM (e.g. regexing debugText's innerHTML for "Mass:") or
+        // simulating clicks/change events on native controls to trigger the equivalent
+        // logic. This exposes a small, explicit window.postMessage API instead.
+        self.germsfoxSetLockedPosition = function(value) {
+            instance.changeSetting('lockedPosition', value);
+            instance.network.sendLocked();
+        };
+
+        const GERMSFOX_BRIDGE_CALLABLE = {
+            setSkin: instance.setSkin.bind(instance),
+            setColor: instance.setColor.bind(instance),
+            setTheme: instance.setTheme.bind(instance),
+            changeSetting: instance.changeSetting.bind(instance),
+            logout: instance.login.logout.bind(instance.login),
+            custom: instance.login.custom.bind(instance.login),
+            setLockedPosition: self.germsfoxSetLockedPosition,
+        };
+
+        function germsfoxGetState() {
+            // Login.logout() sets uuid to the literal string 'logout' rather than clearing it,
+            // so a plain truthiness check would misreport a logged-out session as logged in.
+            const loggedIn = !!instance.login.uuid && instance.login.uuid !== 'logout';
+
+            return {
+                alive: !!instance.aliveCell,
+                mass: instance.ui.getMass(),
+                score: instance.ui.getScore(),
+                cellCount: instance.ui.getCellCount(), // excludes cells still fading out after being eaten
+                loggedIn,
+                // Bare premium skin names ("Griffin", not "premium/Griffin") - matches what
+                // the extension's old #paidSkinList DOM scrape used to return. Login.logout()
+                // never resets customSkin, so it's gated on loggedIn to avoid going stale.
+                ownedSkins: (instance.login.skins ?? []) // NOT instance.skins - that's the runtime SkinCache
+                    .filter(skin => skin.startsWith('premium/'))
+                    .map(skin => skin.slice('premium/'.length)),
+                hasCustomSkin: loggedIn && !!instance.login.customSkin,
+                settings: instance.settings.settings,
+                mode: instance.network.mode,
+            };
+        }
+
+        window.addEventListener('message', (event) => {
+            if (event.source !== window) return;
+            const data = event.data;
+            if (!data || data.__germsfox !== true) return;
+
+            if (data.type === 'call') {
+                const fn = GERMSFOX_BRIDGE_CALLABLE[data.fn];
+                if (fn) {
+                    try {
+                        fn(...(data.args || []));
+                    } catch (error) {
+                        console.error('[Germsfox bridge] "' + data.fn + '" call failed:', error);
+                    }
+                } else {
+                    console.warn('[Germsfox bridge] Unknown/disallowed call: ' + data.fn);
+                }
+            } else if (data.type === 'getState' && data.requestId != null) {
+                window.postMessage({ __germsfox: true, type: 'state', requestId: data.requestId, state: germsfoxGetState() }, '*');
+            }
+        });
+
         self.openShop = function(v9) {
             $('#shop').show();
         }

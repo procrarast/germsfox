@@ -1,13 +1,18 @@
-/* 
- * Handles skins.json downloads, multibox tab/window state, and blocking rules 
+/*
+ * Handles skins.json downloads, multibox tab/window state, blocking rules, and the
+ * community daily leaderboard (pishi.dev)
  * Ideally, it would handle settings state, but I wasn't smart enough to consider this when I wrote it!
  */
 
 console.log("Running background.js");
 
+const LEADERBOARD_API = 'https://pishi.dev/leaderboard';
+
 const handlers = {
     switchTabs,
     switchWindows,
+    submitScore,
+    getDailyLeaderboard,
 };
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -26,12 +31,61 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     };
 });
 
-chrome.runtime.onMessage.addListener((request) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.debug(request.action);
     const handler = handlers[request.action];
     if (!handler) return;
-    handler(request);
+    const result = handler(request);
+    if (result instanceof Promise) {
+        result.then(sendResponse);
+        return true; // Keep the message channel open for the async response
+    }
 });
+
+// Generated once per install and reused for every submission, so "all-time best" (not part of
+// this panel, but the schema supports it) can be tracked per-player without storing anything
+// that identifies a person - just distinguishes one Germsfox install from another.
+async function getLeaderboardClientId() {
+    const stored = await chrome.storage.local.get('leaderboardClientId');
+    if (stored.leaderboardClientId) return stored.leaderboardClientId;
+
+    const clientId = crypto.randomUUID();
+    await chrome.storage.local.set({ leaderboardClientId: clientId });
+    return clientId;
+}
+
+async function submitScore(request) {
+    const stored = await chrome.storage.local.get('leaderboardOptOut');
+    if (stored.leaderboardOptOut) return;
+
+    const clientId = await getLeaderboardClientId();
+
+    try {
+        await fetch(`${LEADERBOARD_API}/submit.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_id: clientId,
+                mode: request.mode,
+                mass: request.mass,
+                name: request.name,
+            }),
+        });
+    } catch (error) {
+        console.debug('Leaderboard submission failed (likely offline):', error);
+    }
+}
+
+async function getDailyLeaderboard(request) {
+    try {
+        const response = await fetch(`${LEADERBOARD_API}/daily.php?mode=${encodeURIComponent(request.mode)}`);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.debug('Leaderboard fetch failed:', error);
+        return null;
+    }
+}
 
 async function getTabsState() {
     const tabs = await chrome.tabs.query({

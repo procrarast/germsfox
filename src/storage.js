@@ -54,6 +54,20 @@ const emotes = [
     "gsPuddle.png",
 ];
 
+// Same idea as `emotes` above, but rendered larger in chat - see germsfoxStickers in bundle.js
+// (kept in sync manually, same as `emotes`/germsfoxEmotes: bundle.js runs in the page's main
+// world and can't share this array directly with the isolated content-script world)
+const stickers = [
+    "schizo.gif",
+    "FAGTASTIC.gif",
+    "catNekoAtsume.gif",
+    "scanning.gif",
+    "gsGM.png",
+    "MASS.png",
+    "glokk40spazz.gif",
+    "forward.gif",
+];
+
 // [event.code, 'pretty' key label]
 // An unset keybind is an empty string ""
 const DEFAULT_CONTROLS = {
@@ -83,6 +97,7 @@ const DEFAULT_SETTINGS = {
     enableDebug: false,
     enableAllColorButtons: false,
     enableOldSkinsButton: false,
+    leaderboardOptOut: false,
 };
 
 const DEFAULT_GERMS_SETTINGS = {
@@ -284,36 +299,25 @@ function resetBlockRules() {
     chrome.runtime.sendMessage({ action: "clearBlockRules" });
 }
 
-// Queries for a skinURL's respective button and clicks it
+// Resolves a skinURL (or a cellColorList key) to the value bundle.js's own setSkin(skin)
+// expects, then calls it directly over the bridge instead of finding & clicking the
+// matching skin button in the DOM.
 // skinURL can also be a key in cellColorList
 function setSkin(skinURL) {
-    let selector; // to be queried
-
     if (skinURL in cellColorList) skinURL = "premium/" + cellColorList[skinURL][0];
 
+    let value;
     if (skinURL === 'None') {
-        selector = `[onclick="setSkin('None');"]`;
+        value = 'None';
     } else if (skinURL.startsWith("res/skins/")) {
-        selector = `[onclick="setSkin('${skinURL.slice(10, -4)}');"]`; // lol
-    } else if (skinURL.startsWith("https://i.imgur.com/")) {
-        selector = `[onclick="setSkin('${skinURL}')"]`;
-    } else if (skinURL in cellColorList) { // Lazy
-        selector = `[onclick="setSkin('premium/${skinURL}')"]`;
+        value = skinURL.slice(10, -4); // strip "res/skins/" prefix and ".png" suffix
     } else {
-        selector = `[onclick="setSkin('${skinURL}')"]`
+        value = skinURL; // full imgur URL, or an already-bare skin name
     }
-    // A player may have a skin set that they don't have saved. I suppose you could save it then click its button in that case, but that's too much work for me right now.
 
-    const skinContainer = document.getElementById("skinContainer");
-    const skinButton = skinContainer.querySelector(selector);
-    if (skinButton) {
-        skinButton.click();
-        console.log("Changed skin to " + skinURL);
-        return true;
-    } else {
-        console.warn("Failed to find button for URL " + skinURL + " with selector " + selector);
-        return false;
-    }
+    germsfoxCall('setSkin', value);
+    console.log("Changed skin to " + skinURL);
+    return true;
 }
 
 

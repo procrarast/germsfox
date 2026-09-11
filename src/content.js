@@ -13,7 +13,7 @@ let germsSettings = null;
 let usingInput = false;
 let hasSpawned = false;
 let playButtonObserver;
-let debugObserver;
+let debugPollInterval;
 
 init();
 
@@ -55,7 +55,8 @@ async function init() {
     renderCustomColorsMenu();
     initDebug();
     renderGameMenu();
-    renderNick(); 
+    renderDailyLeaderboardPanel();
+    renderNick();
     renderGermsfoxButton();
     renderPlayerMenu();
 
@@ -63,6 +64,29 @@ async function init() {
     const showSkinsSelect = document.getElementById("showSkins");
     const showMassCheckbox = document.getElementById("showMass");
     const hideFoodCheckbox = document.getElementById("hideFood");
+
+    // Matches the option values createDropdown() (dom.js) builds for showNames/showSkins.
+    const DISPLAY_PREFERENCE_VALUES = ["all", "party", "self", "none"];
+
+    // Cycles/toggles a display-preference setting (showNames/showSkins) and applies it via
+    // the bridge, using bundle.js's own live value as the source of truth rather than the
+    // <select>'s current value. selectEl is only updated afterwards to keep the settings
+    // menu visually in sync if it's open - the applied change doesn't depend on it.
+    async function cycleDisplayPreference(key, toggleValues, selectEl) {
+        const state = await germsfoxGetState();
+        if (!state) return;
+        const current = state.settings[key];
+
+        let next;
+        if (!settings.toggleSettings) {
+            next = DISPLAY_PREFERENCE_VALUES[(DISPLAY_PREFERENCE_VALUES.indexOf(current) + 1) % DISPLAY_PREFERENCE_VALUES.length];
+        } else {
+            next = current === toggleValues[0] ? toggleValues[1] : toggleValues[0];
+        }
+
+        germsfoxCall('changeSetting', key, next);
+        selectEl.value = next;
+    }
 
     document.addEventListener('keydown', (event) => {
         if (usingInput) return;
@@ -80,42 +104,29 @@ async function init() {
                 break;
             case settings.controls.toggleNames[0]:
                 event.preventDefault();
-                if (!settings.toggleSettings) {
-                    //console.debug("Cycling names");
-                    showNamesSelect.selectedIndex = (showNamesSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
-                    showNamesSelect.dispatchEvent(new Event("change"));
-                } else {
-                    //console.debug("Toggling names");
-                    if (showNamesSelect.value === settings.toggleNames[0]) {
-                        showNamesSelect.value = settings.toggleNames[1];
-                    } else showNamesSelect.value = settings.toggleNames[0];
-                    showNamesSelect.dispatchEvent(new Event("change"));
-                }
+                cycleDisplayPreference("showNames", settings.toggleNames, showNamesSelect);
                 break;
             case settings.controls.toggleSkins[0]:
                 event.preventDefault();
-                if (!settings.toggleSettings) {
-                    //console.debug("Cycling skins");
-                    showSkinsSelect.selectedIndex = (showSkinsSelect.selectedIndex + 1) % showSkinsSelect.options.length; 
-                    showSkinsSelect.dispatchEvent(new Event("change"));
-                } else {
-                    //console.debug("Toggling names");
-                    if (showSkinsSelect.value === settings.toggleSkins[0]) {
-                        showSkinsSelect.value = settings.toggleSkins[1];
-                    } else showSkinsSelect.value = settings.toggleSkins[0];
-                    showSkinsSelect.dispatchEvent(new Event("change"));
-                }
-                showSkinsSelect.dispatchEvent(new Event("change"));
+                cycleDisplayPreference("showSkins", settings.toggleSkins, showSkinsSelect);
                 break;
             case settings.controls.toggleMass[0]:
                 event.preventDefault();
-                showMassCheckbox.checked = !showMassCheckbox.checked;
-                showMassCheckbox.dispatchEvent(new Event("change"));
+                germsfoxGetState().then(state => {
+                    if (!state) return;
+                    const next = !state.settings.showMass;
+                    germsfoxCall('changeSetting', 'showMass', next);
+                    showMassCheckbox.checked = next;
+                });
                 break;
             case settings.controls.toggleFood[0]:
                 event.preventDefault();
-                hideFoodCheckbox.checked = !hideFoodCheckbox.checked;
-                hideFoodCheckbox.dispatchEvent(new Event("change"));
+                germsfoxGetState().then(state => {
+                    if (!state) return;
+                    const next = !state.settings.hideFood;
+                    germsfoxCall('changeSetting', 'hideFood', next);
+                    hideFoodCheckbox.checked = next;
+                });
                 break;
         }
     });
@@ -144,49 +155,40 @@ function getChatNames(amount) {
     return chatNamesList;
 }
 
-function initDebug() { // We need to listen to the ingame debug menu to detect spawns
-    //console.debug("Initializing debug mutation observer");
-    const debugText = document.getElementById('debugText');
-    
-    if (debugObserver) debugObserver.disconnect();
+function initDebug() { // We need to poll live game state to detect spawns
+    //console.debug("Initializing spawn poll");
+    if (debugPollInterval) clearInterval(debugPollInterval);
 
-    debugObserver = new MutationObserver(() => updateHasSpawned());
-    debugObserver.observe(debugText, { childList: true }); // Might not need subtree
+    debugPollInterval = setInterval(checkForSpawn, 500); // Matches bundle.js's own debug HUD update interval
 
-    function updateHasSpawned() {
+    async function checkForSpawn() {
         //console.debug("Checking for life...");
-        const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
-        if (match) {
-            const isAlive = parseFloat(match[1]) > 0;
-            if (!hasSpawned && isAlive) {
-                console.log("First spawn");
-                hasSpawned = true;
-                if (settings.setColor !== "None") setSkin(settings.setColor);
-                //console.debug("Disconnecting debug mutation observer");
-                debugObserver.disconnect();
-            }
+        const state = await germsfoxGetState();
+        if (!state) return;
+        if (!hasSpawned && state.alive) {
+            console.log("First spawn");
+            hasSpawned = true;
+            if (settings.setColor !== "None") setSkin(settings.setColor);
+            //console.debug("Stopping spawn poll");
+            clearInterval(debugPollInterval);
         }
     }
 }
 
 function initDebugAfterDeath() {
-    //console.debug("Initializing debug mutation observer after death");
-    const debugText = document.getElementById('debugText');
-    if (debugObserver) debugObserver.disconnect();
-    debugObserver = new MutationObserver(() => updateHasSpawned());
-    debugObserver.observe(debugText, { childList: true }); // Might not need subtree
+    //console.debug("Initializing death poll");
+    if (debugPollInterval) clearInterval(debugPollInterval);
+    debugPollInterval = setInterval(checkForDeath, 500);
 
-    function updateHasSpawned() {
+    async function checkForDeath() {
         //console.debug("Checking for death...");
-        const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
-        if (match) {
-            const isDead = parseFloat(match[1]) === 0;
-            if (isDead) {
-                console.log("You died");
-                hasSpawned = false;
-                debugObserver.disconnect();
-                initDebug();
-            }
+        const state = await germsfoxGetState();
+        if (!state) return;
+        if (!state.alive) {
+            console.log("You died");
+            hasSpawned = false;
+            clearInterval(debugPollInterval);
+            initDebug();
         }
     }
 }
@@ -235,11 +237,22 @@ function initChat() {
                     chatParagraph.innerHTML =
                         paragraphHTML.substring(0, splitIndex) +
                         paragraphHTML.substring(splitIndex).replace(/\*/g, '#');
-                }// Replace emotes
+                }// Replace emotes and stickers
                 if (chatParagraph) {
+                    // bundle.js already scrolls the chat tab to the bottom the instant a message
+                    // is appended, but these images have no src yet at that point (set below,
+                    // asynchronously) - a sticker in particular still occupies ~0px until its src
+                    // is set AND the image finishes loading, so that initial scroll undershoots.
+                    // Re-scroll once each image actually has its real size.
                     const germsfoxEmoteImgElements = chatParagraph.querySelectorAll(".germsfoxEmote");
                     for (const germsfoxEmoteImg of germsfoxEmoteImgElements) {
+                        germsfoxEmoteImg.addEventListener('load', () => { chatBox.scrollTop = chatBox.scrollHeight; }, { once: true });
                         germsfoxEmoteImg.src = chrome.runtime.getURL(`images/emotes/${germsfoxEmoteImg.dataset.filename}`);
+                    }
+                    const germsfoxStickerImgElements = chatParagraph.querySelectorAll(".germsfoxSticker");
+                    for (const germsfoxStickerImg of germsfoxStickerImgElements) {
+                        germsfoxStickerImg.addEventListener('load', () => { chatBox.scrollTop = chatBox.scrollHeight; }, { once: true });
+                        germsfoxStickerImg.src = chrome.runtime.getURL(`images/stickers/${germsfoxStickerImg.dataset.filename}`);
                     }
                 }
             }
@@ -257,35 +270,35 @@ function initChat() {
 
 function initConnecting() {
     const connectingDiv = document.getElementById("connecting");
-    let visible = false; 
+    let visible = false;
 
+    // Visibility of the "connecting" overlay isn't game state bundle.js tracks separately -
+    // it IS the DOM element, so this stays a style-watching MutationObserver.
     const connectingObserver = new MutationObserver(() => changedServers());
     connectingObserver.observe(connectingDiv, { attributes: true, attributeFilter: ["style"] });
 
-    function changedServers() {
+    async function changedServers() {
         const nowVisible = connectingDiv.style.display !== "none";
         if (visible === nowVisible) return; // Don't care if it's the same
-        visible = nowVisible; 
+        visible = nowVisible;
         if (!visible) return; // Don't care if it hid itself
 
         console.debug("Changed servers");
         hasSpawned = false;
+        const state = await germsfoxGetState();
         if (settings.setColor !== "None" && ( // You have a color
-            settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) // You have no skin or aren't logged in
-            ) { 
+            settings.setSkin === "None" || !(state && state.loggedIn)) // You have no skin or aren't logged in
+            ) {
             console.debug("Setting skin to color because you don't have a skin");
             setSkin(settings.setColor)
         } else {
             setSkin(settings.setSkin);
         }
         // Your mass might still be >0 if you changed servers while you were alive
-        const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
-        if (match) {
-            const massDesynced = parseFloat(match[1]) > 0; // Need to wait until debug updates before your mass resets to 0
-            if (massDesynced) {
-                initDebugAfterDeath();
-                return;
-            }
+        // Need to wait until it resets to 0 before treating you as dead
+        if (state && state.alive) {
+            initDebugAfterDeath();
+            return;
         }
         initDebug();
     }

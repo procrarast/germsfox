@@ -43,6 +43,12 @@
 .chatEmote.big {
     height: 24px !important;
 }
+.germsfoxSticker {
+    vertical-align: top;
+    margin-top: 0px;
+    height: 80px; /* 2x the original 40px */
+    width: auto;
+}
 /* Extension stuff */
 .germsfox-btn {
     cursor: pointer;
@@ -472,8 +478,8 @@
     position: absolute;
     bottom: 29px;
     left: 145px;
-    width: 135px;
-    height: 110px;
+    width: 180px;
+    height: 260px; /* tall enough for the emotes grid + the (bigger-tiled) stickers section below it */
     border-radius: 6px;
     border-bottom: 0;
     overflow-x: hidden;
@@ -491,6 +497,9 @@
     padding: 2px 0 0 5px;
     font-family: Roboto;
     font-weight: 900;
+}
+#germsfoxEmotes h3 ~ h3 {
+    margin-top: 6px; /* separates the "Stickers" header from the emotes grid above it */
 }
 #germsfoxEmotes ul {
     display: flex;
@@ -513,6 +522,15 @@
     width: 20px;
     height: auto;
     margin: 0 0 2.5px 1.5px;
+}
+/* Stickers section within the same panel - bigger tiles than the emotes above, since sticker
+ * previews (and the stickers themselves in chat) are meant to read larger. */
+#germsfoxStickersList li {
+    width: 45px;
+    height: 45px;
+}
+#germsfoxStickersList li img {
+    width: 40px;
 }
 #germsfoxEmotes::-webkit-scrollbar-thumb {
     background-color: #2dfa83;
@@ -973,4 +991,60 @@ input:focus + .slider.danger {
     cursor: pointer;
     background-color: black;
     background-clip: border-box;
+}
+
+/* Community daily leaderboard (pishi.dev) - positioned via JS against #leaderboard's live
+ * bounding rect, since #leaderboard's own CSS positioning is germs.io's, not ours. */
+/* A child of #leaderboard, not a sibling - see the comment in renderDailyLeaderboardPanel().
+ * Inherits #leaderboard's own transform: scale(UIRatio) automatically, so no manual scaling or
+ * repositioning logic is needed here; top: 100% tracks #leaderboard's height (which bundle.js
+ * changes as its entry count changes) with zero JS involvement. */
+#germsfoxDailyLeaderboard {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    z-index: 9;
+    margin-top: 4px; /* directly adjacent to #leaderboard - just enough gap the rounded corners don't visually collide */
+    padding: 8px 10px;
+    background-color: rgba(0, 0, 0, 0.5); /* matches #leaderboard's own background exactly */
+    border-radius: 10px; /* matches #leaderboard's own border-radius */
+    font-family: Ubuntu;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+#germsfoxDailyLeaderboardTitle {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 900; /* matches #leaderboard > h3's weight */
+    color: white;
+    text-align: center;
+    text-transform: none; /* "Daily" is already capitalized as written, same convention as "Leaderboard" */
+}
+#germsfoxDailyLeaderboardList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+#germsfoxDailyLeaderboardList li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.germsfoxDailyLeaderboardFirst {
+    font-size: 17px;
+    color: white;
+}
+.germsfoxDailyLeaderboardOther {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+}
+.germsfoxDailyLeaderboardName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.germsfoxDailyLeaderboardMass {
+    margin-left: auto;
+    opacity: 0.8;
 }

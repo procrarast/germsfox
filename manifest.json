@@ -25,6 +25,7 @@
             "matches": ["*://*.germs.io/*"],
             "css": ["src/style.css"],
             "js": [
+                "src/bridge.js",
                 "src/dom.js",
                 "src/storage.js",
                 "src/content.js"
@@ -38,7 +39,8 @@
         "scripting"
     ],
     "host_permissions": [
-        "*://*.germs.io/*"
+        "*://*.germs.io/*",
+        "https://pishi.dev/leaderboard/*"
     ],
     "declarative_net_request": {
         "rule_resources": [

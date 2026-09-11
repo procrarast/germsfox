@@ -5,6 +5,98 @@
 
 console.debug("Running dom.js");
 
+// Community daily-top-3 leaderboard (pishi.dev), rendered just below the game's own
+// #leaderboard panel - as an actual child of it, so it inherits #leaderboard's own scaling
+// (see the comment further down) and positioning for free.
+function renderDailyLeaderboardPanel() {
+    const leaderboardDiv = document.getElementById("leaderboard");
+    if (!leaderboardDiv) return;
+
+    const panel = document.createElement("div");
+    panel.id = "germsfoxDailyLeaderboard";
+
+    const title = document.createElement("p");
+    title.id = "germsfoxDailyLeaderboardTitle";
+    title.textContent = "Daily";
+
+    const list = document.createElement("ul");
+    list.id = "germsfoxDailyLeaderboardList";
+
+    panel.append(title, list);
+    // A genuine child of #leaderboard (not a sibling positioned to look adjacent) - #leaderboard
+    // has `overflow: visible`, so this isn't clipped by its parent's own explicit height (which
+    // bundle.js recalculates on every entry-count change, and doesn't know about this panel).
+    // Being a descendant means it automatically inherits #leaderboard's own
+    // `transform: scale(UIRatio)` (applied directly on #leaderboard in Game.onResize(), not on
+    // an ancestor), so it scales in lockstep for free - no need to duplicate that math here.
+    leaderboardDiv.appendChild(panel);
+
+    // Returns true once a real attempt against the server was made (regardless of whether it
+    // found any entries), false if it couldn't even try - e.g. bundle.js hasn't finished
+    // establishing the game mode yet, which is common in the first second or two after a page
+    // load. Distinguishing the two lets the caller retry quickly only in the "couldn't try" case.
+    async function refresh() {
+        const state = await germsfoxGetState();
+        if (!state || !state.mode) return false;
+
+        let entries;
+        try {
+            entries = await chrome.runtime.sendMessage({ action: "getDailyLeaderboard", mode: state.mode });
+        } catch (error) {
+            return false; // Background script unreachable, or offline
+        }
+        // getDailyLeaderboard() returns null (not []) on a failed fetch - that's a request that
+        // didn't actually happen, not a leaderboard that's actually empty, so it must NOT be
+        // treated as success or the retry loop below stops on the very first (failed) attempt.
+        if (!entries) return false;
+        if (entries.length === 0) {
+            panel.style.display = "none";
+            return true;
+        }
+        panel.style.display = "block";
+
+        list.replaceChildren();
+        entries.slice(0, 3).forEach((entry, i) => {
+            const li = document.createElement("li");
+            li.className = i === 0 ? "germsfoxDailyLeaderboardFirst" : "germsfoxDailyLeaderboardOther";
+
+            const crown = document.createElement("i");
+            crown.classList.add("fas", "fa-crown", "lbCrown", "lbCrown-" + (i + 1));
+
+            const name = document.createElement("span");
+            name.className = "germsfoxDailyLeaderboardName";
+            name.textContent = entry.name;
+
+            const mass = document.createElement("span");
+            mass.className = "germsfoxDailyLeaderboardMass";
+            mass.textContent = entry.mass;
+
+            li.append(crown, name, mass);
+            list.appendChild(li);
+        });
+        return true;
+    }
+
+    // Right after page load, the game mode often isn't established yet - retry quickly a few
+    // times rather than silently waiting out the full steady-state interval below, which made
+    // this look like it was doing nothing until the player happened to die minutes later.
+    (async () => {
+        for (let attempt = 0; attempt < 10; attempt++) {
+            if (await refresh()) break;
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        setInterval(refresh, 60000); // Daily leaderboard, not live game state - no need to poll fast
+    })();
+
+    // Switching modes shows the *previous* mode's leaderboard until the next 60s poll otherwise
+    // - clear immediately so stale data is never shown for the wrong mode, then refetch now.
+    document.addEventListener('germsfox:modeChange', () => {
+        list.replaceChildren();
+        panel.style.display = "none";
+        refresh();
+    });
+}
+
 function renderGameMenu() {
 
     const spectateIcon = document.getElementById("spectate").querySelector("i");
@@ -28,7 +120,7 @@ function renderGameMenu() {
     renderCellPreviewCard();
 }
 
-function renderCellPreviewCard() {
+async function renderCellPreviewCard() {
     if (settings.setSkin.includes("free/")) {
         setSkin('None'); // Free skins buttons don't exist on load, so just set to none and let the user set it again themself
         setSetting("setSkin", "None");
@@ -59,9 +151,7 @@ function renderCellPreviewCard() {
     cellSkinLabel.innerText = "Skin";
     cellSkinButton.appendChild(cellSkinLabel);
 
-    const debugText = document.getElementById("debugText");
-
-    function skinsListClicked(event) {
+    async function skinsListClicked(event) {
         if (event.target.innerText === "Apply") {
             let inputValue = document.getElementById("loginCustomSkinText").value;
             inputValue = inputValue.replace(/\s/g, ''); // remove whitespace
@@ -77,8 +167,8 @@ function renderCellPreviewCard() {
                 cellSkinButton.style.backgroundImage = `url('${inputValue}')`;
 
                 // Wait til you spawn to update your ingame color
-                const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
-                if (match &&  parseFloat(match[1]) > 0) { // You're alive
+                const state = await germsfoxGetState();
+                if (state && state.alive) {
                     initDebugAfterDeath();
                 } else {
                     initDebug();
@@ -178,9 +268,8 @@ function renderCellPreviewCard() {
                 cellSkin.style.display = "block";
             }
             hasSpawned = false;
-            const match = debugText.innerHTML.match(/Mass:<\/b>\s*([\d.]+)/);
-
-            if (match &&  parseFloat(match[1]) > 0) { // You're alive
+            const state = await germsfoxGetState();
+            if (state && state.alive) {
                 initDebugAfterDeath();
             } else {
                 initDebug();
@@ -205,7 +294,7 @@ function renderCellPreviewCard() {
     }
 
     // Color buttons
-    const buttonsContainer = renderColorButtons();
+    const buttonsContainer = renderColorButtons(await getOwnedSkins());
 
     // Cell preview
     const cellColor = document.createElement("div");
@@ -243,28 +332,38 @@ function renderCellPreviewCard() {
     const lockedPosButtons = document.createElement("div");
     lockedPosButtons.id = "lockedPosButtons";
 
+    // Matches the <option> order in bundle.js's #lockedNamePositionSelect.
+    const LOCKED_POSITION_VALUES = ["Upper", "Center", "Lower"];
+
+    async function cycleLockedPosition(step) {
+        const state = await germsfoxGetState();
+        if (!state) return;
+        const currentIndex = LOCKED_POSITION_VALUES.indexOf(state.settings.lockedPosition);
+        const nextIndex = (((currentIndex === -1 ? 1 : currentIndex) + step) + LOCKED_POSITION_VALUES.length) % LOCKED_POSITION_VALUES.length;
+        const next = LOCKED_POSITION_VALUES[nextIndex];
+
+        germsfoxCall('setLockedPosition', next);
+
+        const lockedPosSelect = document.getElementById("lockedNamePositionSelect");
+        if (lockedPosSelect) {
+            lockedPosSelect.value = next;
+            // Not a workaround for calling bundle.js logic (that's the germsfoxCall above) -
+            // this is our own updatePreview()'s "change" listener, which is what actually moves
+            // the cell preview's name text to match. Setting .value alone doesn't fire it.
+            lockedPosSelect.dispatchEvent(new Event('change'));
+        }
+    }
+
     const lockedUpButton = document.createElement("button");
     const lockedUpIcon = document.createElement("i");
     lockedUpIcon.classList.add("fas", "fa-arrow-up");
-    lockedUpButton.onclick = () => {
-        const lockedPosSelect = document.getElementById("lockedNamePositionSelect");
-        if (document.getElementById("lockedNamePositionSelect")) {
-            lockedPosSelect.selectedIndex = ((lockedPosSelect.selectedIndex - 1) + 3) % 3;
-            lockedPosSelect.dispatchEvent(new Event("change"));
-        }
-    };
+    lockedUpButton.onclick = () => cycleLockedPosition(-1);
     lockedUpButton.appendChild(lockedUpIcon);
 
     const lockedDownButton = document.createElement("button");
     const lockedDownIcon = document.createElement("i");
     lockedDownIcon.classList.add("fas", "fa-arrow-down");
-    lockedDownButton.onclick = () => {
-        const lockedPosSelect = document.getElementById("lockedNamePositionSelect");
-        if (lockedPosSelect) {
-            lockedPosSelect.selectedIndex = (lockedPosSelect.selectedIndex + 1) % 3;
-            lockedPosSelect.dispatchEvent(new Event("change"));
-        }
-    };
+    lockedDownButton.onclick = () => cycleLockedPosition(1);
     lockedDownButton.appendChild(lockedDownIcon);
 
     lockedPosButtons.append(lockedUpButton, lockedDownButton);
@@ -294,7 +393,7 @@ function renderCellPreviewCard() {
     function updateColor() { // Triggered on color picker background change
         cellName.style.color = colorDiv.style.background;
     }
-    function renderColorButtons() {
+    function renderColorButtons(ownedSkins) {
         //console.debug("Rendering color buttons");
 
         const buttonsContainer = document.createElement("div");
@@ -331,15 +430,11 @@ function renderCellPreviewCard() {
         randomColorButton.appendChild(randomColorIcon);
         buttonsContainer.appendChild(randomColorButton);
 
-        let ownedSkins;
-        if (!settings.enableAllColorButtons) ownedSkins = getOwnedSkins();
-        const isLoggedIn = document.getElementById("skins").getElementsByTagName("h5").length === 1;
-
         for (const key in cellColorList) {
 
-            // Setting not toggled, is logged in, and owns the skin respective to the button's color 
-            if (!settings.enableAllColorButtons && 
-                isLoggedIn &&
+            // Setting not toggled, and owns the skin respective to the button's color.
+            // (ownedSkins can only be non-empty if you're logged in, so no separate check needed)
+            if (!settings.enableAllColorButtons &&
                 ownedSkins.includes(cellColorList[key][0])
             ) {
                 //console.debug("You apparently own the " + key + " skin");
@@ -367,10 +462,11 @@ function renderCellPreviewCard() {
             const colorButton = document.createElement("button");
             colorButton.style.backgroundColor = cellColorList[key][1];
             //const skinName = cellColorList[key][0];
-            colorButton.onclick = () => {
+            colorButton.onclick = async () => {
                 console.debug("Set color to " + key);
+                const state = await germsfoxGetState();
                 // Either spawned, has no skin, or isn't logged in
-                if (hasSpawned || settings.setSkin === "None" || document.getElementById("login").getElementsByTagName("h5").length === 1) setSkin(key);
+                if (hasSpawned || settings.setSkin === "None" || !(state && state.loggedIn)) setSkin(key);
 
                 // Would the skin you have on override your cell color?
                 const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
@@ -388,7 +484,10 @@ function renderCellPreviewCard() {
         }
         return buttonsContainer;
     }
-    function updatePreview() { // Triggered on login/logout
+    async function updatePreview() { // Triggered on login/logout
+        const state = await germsfoxGetState();
+        const ownedSkins = state ? state.ownedSkins : [];
+
         if (document.getElementById("loginCustomLockedName")?.style.display === "block") { // Has locked
             lockedBlocker.style.display = "none";
 
@@ -438,7 +537,6 @@ function renderCellPreviewCard() {
         }
 
         // Cell color
-        const ownedSkins = getOwnedSkins();
         if (ownedSkins.includes(settings.setColor[0])) {
             console.log("You own the skin respective to the color " + settings.setColor + ". Removing...");
             settings.setColor = 'None'; // To avoid async. Wish I handled settings differently
@@ -484,15 +582,13 @@ function renderCellPreviewCard() {
         
         // Preview skin
         // Do you own the skin you have in storage? If so, display it in the preview
-        const isLoggedIn = (document.getElementById("customSkin").style.display === "block");
-        const skinsList = document.getElementsByClassName("skinList")[0];
-        //console.debug(`[onclick="setSkin('${settings.setSkin.slice(10, -4)}');"]`);
+        const hasCustomSkin = !!(state && state.hasCustomSkin);
         if (settings.setSkin === "None") {
             cellSkin.style.display = "none";
         } else if (
             settings.setSkin.includes("free/") || // Free skin
-            (isLoggedIn && settings.setSkin.includes("https://i.imgur.com/")) || // Logged in with custom skin
-            skinsList.querySelector(`[onclick="setSkin('${settings.setSkin.slice(10, -4)}');"]`) // Premium/veteran skin is owned
+            (hasCustomSkin && settings.setSkin.includes("https://i.imgur.com/")) || // Logged in with custom skin
+            ownedSkins.some(name => settings.setSkin.slice(10, -4) === 'premium/' + name) // Premium/veteran skin is owned
         )
         {
             //console.debug(settings.setSkin.slice(18, -4));
@@ -507,7 +603,7 @@ function renderCellPreviewCard() {
         // Cell preview color buttons
         renderCustomColorsMenu(); // Since it gets referenced to create new onclick functions
         const cellButtons = cellPanel.querySelector("#cellButtons");
-        if (cellButtons) cellButtons.replaceWith(renderColorButtons());
+        if (cellButtons) cellButtons.replaceWith(renderColorButtons(ownedSkins));
     };
 }
 
@@ -722,27 +818,6 @@ function renderControlsTabPane() {
     return pane;
 }
 
-// Update an existing controls tab pane
-function updateControlsTabPane() {
-    const pane = document.getElementById("germsfox-settings-controls");
-    if (settings.toggleSettings) {
-        toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
-        toggleNamesDropdown = createToggleDropdown("toggleNames", "Switch Between");
-        toggleSkinsKeyTester = createKeyTester("toggleSkins", "Toggle Skins");
-        toggleSkinsDropdown = createToggleDropdown("toggleSkins", "Switch Between");
-        pane.replaceChildren(
-            toggleNamesKeyTester,
-            toggleNamesDropdown,
-            toggleSkinsKeyTester,
-            toggleSkinsDropdown
-        );
-    } else {
-        toggleNamesKeyTester = createKeyTester("toggleNames", "Cycle Names");
-        toggleSkinsKeyTester = createKeyTester("toggleSkins", "Cycle Skins");
-        pane.append(toggleNamesKeyTester, toggleSkinsKeyTester);
-    }
-}
-
 function createToggleDropdown(key, text) {
     const clearfix = document.createElement("div");
     clearfix.classList.add("clearfix");
@@ -862,6 +937,11 @@ function renderGeneralTabPane() {
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
     const multiboxWindowedCheckbox = createCheckbox("switcherWindowed", "Windowed Multibox");
 
+    const leaderboardPill = createPill("Community Leaderboard");
+    const leaderboardLabel = document.createElement('p');
+    leaderboardLabel.innerText = "When logged in, your account name and highest mass from each life are submitted to Germsfox's daily leaderboard (pishi.dev), shown below the in-game leaderboard.";
+    const leaderboardOptOutCheckbox = createCheckbox("leaderboardOptOut", "Don't submit my scores");
+
     const skinsPill = createPill("Custom Skins");
     const skinsExportButton = createDownloadButton("Export to File", "Export");
     const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
@@ -884,6 +964,10 @@ function renderGeneralTabPane() {
         generalInvitesCheckbox,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
+
+        leaderboardPill,
+        leaderboardLabel,
+        leaderboardOptOutCheckbox,
 
         skinsPill,
         skinsExportButton,
@@ -1274,28 +1358,17 @@ function renderMuteButton(chatter) {
 }
 
 // Only premium skins, useful for knowing which color skins you own.
-function getOwnedSkins() {
-    const ownedSkins = []; // list of strings of skin names owned by the user, generated by iterating through the owned skins div
-    const ownedSkinsDiv = document.getElementById("paidSkinList");
-    const ownedSkinsLis = ownedSkinsDiv.getElementsByTagName("li");
-
-    for (const ownedSkinLi of ownedSkinsLis) {
-        if (ownedSkinLi.id == "skinSkin") {
-            const filePath = ownedSkinLi.getElementsByTagName("img")[0].dataset.src;
-            if (filePath.startsWith("res/skins/premium")) {
-                ownedSkins.push(filePath.slice(18, -4)); //filename minus extension
-                //console.debug(filePath.slice(18, -4));
-            }
-        }
-    }
-    //console.debug(`You have ${ownedSkins.length} owned skins.`);
-    return ownedSkins;
+// Reads the player's account state directly from bundle.js instead of scraping <li>
+// elements out of the rendered #paidSkinList DOM.
+async function getOwnedSkins() {
+    const state = await germsfoxGetState();
+    return state ? state.ownedSkins : [];
 }
 
-function renderCustomColorsMenu() {
+async function renderCustomColorsMenu() {
     //console.debug("Rendering custom colors menu");
 
-    const ownedSkins = getOwnedSkins();
+    const ownedSkins = await getOwnedSkins();
     const skinListUl = document.getElementsByClassName("skinList")[0];
 
     const oldColorList = skinListUl.querySelector("#customCellColor");
@@ -1655,6 +1728,32 @@ function renderEmotesPanel() {
         emotesList.appendChild(emoteLi);
     }
 
+    // Stickers section - same panel/button as emotes, just a second header+grid appended below.
+    // Unlike emotes, a sticker only renders in chat when the whole message is just its keyword.
+    const stickersHeader = document.createElement("h3");
+    stickersHeader.textContent = "Stickers";
+
+    const stickersList = document.createElement("ul");
+    stickersList.id = "germsfoxStickersList";
+
+    for (const sticker of stickers) {
+        const filename = sticker.slice(0, sticker.lastIndexOf("."));
+
+        const stickerLi = document.createElement("li");
+        stickerLi.classList.add("stickersSticker");
+        // Sends immediately (unlike emotes, which insert into #chat_input) - leaves whatever
+        // the player was already typing untouched, since sendChatMessage doesn't read/clear it.
+        stickerLi.setAttribute("onclick", `sendChatMessage('${filename}'); $('#germsfoxEmotes').hide();`);
+
+        const stickerImg = document.createElement("img");
+        stickerImg.src = chrome.runtime.getURL(`images/stickers/${sticker}`);
+        stickerImg.title = filename;
+        stickerImg.name = filename;
+
+        stickerLi.appendChild(stickerImg);
+        stickersList.appendChild(stickerLi);
+    }
+
     emotesButton.addEventListener("mouseover", () => {
         icon.src = chrome.runtime.getURL(`images/emotes/${emotes[Math.floor(Math.random() * emotes.length)]}`);
     });
@@ -1662,14 +1761,14 @@ function renderEmotesPanel() {
     document.addEventListener("click", (event) => {
         // Would rather this not be so hacky, but trying to adhere to outdated germs style+convention makes this difficult
         if (emotesPanel.style.display === "block"
-            && event.target != emotesButton 
+            && event.target != emotesButton
             && !emotesPanel.contains(event.target)) {
             //console.debug("Closing emotes tab");
             emotesPanel.style.display = 'none';
         }
     });
 
-    emotesPanel.append(emotesHeader, emotesList);
+    emotesPanel.append(emotesHeader, emotesList, stickersHeader, stickersList);
     chatContainer.append(emotesButton, emotesPanel);
 }
 

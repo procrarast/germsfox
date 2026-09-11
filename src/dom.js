@@ -17,7 +17,7 @@ function renderDailyLeaderboardPanel() {
 
     const title = document.createElement("p");
     title.id = "germsfoxDailyLeaderboardTitle";
-    title.textContent = "Daily";
+    title.textContent = "Daily Leaderboard";
 
     const list = document.createElement("ul");
     list.id = "germsfoxDailyLeaderboardList";
@@ -31,26 +31,39 @@ function renderDailyLeaderboardPanel() {
     // an ancestor), so it scales in lockstep for free - no need to duplicate that math here.
     leaderboardDiv.appendChild(panel);
 
+    // Starts hidden and only appears once there is something to put in it. A board that is
+    // empty, a fetch that failed, and a game that hasn't reported its mode yet all have nothing
+    // to show - previously each of them left a "Daily" heading sitting above an empty list.
+    const hidePanel = () => { panel.style.display = "none"; };
+    hidePanel();
+
     // Returns true once a real attempt against the server was made (regardless of whether it
     // found any entries), false if it couldn't even try - e.g. bundle.js hasn't finished
     // establishing the game mode yet, which is common in the first second or two after a page
     // load. Distinguishing the two lets the caller retry quickly only in the "couldn't try" case.
     async function refresh() {
         const state = await germsfoxGetState();
-        if (!state || !state.mode) return false;
+        if (!state || !state.mode) {
+            hidePanel();
+            return false;
+        }
 
         let entries;
         try {
             entries = await chrome.runtime.sendMessage({ action: "getDailyLeaderboard", mode: state.mode });
         } catch (error) {
+            hidePanel();
             return false; // Background script unreachable, or offline
         }
         // getDailyLeaderboard() returns null (not []) on a failed fetch - that's a request that
         // didn't actually happen, not a leaderboard that's actually empty, so it must NOT be
         // treated as success or the retry loop below stops on the very first (failed) attempt.
-        if (!entries) return false;
+        if (!Array.isArray(entries)) {
+            hidePanel();
+            return false;
+        }
         if (entries.length === 0) {
-            panel.style.display = "none";
+            hidePanel();
             return true;
         }
         // Still fetches and keeps the list populated even while hidden, so toggling the

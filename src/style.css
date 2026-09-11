@@ -84,19 +84,21 @@
     display: inline-block;
     font-family: Ubuntu;
     margin: 0;
-    font-size: 14px;
+    /* 12px rather than 14: the panel is sized to the minimap, and at 14 the three longest
+       labels filled the row exactly - no clipping, but no room for a font fallback or a
+       longer label either. 12 leaves actual headroom. */
+    font-size: 12px;
     font-weight: 500;
+    cursor: default;
+    /* The reset button shares the row now, so a two-word label like "Player Cells" would wrap
+       and leave that row taller than its neighbours. It stays on one line instead. */
+    white-space: nowrap;
 }
-#theme p:hover {
-    text-decoration: line-through;
-    cursor: pointer;
-    color: #FFF;
-}
-#theme span {
-    width: 112px;
+#theme .themeRow {
+    width: calc(100% - 24px);
     display: flex;
     padding-top: 0.8em;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 #theme .themePicker {
@@ -105,6 +107,7 @@
     border-radius: 4px;
     display: inline-block;
     border: 0px;
+    cursor: pointer;
     box-shadow: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px inset, rgba(0, 0, 0, 0.5) 0px 0px 4px;
     transition: transform 0.3s ease-out;
 }
@@ -112,9 +115,41 @@
     transform: scale(1.1);
     border: 1px solid rgba(255, 255, 255, 0.7) !important;
 }
+/* What an unset Food / Player Cells slot previews: the server's own varied colours. Reads as
+   "many colours", where the previous black-with-a-red-border read as an error. */
+#theme .themePickerRainbow {
+    background: linear-gradient(135deg,
+        #FF3B30, #FF9500, #FFCC00, #34C759, #32ADE6, #5856D6, #AF52DE);
+}
+/* Reset only exists once a slot actually holds an override, so the control appears exactly
+   when it becomes meaningful. It replaces clicking the label text, which nothing advertised. */
+#theme .themeReset {
+    margin-left: auto;
+    height: 16px;
+    width: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    visibility: hidden;
+}
+#theme .themeRowSet .themeReset {
+    visibility: visible;
+}
+#theme .themeReset:hover {
+    color: #FFF;
+    background: rgba(255, 255, 255, 0.18);
+}
+#theme .themeReset:focus {
+    outline: none;
+}
 #themeUI {
     align-items: center;
-    transition: 
+    transition:
         height 0.3s ease-out,
         width 0.2s ease-out;
     display: flex;
@@ -125,6 +160,15 @@
     background-color: rgba(0, 0, 0, 0.5);
     color: #DDDDDD;
     border-radius: 10px;
+    /* Each row pads above itself, so without a matching pad here the last row sits flush
+       against the bottom edge while the first has a gap above it. border-box keeps the
+       measured open height inclusive of it. */
+    box-sizing: border-box;
+    padding-bottom: 0.8em;
+}
+#themeUI.themeUIOpen {
+    /* Set from themeMove() to whatever the minimap is currently wide */
+    width: var(--themeWidth, 140px);
 }
 #themeButton {
     border: none;

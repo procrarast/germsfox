@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.3.5
+ * @version     1.3.6
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -3671,11 +3671,65 @@ function modules(ks) {
             }
         }
 
+        /**
+         *  The backgrounds behind the white/gray/black colour buttons. Previously these literals
+         *  lived inside drawGrid()'s switch, which is what made the colour buttons and the custom
+         *  theme two separate systems: picking a preset never told the theme anything. setColor()
+         *  now writes the preset straight into customTheme.background, so there is one value that
+         *  decides the background and the theme panel always shows what is actually on screen.
+         */
+        const COLOR_PRESETS = {
+            gray:  0x333439,
+            white: 0xF0FBFF,
+            black: 0x000000,
+        };
+
+        /**
+         *  Every themeable slot in one place: its label, and the colour its picker opens on while
+         *  the slot is still unset. That starting colour is load-bearing - see seedPicker().
+         */
+        const THEME_SLOTS = {
+            // `unset` says what the swatch previews while the slot has no override: 'rainbow'
+            // for the two slots that fall back to the server's own varied colours, and 'border'
+            // for viruses, which come through in the map border's colour.
+            virus:      { label: "Virus",        unset: 'border' },
+            food:       { label: "Food",         unset: 'rainbow', start: 0xAAAAAA },
+            players:    { label: "Player Cells", unset: 'rainbow', start: 0xAAAAAA },
+            background: { label: "Background",   unset: 'preset' },
+            border:     { label: "Map Border",   start: 0x00FF00 },
+        };
+
         const nodeType = {
             'Player': 0,
             'Virus': 1,
             'Food': 2
         };
+
+        /**
+         *  Recolours `baseHex` toward `filterHex` while keeping its brightness, so a themed cell
+         *  still shows the light/dark variation the server gave it instead of going flat.
+         */
+        function filterColor(baseHex, filterHex) {
+            const baseR = (baseHex >> 16) & 0xFF;
+            const baseG = (baseHex >> 8) & 0xFF;
+            const baseB = baseHex & 0xFF;
+
+            const filterR = (filterHex >> 16) & 0xFF;
+            const filterG = (filterHex >> 8) & 0xFF;
+            const filterB = filterHex & 0xFF;
+
+            const brightness = (baseR + baseG + baseB) / (3 * 255) * 2;
+
+            const r = Math.min(255, Math.round(filterR * brightness));
+            const g = Math.min(255, Math.round(filterG * brightness));
+            const b = Math.min(255, Math.round(filterB * brightness));
+
+            return (r << 16) | (g << 8) | b;
+        }
+
+        function cssColorFrom(hex) {
+            return `rgb(${(hex >> 16) & 0xFF}, ${(hex >> 8) & 0xFF}, ${hex & 0xFF})`;
+        }
 
         const foodShape = {
             'Pentagon': 0,
@@ -3698,6 +3752,13 @@ function modules(ks) {
 
         // How close a lerped value gets before it's snapped onto its target outright.
         const CONVERGE_EPSILON = 0.01;
+
+        /**
+         *  Alpha an eaten cell fades to before it is removed. It starts at 1 and falls at a
+         *  constant rate, so the span it travels *is* how long the corpse lingers: 1 -> 0.745
+         *  is 0.255, or 85% of the 0.3 it used to cover, making them clear 15% sooner.
+         */
+        const EATEN_FADE_CUTOFF = 0.745;
 
         /**
          *  Breaks depth ties between cells that quantise to the same integer size, so their draw
@@ -3764,7 +3825,7 @@ function modules(ks) {
 
                     // Update alpha
                     this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
-                    if (this.root.alpha <= 0.7) {
+                    if (this.root.alpha <= EATEN_FADE_CUTOFF) {
                         this.game.removeNode(this.node);
                         return false;
                     }
@@ -4122,6 +4183,11 @@ function modules(ks) {
                     }
                     this.LOD = value;
                 }
+            }
+
+            // Colour lives in this cell's uniform block, so a theme change just re-uploads it
+            refreshColor() {
+                this.updateCellUniforms();
             }
 
             applySkinTexture() {
@@ -4805,6 +4871,10 @@ function modules(ks) {
                 this.sprite.tint = this.node.color;
             }
 
+            refreshColor() {
+                this.sprite.tint = this.node.color;
+            }
+
             tick() {
                 if (!super.tick()) return false;
 
@@ -4960,8 +5030,13 @@ function modules(ks) {
                 this.size = size;
                 this.lockedPosition = lockedPosition;
                 this.lockedColor = lockedColor;
-                this.color = color;
-                this.rgb = rgb;
+                // Kept exactly as the server sent it. The displayed colour is always derived
+                // from this, never written over it, so a theme can be changed or removed at any
+                // point without a rejoin and without tinting an already-tinted colour.
+                this.baseColor = color;
+                this.baseRgb = rgb;
+                this.applyTheme();
+
                 this.isEjected = isEjected;
 
                 this.lastUpdate = this.game.updateTime;
@@ -5000,10 +5075,37 @@ function modules(ks) {
                 this.y += dy * invDist * moveDist;
             }
 
+            /**
+             *  Derives the displayed colour from the server colour plus whatever the active theme
+             *  says about this node's type. Idempotent and cheap, which is the point: it can be
+             *  re-run across every live node the instant a theme changes, rather than only
+             *  affecting cells that happen to spawn afterwards.
+             */
+            applyTheme() {
+                const key = this.themeKey;
+                const override = key === null ? null : this.game.customTheme[key];
+
+                if (override == null) {
+                    this.color = this.baseColor;
+                    this.rgb = this.baseRgb;
+                    return;
+                }
+
+                this.color = this.themeReplaces ? override : filterColor(this.baseColor, override);
+                // Derived from the final colour rather than the raw override, so the minimap dot
+                // and leaderboard entry agree with the cell instead of drifting from it
+                this.rgb = cssColorFrom(this.color);
+            }
+
             debug(...args) {
                 console.debug(`[Node ${this.id}]`, ...args);
             }
             get type() { console.error("This node has no type!"); }
+
+            // Which customTheme slot recolours this node type, and how. Tinting preserves the
+            // per-cell variation the server sent; replacing ignores it outright.
+            get themeKey() { return null; }
+            get themeReplaces() { return false; }
         }
 
         // Since the decoupling of each Node and Renderer type, all Node types have wrapped back around to being essentially the same thing state-wise.
@@ -5016,6 +5118,7 @@ function modules(ks) {
 
         class FoodNode extends Node {
             get type() { return nodeType.Food; }
+            get themeKey() { return 'food'; }
             get shape() {
                 if (this._shape == null) {
                     this._shape = Math.floor(Math.random() * 3);
@@ -5032,10 +5135,14 @@ function modules(ks) {
 
         class CellNode extends Node {
             get type() { return nodeType.Player; }
+            get themeKey() { return 'players'; }
         }
 
         class VirusNode extends Node {
             get type() { return nodeType.Virus; }
+            get themeKey() { return 'virus'; }
+            // Viruses arrive in a single colour, so a tint would have no variation to preserve
+            get themeReplaces() { return true; }
         }
 
         class Pool {
@@ -5915,28 +6022,9 @@ function modules(ks) {
                             type = nodeType.Virus;
                         }
                         
-                        // TODO: Move to each respective node's class
-                        switch (type) {
-                            case nodeType.Food:
-                                if (this.game.customTheme.food !== null) {
-                                    color = this.filterColor(color, this.game.customTheme.food[0]);
-                                    rgb = this.game.customTheme.food[1]; // Unfiltered
-                                }
-                                break;
-                            case nodeType.Virus:
-                                if (this.game.customTheme.virus !== null) {
-                                    color = this.game.customTheme.virus[0];
-                                    rgb = this.game.customTheme.virus[1];
-                                }
-                                break;
-                            case nodeType.Player:
-                                if (this.game.customTheme.players !== null) {
-                                    color = this.filterColor(color, this.game.customTheme.players[0]);
-                                    rgb = this.game.customTheme.players[1]; // Unfiltered, too lazy to filter an rgba string
-                                }
-                                break;
-                        }
-
+                        // Colour goes through untouched - each Node type applies the theme to
+                        // itself in applyTheme(), which is also what lets a theme change take
+                        // effect on cells that already exist.
                         const nodeData = {
                             id: id,
                             parent: parent,
@@ -5985,23 +6073,6 @@ function modules(ks) {
                 this.game.gridDirty = true;
             }
 
-            filterColor(baseHex, filterHex) {
-                const baseR = (baseHex >> 16) & 0xFF;
-                const baseG = (baseHex >> 8) & 0xFF;
-                const baseB = baseHex & 0xFF;
-                
-                const filterR = (filterHex >> 16) & 0xFF;
-                const filterG = (filterHex >> 8) & 0xFF;
-                const filterB = filterHex & 0xFF;
-                
-                const brightness = (baseR + baseG + baseB) / (3 * 255) * 2;
-                
-                const r = Math.min(255, Math.round(filterR * brightness));
-                const g = Math.min(255, Math.round(filterG * brightness));
-                const b = Math.min(255, Math.round(filterB * brightness));
-                
-                return (r << 16) | (g << 8) | b;
-            }
             handleBorder(pW) {
                 this.game.setBorder(pW.readDouble(), pW.readDouble(), pW.readDouble(), pW.readDouble());
                 this.game.myID = pW.readUInt32();
@@ -6166,12 +6237,16 @@ function modules(ks) {
                     'skin': '',
                     'theme': 'hex',
                     'color': 'gray',
+                    // Node colours default to unset so the server's own colours come through
+                    // untouched. The two scene colours do have defaults: the background tracks
+                    // the selected colour preset, and the border keeps the green drawGrid() used
+                    // to hardcode as its fallback.
                     'customTheme': {
                         virus: null,
                         food: null,
                         players: null,
                         background: null,
-                        border: null
+                        border: 0x00FF00
                     },
                     'controls': {
                         'Split': [32, 'Space'],
@@ -6232,7 +6307,20 @@ function modules(ks) {
                     if (this.settings.customTheme.hasOwnProperty(key) == false) {
                         this.settings.customTheme[key] = this.default.customTheme[key];
                         this.save();
-                    } else {
+                    } else if (key === 'background'
+                            && this.settings.customTheme[key] === COLOR_PRESETS[this.settings.color]) {
+                        // An earlier build wrote the chosen preset into this slot, which now
+                        // reads as a deliberate custom colour and would leave every colour
+                        // button unselected. Exactly matching the active preset means it was
+                        // written by that sync rather than picked, so hand it back.
+                        this.settings.customTheme[key] = null;
+                        this.save();
+                    } else if (Array.isArray(this.settings.customTheme[key])) {
+                        // Migration: slots used to hold [number, cssString]. The string half went
+                        // stale against the number the moment a colour was tinted, so only the
+                        // number is stored now and the css form is derived where it's needed.
+                        this.settings.customTheme[key] = this.settings.customTheme[key][0];
+                        this.save();
                     }
                 }
                 this.settings.blockedSkins = new Set(this.settings.blockedSkins || []);
@@ -6240,7 +6328,9 @@ function modules(ks) {
             ready() {
                 this.game.setSkin(this.getItem('skin'));
                 this.game.setTheme(this.getItem('theme'), `#theme-${this.getItem('theme')}`);
-                this.game.setColor(this.getItem('color'), `#color-${this.getItem('color')}`);
+                // Deliberately not setColor(): that means "the user pressed a preset", which
+                // stands down any custom background. On startup we only reflect what is stored.
+                this.game.syncColorButtons();
 
                 [
                     'nick',
@@ -6315,7 +6405,10 @@ function modules(ks) {
                         }
                         break;
                     case 'customTheme':
+                        this.game.applyTheme();
                         this.game.drawGrid();
+                        this.game.syncColorButtons();
+                        this.game.refreshThemeUI();
                         break;
                     case 'hideBorder':
                     case 'hideMapGrid':
@@ -7310,7 +7403,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.5 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.6 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -7835,14 +7928,31 @@ function modules(ks) {
                 if (this.grid)
                     this.drawGrid();
             }
+            /**
+             *  Reflects the background actually in force in the #colors radios: the matching
+             *  preset while the background is following one, and nothing selected at all once a
+             *  custom colour has taken over. Leaving a preset lit under a custom colour is what
+             *  made pressing one feel like it silently reset the custom choice.
+             */
+            syncColorButtons() {
+                const usingCustom = this.settings.getItem('customTheme').background != null;
+                $('#colors').find('input').prop('checked', false);
+                if (!usingCustom) {
+                    $(`#color-${this.settings.getItem('color')}`).siblings('input').prop('checked', true);
+                }
+            }
+
             setColor(tz, tA) {
-                $('#colors').find('input').each(function() {
-                    $(this).prop('checked', false);
-                });
-                $(tA).siblings('input').prop('checked', true);
                 this.settings.setItem('color', tz);
-                if (this.grid)
-                    this.drawGrid();
+
+                // Pressing a preset means "go back to the preset", so any custom background
+                // stands down rather than being overwritten by it. The two are mutually
+                // exclusive: whichever was chosen last is the one in force, and syncColorButtons
+                // keeps the radios honest about which that is. changeSetting redraws the grid and
+                // refreshes the panel, so there is no drawGrid or repaint to do here.
+                const theme = this.settings.getItem('customTheme');
+                theme.background = null;
+                this.changeSetting('customTheme', theme);
             }
             spectate() {
                 this.iframe();
@@ -7872,25 +7982,31 @@ function modules(ks) {
                     this.drawGrid();
                 }
             }
+            /**
+             *  Re-derives every live node's colour. Previously a theme only reached cells that
+             *  spawned after it was picked, so changing one left the screen a mix of old and new
+             *  until everything had been eaten and respawned.
+             */
+            applyTheme() {
+                // Re-read rather than trusting the cached reference: setItem() is free to store a
+                // different object than the one this was first pointed at
+                this.customTheme = this.settings.getItem('customTheme');
+
+                for (const node of this.nodes.values()) {
+                    node.applyTheme();
+                    node.renderer.refreshColor();
+                }
+            }
+
             drawGrid() {
                 $(window).trigger('resize');
                 const colorTheme = this.settings.getItem('color');
                 const customTheme = this.settings.getItem('customTheme');
-                if (customTheme.background) {
-                    this.renderer.background.color = customTheme.background[0];
-                } else {
-                    switch (colorTheme) {
-                    case 'gray':
-                        this.renderer.background.color = 0x333439;
-                        break;
-                    case 'white':
-                        this.renderer.background.color = 0xf0fbff;
-                        break;
-                    case 'black':
-                        this.renderer.background.color = 0x000000;
-                        break;
-                    }
-                }
+                // != null, not truthiness: 0x000000 is a perfectly good background and used to
+                // be silently ignored here for being falsy
+                this.renderer.background.color = customTheme.background != null
+                    ? customTheme.background
+                    : COLOR_PRESETS[colorTheme];
 
                 if (this.grid) {
                     this.bgContainer.removeChild(this.grid);
@@ -8004,7 +8120,7 @@ function modules(ks) {
 
                     borderGraphics.rect(-borderSize / 2, -borderSize / 2, size + borderSize, size + borderSize).stroke({
                         width: borderSize,
-                        color: customTheme.border ? customTheme.border[0] : 0x00ff00,
+                        color: customTheme.border != null ? customTheme.border : 0x00ff00,
                         alpha: 1
                     });
 
@@ -8495,6 +8611,9 @@ function modules(ks) {
                 if (!themeDiv) return;
                 themeDiv.style.bottom = 20 + $('#map').height() * this.UIRatio + 'px';
                 themeDiv.style.transform = `scale(${this.UIRatio})`;
+                // The panel sits directly above the minimap, so it takes its width from it and
+                // stays matched when the minimap resizes
+                themeDiv.style.setProperty('--themeWidth', $('#map').width() + 'px');
             }
 
             themeClick() {
@@ -8502,89 +8621,176 @@ function modules(ks) {
                 const themeButton = themeDiv.querySelector("#themeButton");
                 const themeButtonIcon = themeButton.querySelector("i");
                 const themeUI = themeDiv.querySelector("#themeUI");
-                const isHidden = themeUI.style.height === "0px";
-                
+                const isHidden = !themeUI.classList.contains('themeUIOpen');
+
                 themeButtonIcon.className = isHidden ? "fas fa-angle-down" : "fas fa-palette";
                 themeButton.style.marginRight = isHidden ? "4px" : "0px";
-                themeUI.style.height = isHidden ? "185px" : "0px";
-                themeUI.style.width = isHidden ? "140px" : "0px";
+
+                if (!isHidden) {
+                    themeUI.classList.remove('themeUIOpen');
+                    themeUI.style.height = "0px";
+                    return;
+                }
+
+                /**
+                 *  Measured on a hidden clone rather than on the panel itself.
+                 *
+                 *  Measuring in place meant briefly applying the open width and then taking it
+                 *  away again - and that removal queued a width transition back to 0, so the
+                 *  open that followed had nothing left to animate and simply snapped. (Closing
+                 *  looked fine, which is why it read as a half-working animation.) The clone
+                 *  never touches the real element's state, so the panel only ever goes from its
+                 *  collapsed box straight to open, with transitions live the whole way.
+                 *
+                 *  It is measured here rather than when the panel is built because #theme lives
+                 *  inside #gameMenu, which is display:none until a game starts, and a hidden
+                 *  element always measures 0.
+                 */
+                const probe = themeUI.cloneNode(true);
+                // The id is deliberately kept: every rule that gives this panel its geometry is
+                // written as #themeUI, so a clone without it matches nothing and measures empty.
+                // The duplicate exists only within this function, which runs to completion before
+                // anything else can look at the document.
+                probe.classList.add('themeUIOpen');
+                probe.style.cssText = 'position:absolute; visibility:hidden; pointer-events:none; height:auto; transition:none;';
+                themeDiv.appendChild(probe);
+                const openHeight = probe.scrollHeight;
+                probe.remove();
+
+                themeUI.classList.add('themeUIOpen');
+                themeUI.style.height = `${openHeight}px`;
+            }
+
+            // Re-paints every swatch from the current theme. Needed because the colour buttons
+            // can now change a slot from outside the panel.
+            refreshThemeUI() {
+                if (this.themeSwatchPainters) {
+                    for (const paint of this.themeSwatchPainters) paint();
+                }
             }
 
             renderTheme() {
                 if (document.getElementById("theme")) return;
-                
+                this.themeSwatchPainters = [];
+
                 const themeDiv = document.createElement("div");
                 themeDiv.id = "theme";
                 document.getElementById("map").before(themeDiv);
-                
+
                 // Button
                 const themeButton = document.createElement("button");
                 themeButton.id = "themeButton";
+                themeButton.title = "Theme";
                 themeButton.addEventListener('click', () => this.themeClick());
                 themeButton.innerHTML = '<i class="fas fa-palette"></i>';
                 themeDiv.appendChild(themeButton);
-                
+
                 // UI
                 const themeUI = document.createElement("div");
                 themeUI.id = "themeUI";
-                themeUI.style.height = "0px";
-                themeUI.style.width = "0px";
-                
-                const labels = {
-                    virus: "Virus",
-                    food: "Food",
-                    players: "Player Cells",
-                    background: "Background",
-                    border: "Map Border"
-                };
-                
-                let theme = this.settings.getItem('customTheme');
-                
-                const renderSection = (key, label) => {
-                    const sectionSpan = document.createElement("span");
-                    sectionSpan.classList.add("themeRow");
-                    
-                    const sectionPickerDiv = document.createElement("div");
-                    sectionPickerDiv.classList.add("themePicker");
-                    const colorPicker = new CP(sectionPickerDiv);
-                    if (theme[key] === null) {
-                        colorPicker.source.style.background = "#000";
-                        colorPicker.source.style.border = "1px solid #B00";
-                    } else {
-                        const anotherPixiColor = new PIXI.Color(theme[key][0]); // Tired. not dealing with making this good right now
-                        colorPicker.set(anotherPixiColor.toHex());
-                    }
 
-                    colorPicker.on('change', (color) => {
-                        const pixiColor = new PIXI.Color('#' + color);
-                        if (pixiColor.toHex() === "#ff0000" && theme[key] === null) return; // Terrible
-                        theme[key] = [pixiColor.toNumber(), pixiColor.toRgbaString()];
+                const theme = this.settings.getItem('customTheme');
+
+                // The border colour a virus stands in for, falling back to the default if the
+                // border slot were ever empty
+                const borderColor = () => theme.border != null
+                    ? theme.border
+                    : this.settings.default.customTheme.border;
+
+                // The background a preset would give, for the slot that defers to one
+                const presetColor = () => COLOR_PRESETS[this.settings.getItem('color')]
+                    ?? COLOR_PRESETS.gray;
+
+                const renderSection = (key, slot) => {
+                    const { label, start } = slot;
+                    const row = document.createElement("span");
+                    row.classList.add("themeRow");
+
+                    const pickerDiv = document.createElement("div");
+                    pickerDiv.classList.add("themePicker");
+                    pickerDiv.title = `Pick a ${label.toLowerCase()} colour`;
+
+                    const resetButton = document.createElement("button");
+                    resetButton.classList.add("themeReset");
+                    resetButton.title = `Reset ${label.toLowerCase()} to default`;
+                    resetButton.innerHTML = '<i class="fas fa-times"></i>';
+
+                    const labelText = document.createElement("p");
+                    labelText.innerText = label;
+
+                    const picker = new CP(pickerDiv);
+
+                    const defaultValue = this.settings.default.customTheme[key];
+
+                    /**
+                     *  The colour this slot is actually showing right now: its own override if it
+                     *  has one, otherwise whatever it defers to - the map border for viruses, the
+                     *  selected colour preset for the background. null means there is no single
+                     *  colour to show, which is the rainbow case: food and player cells keep the
+                     *  server's own varied colours.
+                     */
+                    const effectiveColor = () => {
+                        const override = theme[key];
+                        if (override != null) return override;
+                        if (slot.unset === 'border') return borderColor();
+                        if (slot.unset === 'preset') return presetColor();
+                        return null;
+                    };
+
+                    // An empty slot previews what you get instead of sitting blank.
+                    const paintSwatch = () => {
+                        const solid = effectiveColor();
+                        pickerDiv.classList.toggle('themePickerRainbow', solid == null);
+                        pickerDiv.style.background = solid != null ? cssColorFrom(solid) : '';
+                        // Offer a reset only where there is something to undo, so a slot sitting
+                        // on its default doesn't advertise a control that would do nothing.
+                        row.classList.toggle('themeRowSet', theme[key] !== defaultValue);
+                    };
+
+                    // Opens the picker on the colour already in force rather than CP's default of
+                    // pure red. Only the very first set() is ever echoed back (see below); later
+                    // ones, such as the reset path, are silent.
+                    const seedPicker = () => {
+                        picker.set(new PIXI.Color(effectiveColor() ?? start ?? 0xFFFFFF).toHex());
+                    };
+
+                    // CP announces its own colour exactly once, asynchronously, shortly after it
+                    // is constructed - whatever it was seeded with, or pure red if it never was.
+                    // That announcement is not a user action, so the first change from each picker
+                    // is dropped. The previous code fought the same behaviour by discarding any
+                    // change that happened to equal #ff0000, which is why red could never be
+                    // picked as a slot's first colour.
+                    let selfAnnounced = false;
+
+                    picker.on('change', (color) => {
+                        if (!selfAnnounced) {
+                            selfAnnounced = true;
+                            return;
+                        }
+                        theme[key] = new PIXI.Color('#' + color).toNumber();
+                        // Repaints every row and re-syncs the colour buttons by itself: changing
+                        // the border moves what the virus swatch previews, and choosing a custom
+                        // background stands the presets down. Not re-seeded - mid-drag here.
                         this.changeSetting('customTheme', theme);
-                        colorPicker.source.style.background = pixiColor.toRgbaString();
-                        colorPicker.source.style.border = "0px";
                     });
-                    
-                    sectionSpan.appendChild(sectionPickerDiv);
 
-                    const sectionLabel = document.createElement("p");
-                    sectionLabel.innerText = label;
-
-                    sectionLabel.addEventListener('click', () => {
-                        theme[key] = null;
+                    resetButton.addEventListener('click', () => {
+                        theme[key] = defaultValue;
                         this.changeSetting('customTheme', theme);
-                        colorPicker.source.style.background = "#000";
-                        colorPicker.source.style.border = "1px solid #B00";
+                        seedPicker();
                     });
 
-                    sectionSpan.appendChild(sectionLabel);
-                    
-                    themeUI.appendChild(sectionSpan);
+                    row.append(pickerDiv, labelText, resetButton);
+                    paintSwatch();
+                    seedPicker();
+                    this.themeSwatchPainters.push(paintSwatch);
+                    themeUI.appendChild(row);
                 };
-                
-                for (const key in labels) {
-                    renderSection(key, labels[key]);
+
+                for (const [key, slot] of Object.entries(THEME_SLOTS)) {
+                    renderSection(key, slot);
                 }
-                
+
                 themeDiv.appendChild(themeUI);
             }
 

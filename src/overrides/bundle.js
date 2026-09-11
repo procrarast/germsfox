@@ -7998,16 +7998,18 @@ function modules(ks) {
             }
             onDeath() {
                 // Community leaderboard submission (see the Germsfox bridge below) - only if
-                // logged in, since the submitted name is the real account name, not the
-                // (spoofable, optional) in-game nickname. login.uuid is set to the literal
-                // string 'logout' rather than cleared on logout, so that's excluded too.
-                if (this.login.uuid && this.login.uuid !== 'logout' && this.login.name && this.highestMass > 0) {
+                // logged in. login.uuid is set to the literal string 'logout' rather than
+                // cleared on logout, so that's excluded too.
+                // Uses the in-game nickname rather than the account name, since that's the name
+                // players actually recognize each other by - "one entry per account" still holds
+                // regardless, since that's keyed on client_id (a per-install id), not this name.
+                if (this.login.uuid && this.login.uuid !== 'logout' && this.highestMass > 0) {
                     window.postMessage({
                         __germsfox: true,
                         type: 'death',
                         mode: this.network.mode,
                         mass: ~~this.highestMass,
-                        name: this.login.name,
+                        name: this.settings.getItem('nick') || 'An unnamed cell',
                     }, '*');
                 }
 

@@ -8,6 +8,55 @@ console.debug("Running dom.js");
 // Community daily-top-3 leaderboard (pishi.dev), rendered just below the game's own
 // #leaderboard panel - as an actual child of it, so it inherits #leaderboard's own scaling
 // (see the comment further down) and positioning for free.
+/**
+ *  Resolves a skin as the game itself does: a custom skin is already a full imgur URL, and
+ *  anything else names one of the game's own under res/skins. Relative is correct - this panel
+ *  lives in the germs.io document, so it resolves against the game's own assets.
+ *
+ *  Re-validated here even though submit.php already refused anything that did not match: this
+ *  value ends up in a CSS url(), and the endpoint is not the only thing that could ever put a
+ *  string in front of it.
+ */
+function dailyLeaderboardSkinURL(skin) {
+    if (typeof skin !== "string" || skin === "") return null;
+    if (/^https:\/\/i\.imgur\.com\/[A-Za-z0-9]{1,32}(\.(png|jpe?g|gif))?$/.test(skin)) return skin;
+    if (!/^[A-Za-z0-9 _-]{1,48}(\/[A-Za-z0-9 _-]{1,48})?(\.png)?$/.test(skin)) return null;
+    return "res/skins/" + (skin.endsWith(".png") ? skin : skin + ".png");
+}
+
+/**
+ *  The top entry's marker: their cell, coloured and skinned as the server gave it, standing in
+ *  for the gold crown. Falls back to the crown when the entry predates appearance data or was
+ *  submitted with no live cell to read it from.
+ */
+function dailyLeaderboardCrown(rank) {
+    const crown = document.createElement("i");
+    crown.classList.add("fas", "fa-crown", "lbCrown", "lbCrown-" + rank);
+    return crown;
+}
+
+function dailyLeaderboardCell(entry) {
+    // Entries from before appearance data existed, or submitted with no live cell to read it
+    // off, still get the crown they always had
+    if (typeof entry.color !== "number") return dailyLeaderboardCrown(1);
+
+    const cell = document.createElement("span");
+    cell.className = "germsfoxDailyLeaderboardCell";
+
+    const rgb = `rgb(${(entry.color >> 16) & 0xFF}, ${(entry.color >> 8) & 0xFF}, ${entry.color & 0xFF})`;
+    cell.style.backgroundColor = rgb;
+
+    const skinURL = dailyLeaderboardSkinURL(entry.skin);
+    if (skinURL) {
+        // Assigned as a property rather than built into a style string, so the URL cannot
+        // escape the url() it sits in even if it ever got past both validators
+        cell.style.backgroundImage = `url("${encodeURI(skinURL)}")`;
+        cell.style.borderColor = rgb;
+    }
+
+    return cell;
+}
+
 function renderDailyLeaderboardPanel() {
     const leaderboardDiv = document.getElementById("leaderboard");
     if (!leaderboardDiv) return;
@@ -75,8 +124,9 @@ function renderDailyLeaderboardPanel() {
             const li = document.createElement("li");
             li.className = i === 0 ? "germsfoxDailyLeaderboardFirst" : "germsfoxDailyLeaderboardOther";
 
-            const crown = document.createElement("i");
-            crown.classList.add("fas", "fa-crown", "lbCrown", "lbCrown-" + (i + 1));
+            // The leader gets their own cell in place of the gold crown, the way the native
+            // leaderboard draws you among the top ten. Everyone else keeps a crown.
+            const rank = i === 0 ? dailyLeaderboardCell(entry) : dailyLeaderboardCrown(i + 1);
 
             // name and mass stack vertically so short names still get the full row width
             // instead of sharing it with a same-line mass value (was causing needless ellipsis)
@@ -92,7 +142,7 @@ function renderDailyLeaderboardPanel() {
             mass.textContent = Number(entry.mass).toLocaleString("en-US");
 
             text.append(name, mass);
-            li.append(crown, text);
+            li.append(rank, text);
             list.appendChild(li);
         });
         return true;

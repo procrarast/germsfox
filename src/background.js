@@ -69,6 +69,9 @@ async function submitScore(request) {
                 mode: request.mode,
                 mass: request.mass,
                 name: request.name,
+                // Drawn as the top entry's cell, standing in for the gold crown
+                color: request.color,
+                skin: request.skin,
             }),
         });
     } catch (error) {

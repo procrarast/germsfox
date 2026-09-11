@@ -1081,6 +1081,19 @@ input:focus + .slider.danger {
 #germsfoxDailyLeaderboardList .lbCrown-1 {
     font-size: 14px;
 }
+/* Stands in for the gold crown on the top entry, matching the cell the native leaderboard
+   draws next to your own name. Sized to the 14px crown it replaces rather than the native
+   16px, and not reusing .lbCell itself because that carries `float: left`, which would fall
+   straight out of the flex row. */
+#germsfoxDailyLeaderboardList .germsfoxDailyLeaderboardCell {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    background-size: cover;
+    background-position: center;
+}
 .germsfoxDailyLeaderboardFirst {
     font-size: 15px;
     color: white;

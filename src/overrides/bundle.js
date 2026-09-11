@@ -7315,6 +7315,7 @@ function modules(ks) {
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
                 this.foodEaten = 0;
+                this.lastAppearance = null; // colour/skin of the last cell we were alive as
                 this.highestMass = 0;
                 this.lastSubmittedMass = 0; // highestMass at the last community-leaderboard submission
                 this.timeAlive = 0;
@@ -8372,6 +8373,26 @@ function modules(ks) {
             // each of those interval ticks a no-op unless there's an actual new high to report.
             submitLeaderboardScore() {
                 if (!this.login.uuid || this.login.uuid === 'logout') return;
+
+                /**
+                 *  Captured before the mass check, and cached, because onDeath() runs 100ms after
+                 *  the last cell is removed - by which point aliveCell is already null and there
+                 *  is nothing left to read an appearance off. The interval submits keep this
+                 *  fresh while alive, so the death submit still carries the right one.
+                 *
+                 *  baseColor, not color: that is the colour the server gave this player, so the
+                 *  board shows what everyone else sees rather than whatever local theme the
+                 *  submitting client happens to be running.
+                 */
+                const cell = this.aliveCell;
+                if (cell) {
+                    this.lastAppearance = {
+                        color: cell.baseColor,
+                        // Mirrors how the native leaderboard decides whether to draw a skin
+                        skin: cell.renderer?.heldSkin ? cell.skin : null,
+                    };
+                }
+
                 if (this.highestMass <= this.lastSubmittedMass) return;
 
                 this.lastSubmittedMass = this.highestMass;
@@ -8381,6 +8402,8 @@ function modules(ks) {
                     mode: this.network.mode,
                     mass: ~~this.highestMass,
                     name: this.settings.getItem('nick') || 'An unnamed cell',
+                    color: this.lastAppearance?.color ?? null,
+                    skin: this.lastAppearance?.skin ?? null,
                 }, '*');
             }
             onDeath() {

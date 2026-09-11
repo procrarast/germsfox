@@ -35,6 +35,8 @@ window.addEventListener('message', (event) => {
             mode: data.mode,
             mass: data.mass,
             name: data.name,
+            color: data.color,
+            skin: data.skin,
         });
     } else if (data.type === 'modeChange') {
         // Unsolicited push from bundle.js's Network.connect(). Re-dispatched as a plain DOM

@@ -5558,7 +5558,12 @@ function modules(ks) {
                     mode = 'FFA';
                     ow = this.findMode(mode);
                 }
-                this.game.settings.setItem('lastMode', mode);
+                // ow[0], not `mode`: connect() accepts either a mode key or a server name, and
+                // storing the raw argument meant lastMode could hold something like
+                // "NA Self Feed 1". network.mode is seeded from it on the next page load, so the
+                // daily leaderboard would then ask the board for a server name, get nothing back
+                // and hide itself until a connection re-established the real mode.
+                this.game.settings.setItem('lastMode', ow[0]);
                 var oz = ow[1];
                 const previousMode = this.mode;
                 this.mode = ow[0];
@@ -7315,7 +7320,8 @@ function modules(ks) {
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
                 this.foodEaten = 0;
-                this.lastAppearance = null; // colour/skin of the last cell we were alive as
+                this.lastColor = null; // colour/skin of the last cell we were alive as
+                this.lastSkin = null;
                 this.highestMass = 0;
                 this.lastSubmittedMass = 0; // highestMass at the last community-leaderboard submission
                 this.timeAlive = 0;
@@ -7776,6 +7782,7 @@ function modules(ks) {
                 // sqrt recomputed once per cell per call (setSize also runs off the node packet,
                 // where being one frame stale doesn't matter)
                 this.nodeCountRoot = Math.sqrt(this.nodes.size);
+                this.rememberAppearance();
 
                 // Before the node loop so every renderer culls against the same viewport.
                 // camera.tick() runs after the loop, so this trails a frame - the margin in
@@ -8371,27 +8378,31 @@ function modules(ks) {
             // still alive (see the setInterval in pool.populate()'s callback), so a long life
             // shows up on the daily leaderboard well before it ends. lastSubmittedMass makes
             // each of those interval ticks a no-op unless there's an actual new high to report.
+            /**
+             *  Keeps hold of the colour and skin of the cell we are currently alive as.
+             *
+             *  Called every frame rather than at submit time, which is the whole point: onDeath()
+             *  runs 100ms after the last cell is removed, so aliveCell is already null by then,
+             *  and the 30s submit interval is anchored to page load rather than to spawning. A
+             *  short round - which is most of them in a mode like Ultra Split - could begin and
+             *  end without a single tick landing while alive, and the appearance would never be
+             *  captured at all. Two scalar writes and no allocation, so the frame cost is noise.
+             *
+             *  baseColor, not color: that is the colour the server gave this player, so the board
+             *  shows what everyone else sees rather than whatever local theme this client runs.
+             */
+            rememberAppearance() {
+                const cell = this.aliveCell;
+                if (!cell) return;
+                // A cell whose packet carried no colour leaves baseColor null; the board treats
+                // that as "no appearance" and falls back to a crown rather than drawing black.
+                this.lastColor = typeof cell.baseColor === 'number' ? cell.baseColor : null;
+                // Mirrors how the native leaderboard decides whether to draw a skin at all
+                this.lastSkin = cell.renderer?.heldSkin ? cell.skin : null;
+            }
+
             submitLeaderboardScore() {
                 if (!this.login.uuid || this.login.uuid === 'logout') return;
-
-                /**
-                 *  Captured before the mass check, and cached, because onDeath() runs 100ms after
-                 *  the last cell is removed - by which point aliveCell is already null and there
-                 *  is nothing left to read an appearance off. The interval submits keep this
-                 *  fresh while alive, so the death submit still carries the right one.
-                 *
-                 *  baseColor, not color: that is the colour the server gave this player, so the
-                 *  board shows what everyone else sees rather than whatever local theme the
-                 *  submitting client happens to be running.
-                 */
-                const cell = this.aliveCell;
-                if (cell) {
-                    this.lastAppearance = {
-                        color: cell.baseColor,
-                        // Mirrors how the native leaderboard decides whether to draw a skin
-                        skin: cell.renderer?.heldSkin ? cell.skin : null,
-                    };
-                }
 
                 if (this.highestMass <= this.lastSubmittedMass) return;
 
@@ -8402,8 +8413,8 @@ function modules(ks) {
                     mode: this.network.mode,
                     mass: ~~this.highestMass,
                     name: this.settings.getItem('nick') || 'An unnamed cell',
-                    color: this.lastAppearance?.color ?? null,
-                    skin: this.lastAppearance?.skin ?? null,
+                    color: this.lastColor,
+                    skin: this.lastSkin,
                 }, '*');
             }
             onDeath() {

@@ -2639,6 +2639,10 @@ function modules(ks) {
                 ];
 
                 this.wahbasQuotes = [
+                    "Your mother likes to be spanked on her bottom",
+                    "Feed me, slave",
+                    "I'm going to spank you",
+                    "Your playing is as bad as your mom's a ss",
                     "Don't waste your time with him, he's a disgusting person.",
                     "Hiding in your mother's house",
                     "Who gave you permission to speak to me, slave?",

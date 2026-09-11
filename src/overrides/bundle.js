@@ -4834,7 +4834,11 @@ function modules(ks) {
         class FoodJellyRenderer extends JellyRenderer {
             init(node) {
                 super.init(node);
-                this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
+
+                if (!this.node.isEjected) {
+                    this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
+                }
+
                 this.root.rotation = this.node.rotation; 
             }
 
@@ -4978,7 +4982,11 @@ function modules(ks) {
             init(node) {
                 super.init(node);
                 this.sprite.texture = this.texture; // Update shape texture
-                this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
+
+                if (!this.node.isEjected) {
+                    this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
+                }
+
                 this.root.rotation = this.node.rotation; 
             }
 

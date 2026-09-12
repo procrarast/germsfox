@@ -1128,3 +1128,50 @@ input:focus + .slider.danger {
     color: white;
     opacity: 0.75; /* between the #1 name's solid white and .germsfoxDailyLeaderboardOther's 0.55 */
 }
+
+/* Deliberately identical to #themeButton: same size, same resting colours, same hover. These
+   are the same kind of control in the same HUD, so the only thing that differs is the icon. */
+.germsfoxPartyButton {
+    display: block;
+    border: none;
+    height: 34px;
+    width: 34px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    color: #BBBBBB;
+    cursor: pointer;
+    /* #party is pointer-events: none so cells can be aimed at through the HUD */
+    pointer-events: auto;
+    transition: all 0.3s ease-out;
+}
+.germsfoxPartyButton:hover {
+    transform: scale(1.2);
+    border: 2px solid #FFF;
+}
+.germsfoxPartyButton:focus {
+    outline: none;
+}
+/* The dark box moves off #party and onto the member list, so #party can hold the list and a
+   button as two separate rounded boxes instead of one that swallows both - the button brings
+   its own, exactly like #themeButton does. Shown by class because jQuery's .show() would
+   write display:block inline and flatten the row. */
+#party.germsfoxPartyOpen {
+    display: flex;
+    /* Leave sits beside the member list rather than under it, so the party box grows sideways
+       into empty screen instead of down into the play area. flex-start keeps it level with the
+       top of the list however many members that list is currently showing. */
+    align-items: flex-start;
+    gap: 6px;
+    background-color: transparent;
+}
+#partyText {
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+}
+/* Mass and score climb by a digit at a time, and every digit widened this panel - which moved
+   the party box with it, since partyMove() offsets that by #debug's current width. Pinned to
+   the width the widest ordinary line needs at seven digits ("Score: 1234567" measures 106px in
+   Roboto 15, plus the 10px padding either side), so the panel holds still all the way up. */
+#debugText {
+    min-width: 126px;
+}

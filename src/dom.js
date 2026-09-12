@@ -1557,8 +1557,9 @@ function renderPlayerMenu() {
     const menuCreate = document.getElementById("userMenuCreateParty");
     const menuItems = userMenu.querySelectorAll(".userMenuItem");
     const menuScreenshot = menuItems[menuItems.length - 1];
-    menuCreate.querySelector("hr").remove();
-    menuLeave.querySelector("hr").remove();
+    // Create Party and Leave Party are buttons in the party HUD now, not menu items
+    menuCreate.remove();
+    menuLeave.remove();
     menuScreenshot.remove();
 
     const playerSkinElement = document.getElementById("userMenuPlayerSkin");

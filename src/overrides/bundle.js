@@ -2696,9 +2696,7 @@ function modules(ks) {
                 $('#chat_input').focus();
             }
             send(lg) {
-                // /wahbas sends a random line from wahbasQuotes instead of the literal command -
-                // this is the single choke point all outgoing chat goes through (Enter-to-send,
-                // sendChatMessage(), etc.), so it applies no matter where the message came from.
+                // /wahbas sends a random line from wahbasQuotes instead of the literal command
                 if (lg.trim() === '/wahbas' && this.wahbasQuotes.length > 0) {
                     lg = this.wahbasQuotes[Math.floor(Math.random() * this.wahbasQuotes.length)];
                 }
@@ -2757,7 +2755,7 @@ function modules(ks) {
                         };
 
                         // Unlike emotes (embedded anywhere in the message as a substring),
-                        // a sticker only fires when the *entire* message is exactly its keyword.
+                        // a sticker only fires when the entire message is exactly its keyword.
                         const stickerFilename = this.germsfoxStickers.find(filename =>
                             message.trim() === filename.slice(0, filename.lastIndexOf(".")));
 
@@ -2794,6 +2792,11 @@ function modules(ks) {
                         messageDiv.style.opacity = '0';
                         messageDiv.style.transition = 'opacity 500ms';
                         messageDiv.innerHTML = "<p><b oncontextmenu='openUserMenu(" + JSON.stringify(meta).replaceAll("'", "&apos;") + "); return false;' " + "style='display:inline-block;pointer-events:all;white-space:nowrap;height:14px;color:" + rgb + "'>" + sender + "</b>: " + message + "</p>";
+
+                        // Stashed so a right-click anywhere in the row can open the same menu
+                        // the name does. The name's own inline handler still works; this just
+                        // stops the rest of the message being a dead zone.
+                        messageDiv.dataset.germsfoxSender = JSON.stringify(meta);
 
                         tab.appendChild(messageDiv);
 
@@ -2883,24 +2886,18 @@ function modules(ks) {
                 this.mapParty = document.getElementById('mapParty');
                 this.debugText = document.getElementById('debugText');
                 this.partyText = document.getElementById('partyText');
+                this.partyCreateButton = this.buildPartyButton('germsfoxPartyCreate', 'Create Party', 'fa-plus', () => this.game.createParty());
+                this.partyLeaveButton = this.buildPartyButton('germsfoxPartyLeave', 'Leave Party', 'fa-sign-out-alt', () => this.game.exitParty());
                 this.resetText = document.getElementById('resetText');
                 this.lbList = document.getElementById('leaderboardList');
                 this.mapPlayer = $('#mapPlayer');
                 this.mapPlayerEl = this.mapPlayer[0];
-                // updateMinimap() moves this with a transform instead of top/left, so pin the
-                // origin once and let the translate carry the same numbers top/left used to.
-                // Safe to own the transform outright: germs.io's own #mapPlayer rule sets none,
-                // and centres the dot with negative margins, which transforms don't disturb.
                 this.mapPlayerEl.style.top = '0px';
                 this.mapPlayerEl.style.left = '0px';
                 this.leaderboard = $('#leaderboard');
                 this.mapSize = $('#map').width();
                 this.nodeX = 0;
                 this.nodeY = 0;
-                // Updated from Network.handleNodes() once a whole node-update packet has been
-                // processed, rather than on a timer - a timer can fire mid-packet (after some
-                // nodes in the batch have been added/removed but not all), reporting a
-                // transient, desynced mass/score/cell count.
             }
             // Runs every rendered frame, so avoid rewriting DOM/style properties that haven't
             // actually changed since the last call (jQuery's .css() doesn't diff for us).
@@ -2995,6 +2992,17 @@ function modules(ks) {
                 }
                 this.leaderboard.css('height', 55 + this.game.leaderboard.length * 20 + 'px');
                 this.lbList.innerHTML = leaderboardHTML;
+            }
+
+            buildPartyButton(id, title, icon, onClick) {
+                const button = document.createElement('button');
+                button.id = id;
+                button.className = 'germsfoxPartyButton';
+                button.title = title;
+                button.innerHTML = '<i class="fas ' + icon + '"></i>';
+                button.addEventListener('click', onClick);
+                this.partyText.parentElement.appendChild(button);
+                return button;
             }
 
             clearPartyHTML() {
@@ -3159,7 +3167,6 @@ function modules(ks) {
                 return mb + m8(mc) + ':' + m8(md) + ':' + m8(me);
             }
           
-            // TODO: Robust getMass, getScore
             getMass() {
                 let total = 0;
                 for (const cell of this.game.playerCells) {
@@ -3329,7 +3336,7 @@ function modules(ks) {
                 
                 // Update zoom
                 let newZoom;
-                // Autozoom?
+                // Autozoom
                 if (this.game.settings.settings.autoZoom == true) {
                     newZoom = 0;
                     // Sometimes the server updates specZoom, might be from unimplemented spectate mode
@@ -3423,7 +3430,6 @@ function modules(ks) {
 
                 return entry.texture;
             }
-
 
             startCleanupInterval(interval) {
                 setInterval(() => {
@@ -3676,8 +3682,8 @@ function modules(ks) {
         }
 
         /**
-         *  The backgrounds behind the white/gray/black colour buttons. Previously these literals
-         *  lived inside drawGrid()'s switch, which is what made the colour buttons and the custom
+         *  The backgrounds behind the white/gray/black color buttons. Previously these literals
+         *  lived inside drawGrid()'s switch, which is what made the color buttons and the custom
          *  theme two separate systems: picking a preset never told the theme anything. setColor()
          *  now writes the preset straight into customTheme.background, so there is one value that
          *  decides the background and the theme panel always shows what is actually on screen.
@@ -3689,14 +3695,19 @@ function modules(ks) {
         };
 
         /**
-         *  Every themeable slot in one place: its label, and the colour its picker opens on while
-         *  the slot is still unset. That starting colour is load-bearing - see seedPicker().
+         *  Every themeable slot in one place: its label, and the color its picker opens on while
+         *  the slot is still unset. That starting color is load-bearing - see seedPicker().
          */
         const THEME_SLOTS = {
             // `unset` says what the swatch previews while the slot has no override: 'rainbow'
-            // for the two slots that fall back to the server's own varied colours, and 'border'
-            // for viruses, which come through in the map border's colour.
-            virus:      { label: "Virus",        unset: 'border' },
+            // where the server's own varied colors come through, 'preset' where the background
+            // follows a color button, and otherwise the slot's own `start` colour.
+            //
+            // Virus previews its own green rather than deferring to the map border. It used to
+            // read the border, which left the two looking joined at the hip in the panel - move
+            // the border and the virus swatch moved with it - even though nothing in the game
+            // ever coupled them.
+            virus:      { label: "Virus",        start: 0x33FF33 },
             food:       { label: "Food",         unset: 'rainbow', start: 0xAAAAAA },
             players:    { label: "Player Cells", unset: 'rainbow', start: 0xAAAAAA },
             background: { label: "Background",   unset: 'preset' },
@@ -3710,7 +3721,7 @@ function modules(ks) {
         };
 
         /**
-         *  Recolours `baseHex` toward `filterHex` while keeping its brightness, so a themed cell
+         *  Recolors `baseHex` toward `filterHex` while keeping its brightness, so a themed cell
          *  still shows the light/dark variation the server gave it instead of going flat.
          */
         function filterColor(baseHex, filterHex) {
@@ -3814,7 +3825,6 @@ function modules(ks) {
              */
 
             tick() {
-                // Framerate-agnostic delta
                 this.delta = Math.max(0, (Math.min(1,
                     (this.game.updateTime - this.lastUpdate) / this.animationDelay
                 )));
@@ -3841,10 +3851,7 @@ function modules(ks) {
                 // Update renderer size (not node size!)
                 this.size = lerp(this.size, this.node.size, this.delta);
 
-                // lerp approaches its target asymptotically and never actually arrives, so a
-                // settled cell would still register a microscopic change every frame forever.
-                // Snapping makes "has this stopped moving?" answerable with an equality check,
-                // which is what lets the writes below (and the uniform upload) go quiet.
+                // Let lerp snap so it doesn't have to keep recalculating if it has reached its destination
                 if (Math.abs(this.x - this.node.x) < CONVERGE_EPSILON) this.x = this.node.x;
                 if (Math.abs(this.y - this.node.y) < CONVERGE_EPSILON) this.y = this.node.y;
                 if (Math.abs(this.size - this.node.size) < CONVERGE_EPSILON) this.size = this.node.size;
@@ -5042,11 +5049,10 @@ function modules(ks) {
                 this.size = size;
                 this.lockedPosition = lockedPosition;
                 this.lockedColor = lockedColor;
-                // Kept exactly as the server sent it. The displayed colour is always derived
-                // from this, never written over it, so a theme can be changed or removed at any
-                // point without a rejoin and without tinting an already-tinted colour.
+                // As the server sent it. Independent of actual cell color as affected by custom themes
                 this.baseColor = color;
                 this.baseRgb = rgb;
+                // Now we can customize the color
                 this.applyTheme();
 
                 this.isEjected = isEjected;
@@ -5087,12 +5093,6 @@ function modules(ks) {
                 this.y += dy * invDist * moveDist;
             }
 
-            /**
-             *  Derives the displayed colour from the server colour plus whatever the active theme
-             *  says about this node's type. Idempotent and cheap, which is the point: it can be
-             *  re-run across every live node the instant a theme changes, rather than only
-             *  affecting cells that happen to spawn afterwards.
-             */
             applyTheme() {
                 const key = this.themeKey;
                 const override = key === null ? null : this.game.customTheme[key];
@@ -5104,7 +5104,7 @@ function modules(ks) {
                 }
 
                 this.color = this.themeReplaces ? override : filterColor(this.baseColor, override);
-                // Derived from the final colour rather than the raw override, so the minimap dot
+                // Derived from the final color rather than the raw override, so the minimap dot
                 // and leaderboard entry agree with the cell instead of drifting from it
                 this.rgb = cssColorFrom(this.color);
             }
@@ -5114,7 +5114,7 @@ function modules(ks) {
             }
             get type() { console.error("This node has no type!"); }
 
-            // Which customTheme slot recolours this node type, and how. Tinting preserves the
+            // Which customTheme slot recolors this node type, and how. Tinting preserves the
             // per-cell variation the server sent; replacing ignores it outright.
             get themeKey() { return null; }
             get themeReplaces() { return false; }
@@ -5153,7 +5153,7 @@ function modules(ks) {
         class VirusNode extends Node {
             get type() { return nodeType.Virus; }
             get themeKey() { return 'virus'; }
-            // Viruses arrive in a single colour, so a tint would have no variation to preserve
+            // Viruses arrive in a single color, so a tint would have no variation to preserve
             get themeReplaces() { return true; }
         }
 
@@ -5903,9 +5903,8 @@ function modules(ks) {
                 if (p7 == 'invalid') {
                     return this.game.exitParty();
                 }
-                this.game.partyMove();
                 this.game.inParty = true;
-                $('#party').show();
+                this.game.syncPartyUI();
                 window.location.hash = p7;
                 $('#partyCopyCode').val('germs.io/' + p7);
                 $('.partyCreate').hide();
@@ -6254,9 +6253,9 @@ function modules(ks) {
                     'skin': '',
                     'theme': 'hex',
                     'color': 'gray',
-                    // Node colours default to unset so the server's own colours come through
-                    // untouched. The two scene colours do have defaults: the background tracks
-                    // the selected colour preset, and the border keeps the green drawGrid() used
+                    // Node colors default to unset so the server's own colours come through
+                    // untouched. The two scene colors do have defaults: the background tracks
+                    // the selected color preset, and the border keeps the green drawGrid() used
                     // to hardcode as its fallback.
                     'customTheme': {
                         virus: null,
@@ -6327,14 +6326,14 @@ function modules(ks) {
                     } else if (key === 'background'
                             && this.settings.customTheme[key] === COLOR_PRESETS[this.settings.color]) {
                         // An earlier build wrote the chosen preset into this slot, which now
-                        // reads as a deliberate custom colour and would leave every colour
+                        // reads as a deliberate custom color and would leave every colour
                         // button unselected. Exactly matching the active preset means it was
                         // written by that sync rather than picked, so hand it back.
                         this.settings.customTheme[key] = null;
                         this.save();
                     } else if (Array.isArray(this.settings.customTheme[key])) {
                         // Migration: slots used to hold [number, cssString]. The string half went
-                        // stale against the number the moment a colour was tinted, so only the
+                        // stale against the number the moment a color was tinted, so only the
                         // number is stored now and the css form is derived where it's needed.
                         this.settings.customTheme[key] = this.settings.customTheme[key][0];
                         this.save();
@@ -7332,7 +7331,7 @@ function modules(ks) {
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
                 this.foodEaten = 0;
-                this.lastColor = null; // colour/skin of the last cell we were alive as
+                this.lastColor = null; // color/skin of the last cell we were alive as
                 this.lastSkin = null;
                 this.highestMass = 0;
                 this.lastSubmittedMass = 0; // highestMass at the last community-leaderboard submission
@@ -7951,7 +7950,7 @@ function modules(ks) {
             /**
              *  Reflects the background actually in force in the #colors radios: the matching
              *  preset while the background is following one, and nothing selected at all once a
-             *  custom colour has taken over. Leaving a preset lit under a custom colour is what
+             *  custom color has taken over. Leaving a preset lit under a custom color is what
              *  made pressing one feel like it silently reset the custom choice.
              */
             syncColorButtons() {
@@ -7983,6 +7982,20 @@ function modules(ks) {
                 this.network.sendSpectate();
                 this.freeSpec = true;
             }
+            /**
+             *  The x/y here are the spectate camera centre in the agar.io-derived protocol this
+             *  game inherits: on an Ogar-style server they follow whichever player you are
+             *  spectating, and Space (opcode 17) cycles that target while Q (opcode 18, which
+             *  germs.io builds as "Extra" and binds to Q) toggles free roam. Germs.io's own
+             *  client discards them exactly like this one does.
+             *
+             *  Measured 2026-09-11 against us.germs.io: after asserting spectate, 30s of traffic
+             *  carried only 0x10 nodes, 0x31 leaderboard and 0x64 pong - no 0x11 at all, and no
+             *  unrecognised opcode that could have replaced it. The follow camera appears to be
+             *  gone server-side, so this is dead inherited protocol surface and the zoom is the
+             *  only part of the packet still worth reading. Spectating stays free-roam because of
+             *  it; do not "fix" the camera here without first confirming 0x11 actually arrives.
+             */
             updateCameraPos(unused1, unused2, zoom) {
                 console.debug(unused1, unused2, zoom);
                 if (this.playerCells.size == 0) {
@@ -8003,7 +8016,7 @@ function modules(ks) {
                 }
             }
             /**
-             *  Re-derives every live node's colour. Previously a theme only reached cells that
+             *  Re-derives every live node's color. Previously a theme only reached cells that
              *  spawned after it was picked, so changing one left the screen a mix of old and new
              *  until everything had been eaten and respawned.
              */
@@ -8391,7 +8404,7 @@ function modules(ks) {
             // shows up on the daily leaderboard well before it ends. lastSubmittedMass makes
             // each of those interval ticks a no-op unless there's an actual new high to report.
             /**
-             *  Keeps hold of the colour and skin of the cell we are currently alive as.
+             *  Keeps hold of the color and skin of the cell we are currently alive as.
              *
              *  Called every frame rather than at submit time, which is the whole point: onDeath()
              *  runs 100ms after the last cell is removed, so aliveCell is already null by then,
@@ -8400,13 +8413,13 @@ function modules(ks) {
              *  end without a single tick landing while alive, and the appearance would never be
              *  captured at all. Two scalar writes and no allocation, so the frame cost is noise.
              *
-             *  baseColor, not color: that is the colour the server gave this player, so the board
+             *  baseColor, not color: that is the color the server gave this player, so the board
              *  shows what everyone else sees rather than whatever local theme this client runs.
              */
             rememberAppearance() {
                 const cell = this.aliveCell;
                 if (!cell) return;
-                // A cell whose packet carried no colour leaves baseColor null; the board treats
+                // A cell whose packet carried no color leaves baseColor null; the board treats
                 // that as "no appearance" and falls back to a crown rather than drawing black.
                 this.lastColor = typeof cell.baseColor === 'number' ? cell.baseColor : null;
                 // Mirrors how the native leaderboard decides whether to draw a skin at all
@@ -8486,6 +8499,26 @@ function modules(ks) {
             }
             onContextMenu(ue) {
                 this.ejectKey = false;
+
+                // Chat is checked first and by position: .chatMessage is pointer-events:none so
+                // the click lands on whatever is behind it, which is also why the guard below
+                // would otherwise throw every chat right-click away.
+                const message = this.chatMessageAt(ue.clientX, ue.clientY);
+                if (message) {
+                    ue.preventDefault();
+                    this.chatCopyText = this.chatMessageText(message);
+
+                    let sender = null;
+                    try {
+                        sender = JSON.parse(message.dataset.germsfoxSender || 'null');
+                    } catch (error) {
+                        sender = null; // server notices and the like have no sender
+                    }
+                    return this.openUserMenu(sender);
+                }
+
+                this.chatCopyText = null;
+
                 if ($('#menu').is(':visible') || ue.target.id != 'gameMenu')
                     return false;
                 ue.preventDefault();
@@ -8500,7 +8533,120 @@ function modules(ks) {
                 }
                 return openUserMenu(null);
             }
+            /**
+             *  Text of a chat message as it was typed. Emotes and stickers are rendered as <img>,
+             *  so they have to become their keyword again or a copied message comes out full of
+             *  holes: germsfox's images carry it in `alt`, the game's only in the filename, which
+             *  is the same string because Emotes.php maps every key to "<key>.png".
+             */
+            chatMessageText(messageDiv) {
+                const paragraph = messageDiv.querySelector('p');
+                if (!paragraph) return messageDiv.textContent.trim();
+
+                const textOf = (node) => {
+                    // Not Node.TEXT_NODE: this bundle has its own Node class for game nodes,
+                    // which shadows the DOM one here and made every text node read as undefined
+                    // - so every message copied out empty.
+                    if (node.nodeName === '#text') return node.nodeValue;
+                    if (node.nodeName === 'IMG') {
+                        if (node.alt) return node.alt;
+                        const file = (node.getAttribute('src') || '').split('/').pop() || '';
+                        return file.replace(/\.[^.]+$/, '');
+                    }
+                    let text = '';
+                    for (const child of node.childNodes) text += textOf(child);
+                    return text;
+                };
+
+                let text = '';
+                for (const child of paragraph.childNodes) {
+                    // Everything up to and including the sender's name is chrome, not message
+                    if (child.nodeName === 'B') {
+                        text = '';
+                        continue;
+                    }
+                    text += textOf(child);
+                }
+
+                // The ": " between name and message belongs to neither
+                return text.replace(/^\s*:\s*/, '').trim();
+            }
+
+            /**
+             *  The chat message under a point, found by hit-testing rectangles rather than by
+             *  event target: .chatMessage is pointer-events:none so you can still aim through the
+             *  chat, which means a right-click on one never actually lands on it. Only messages
+             *  inside the tab's own visible box count, so a message scrolled out of view is not
+             *  picked by its stale rectangle.
+             */
+            chatMessageAt(x, y) {
+                for (const tab of document.querySelectorAll('.chatTab')) {
+                    const tabBox = tab.getBoundingClientRect();
+                    if (x < tabBox.left || x > tabBox.right || y < tabBox.top || y > tabBox.bottom) continue;
+
+                    // Newest first. Chat messages carry a -10px bottom margin, so each one's box
+                    // runs ten pixels into the box below it - and a row is only about twenty
+                    // tall, so that overlap is half of it. Both messages contain a point in that
+                    // band, and the one actually drawn there is the later of the two: taking the
+                    // first match instead handed back the previous sender for the top half of
+                    // every message in the tab.
+                    const messages = tab.querySelectorAll('.chatMessage, .adminMessage');
+                    for (let i = messages.length - 1; i >= 0; i--) {
+                        const box = messages[i].getBoundingClientRect();
+                        if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+                            return messages[i];
+                        }
+                    }
+                }
+                return null;
+            }
+
+            /** Adds "Copy Text" to the game's own user menu, once, matching its existing rows. */
+            ensureChatCopyItem() {
+                if (this.chatCopyItem) return this.chatCopyItem;
+
+                const list = document.querySelector('#userMenu > ul');
+                if (!list) return null;
+
+                const item = document.createElement('li');
+                item.id = 'userMenuCopyText';
+                item.className = 'userMenuItem';
+                item.innerHTML = '<i class="fas fa-copy"></i><p>Copy Text</p>';
+
+                item.addEventListener('click', async () => {
+                    $('#userMenu').hide();
+                    const text = this.chatCopyText;
+                    if (!text) return;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                    } catch (error) {
+                        // The clipboard API wants a focused document and a secure context, and
+                        // refuses often enough with a game canvas in play to be worth a fallback
+                        const scratch = document.createElement('textarea');
+                        scratch.value = text;
+                        scratch.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                        document.body.appendChild(scratch);
+                        scratch.select();
+                        document.execCommand('copy');
+                        scratch.remove();
+                    }
+                });
+
+                // Appended, never prepended: #userMenuPlayerCell is absolutely positioned at
+                // top:-6px left:-6px of #userMenu itself, so the player's cell always draws in
+                // the menu's top-left corner and only lines up with the name while the player
+                // section is the first thing in the menu. Putting a row above it left the cell
+                // stranded on that row with the name orphaned below.
+                list.append(item);
+                this.chatCopyItem = item;
+                return item;
+            }
+
             openUserMenu(node) {
+                // Only offered when the menu was opened from a chat message
+                const copyItem = this.ensureChatCopyItem();
+                if (copyItem) copyItem.style.display = this.chatCopyText ? '' : 'none';
+
                 if (node && this.myID != node.parent) {
                     this.lastSelectedPlayer = node;
 
@@ -8532,13 +8678,13 @@ function modules(ks) {
                 } else {
                     $('#userMenuPlayer').hide();
                 }
-                if (this.inParty) {
-                    $('#userMenuCreateParty').hide();
-                    $('#userMenuLeaveParty').show();
-                } else {
-                    $('#userMenuCreateParty').show();
-                    $('#userMenuLeaveParty').hide();
+                // Create and Leave Party used to be what this menu always had to show, so with
+                // both of them living in the party HUD now it can end up with nothing left in
+                // it. An empty rounded box is worse than no menu at all.
+                if (!this.chatCopyText && !(node && this.myID != node.parent)) {
+                    return $('#userMenu').hide();
                 }
+
                 var gameY = this.pageY;
                 var gameX = this.pageX;
                 if (gameX + $('#userMenu').width() >= $(window).width()) {
@@ -8578,14 +8724,6 @@ function modules(ks) {
             }
             userMenuBlock() {
                 // Default blocking behavior is useless, just let Germsfox handle blocking people
-                $('#userMenu').hide();
-            }
-            userMenuCreateParty() {
-                this.createParty();
-                $('#userMenu').hide();
-            }
-            userMenuLeaveParty() {
-                this.exitParty();
                 $('#userMenu').hide();
             }
             userMenuInvite() {
@@ -8652,6 +8790,28 @@ function modules(ks) {
                 });
             }
 
+            /**
+             * germs.io keeps #party hidden until a party exists, which was fine when the only
+             * thing in it was the member list. The party controls live there now, so the box
+             * stays up for the whole game and shows whichever half applies: the create button
+             * while solo, the member list and a leave button once in a party. #partyText is
+             * padded even when empty, so it has to be hidden rather than just left blank.
+             */
+            syncPartyUI() {
+                // Coerced: inParty starts out undefined, and jQuery's toggle() treats a
+                // non-boolean as "flip me" rather than "set me", which left both halves
+                // visible after the second spawn.
+                const inParty = !!this.inParty;
+
+                // Shown by class rather than .show(), which would write an inline display:block
+                // over the flex layout the box needs to sit the button beside the list.
+                $('#party').addClass('germsfoxPartyOpen');
+                $('#partyText').toggle(inParty);
+                $(this.ui.partyCreateButton).toggle(!inParty);
+                $(this.ui.partyLeaveButton).toggle(inParty);
+                this.partyMove();
+            }
+
             themeMove() {
                 const themeDiv = document.getElementById("theme");
                 if (!themeDiv) return;
@@ -8707,7 +8867,7 @@ function modules(ks) {
                 themeUI.style.height = `${openHeight}px`;
             }
 
-            // Re-paints every swatch from the current theme. Needed because the colour buttons
+            // Re-paints every swatch from the current theme. Needed because the color buttons
             // can now change a slot from outside the panel.
             refreshThemeUI() {
                 if (this.themeSwatchPainters) {
@@ -8737,12 +8897,6 @@ function modules(ks) {
 
                 const theme = this.settings.getItem('customTheme');
 
-                // The border colour a virus stands in for, falling back to the default if the
-                // border slot were ever empty
-                const borderColor = () => theme.border != null
-                    ? theme.border
-                    : this.settings.default.customTheme.border;
-
                 // The background a preset would give, for the slot that defers to one
                 const presetColor = () => COLOR_PRESETS[this.settings.getItem('color')]
                     ?? COLOR_PRESETS.gray;
@@ -8754,7 +8908,7 @@ function modules(ks) {
 
                     const pickerDiv = document.createElement("div");
                     pickerDiv.classList.add("themePicker");
-                    pickerDiv.title = `Pick a ${label.toLowerCase()} colour`;
+                    pickerDiv.title = `Pick a ${label.toLowerCase()} color`;
 
                     const resetButton = document.createElement("button");
                     resetButton.classList.add("themeReset");
@@ -8769,18 +8923,18 @@ function modules(ks) {
                     const defaultValue = this.settings.default.customTheme[key];
 
                     /**
-                     *  The colour this slot is actually showing right now: its own override if it
+                     *  The color this slot is actually showing right now: its own override if it
                      *  has one, otherwise whatever it defers to - the map border for viruses, the
-                     *  selected colour preset for the background. null means there is no single
-                     *  colour to show, which is the rainbow case: food and player cells keep the
-                     *  server's own varied colours.
+                     *  selected color preset for the background. null means there is no single
+                     *  color to show, which is the rainbow case: food and player cells keep the
+                     *  server's own varied colors.
                      */
                     const effectiveColor = () => {
                         const override = theme[key];
                         if (override != null) return override;
-                        if (slot.unset === 'border') return borderColor();
                         if (slot.unset === 'preset') return presetColor();
-                        return null;
+                        // Its own color, so no slot's swatch moves because another one changed
+                        return slot.start ?? null;
                     };
 
                     // An empty slot previews what you get instead of sitting blank.
@@ -8793,19 +8947,19 @@ function modules(ks) {
                         row.classList.toggle('themeRowSet', theme[key] !== defaultValue);
                     };
 
-                    // Opens the picker on the colour already in force rather than CP's default of
+                    // Opens the picker on the color already in force rather than CP's default of
                     // pure red. Only the very first set() is ever echoed back (see below); later
                     // ones, such as the reset path, are silent.
                     const seedPicker = () => {
-                        picker.set(new PIXI.Color(effectiveColor() ?? start ?? 0xFFFFFF).toHex());
+                        picker.set(new PIXI.Color(effectiveColor() ?? 0xFFFFFF).toHex());
                     };
 
-                    // CP announces its own colour exactly once, asynchronously, shortly after it
+                    // CP announces its own color exactly once, asynchronously, shortly after it
                     // is constructed - whatever it was seeded with, or pure red if it never was.
                     // That announcement is not a user action, so the first change from each picker
                     // is dropped. The previous code fought the same behaviour by discarding any
                     // change that happened to equal #ff0000, which is why red could never be
-                    // picked as a slot's first colour.
+                    // picked as a slot's first color.
                     let selfAnnounced = false;
 
                     picker.on('change', (color) => {
@@ -8814,7 +8968,7 @@ function modules(ks) {
                             return;
                         }
                         theme[key] = new PIXI.Color('#' + color).toNumber();
-                        // Repaints every row and re-syncs the colour buttons by itself: changing
+                        // Repaints every row and re-syncs the color buttons by itself: changing
                         // the border moves what the virus swatch previews, and choosing a custom
                         // background stands the presets down. Not re-seeded - mid-drag here.
                         this.changeSetting('customTheme', theme);
@@ -8841,11 +8995,11 @@ function modules(ks) {
             }
 
             exitParty() {
-                $('#party').hide();
                 this.party = {};
                 this.inParty = false;
                 this.network.sendParty(2);
                 this.ui.clearPartyHTML();
+                this.syncPartyUI();
                 history.pushState('', document.title, window.location.pathname + window.location.search);
                 $('.partyCard').removeClass('partyGlow');
                 $('.partyCreate').hide();
@@ -8915,8 +9069,7 @@ function modules(ks) {
                 $('#menu').hide();
                 if (!this.hideUI)
                     $('#gameMenu').show();
-                if (this.inParty)
-                    this.partyMove();
+                this.syncPartyUI();
             }
             showMenu() {
                 $('#gameMenu').hide();
@@ -9055,8 +9208,6 @@ function modules(ks) {
         self.userMenuBlock = instance.userMenuBlock.bind(instance);
         self.userMenuScreenshot = instance.userMenuScreenshot.bind(instance);
         self.userMenuInvite = instance.userMenuInvite.bind(instance);
-        self.userMenuCreateParty = instance.userMenuCreateParty.bind(instance);
-        self.userMenuLeaveParty = instance.userMenuLeaveParty.bind(instance);
         self.buyLocked = instance.login.buyLocked.bind(instance.login);
         self.buySkin = instance.login.buySkin.bind(instance.login);
         self.buyCoins = instance.login.buyCoins.bind(instance.login);
@@ -9278,6 +9429,15 @@ function modules(ks) {
             document.getElementById("userMenuBlockText").parentElement.after(blockSkinItem);
 
             blockSkinItem.addEventListener('click', instance.userMenuBlockSkin.bind(instance));
+
+            // The player section is the last thing in this menu now that Screenshot and both
+            // party items are gone, so its trailing rule separates it from nothing. Guarded on
+            // the rule actually being last: dom.js appends Copy Skin and a rule of its own at
+            // document_idle, and this must take that one, not leave a dangling pair.
+            const playerMenu = document.getElementById("userMenuPlayer");
+            if (playerMenu.lastElementChild?.tagName === "HR") {
+                playerMenu.lastElementChild.remove();
+            }
 
             // Settings changes
             // Remove General section (skip death screen moved to UI options)

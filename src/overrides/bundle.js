@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.3.6
+ * @version     1.3.7
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -2699,9 +2699,7 @@ function modules(ks) {
                 $('#chat_input').focus();
             }
             send(lg) {
-                // /wahbas sends a random line from wahbasQuotes instead of the literal command -
-                // this is the single choke point all outgoing chat goes through (Enter-to-send,
-                // sendChatMessage(), etc.), so it applies no matter where the message came from.
+                // /wahbas sends a random line from wahbasQuotes instead of the literal command
                 if (lg.trim() === '/wahbas' && this.wahbasQuotes.length > 0) {
                     lg = this.wahbasQuotes[Math.floor(Math.random() * this.wahbasQuotes.length)];
                 }
@@ -2760,7 +2758,7 @@ function modules(ks) {
                         };
 
                         // Unlike emotes (embedded anywhere in the message as a substring),
-                        // a sticker only fires when the *entire* message is exactly its keyword.
+                        // a sticker only fires when the entire message is exactly its keyword.
                         const stickerFilename = this.germsfoxStickers.find(filename =>
                             message.trim() === filename.slice(0, filename.lastIndexOf(".")));
 
@@ -2797,6 +2795,11 @@ function modules(ks) {
                         messageDiv.style.opacity = '0';
                         messageDiv.style.transition = 'opacity 500ms';
                         messageDiv.innerHTML = "<p><b oncontextmenu='openUserMenu(" + JSON.stringify(meta).replaceAll("'", "&apos;") + "); return false;' " + "style='display:inline-block;pointer-events:all;white-space:nowrap;height:14px;color:" + rgb + "'>" + sender + "</b>: " + message + "</p>";
+
+                        // Stashed so a right-click anywhere in the row can open the same menu
+                        // the name does. The name's own inline handler still works; this just
+                        // stops the rest of the message being a dead zone.
+                        messageDiv.dataset.germsfoxSender = JSON.stringify(meta);
 
                         tab.appendChild(messageDiv);
 
@@ -2886,24 +2889,18 @@ function modules(ks) {
                 this.mapParty = document.getElementById('mapParty');
                 this.debugText = document.getElementById('debugText');
                 this.partyText = document.getElementById('partyText');
+                this.partyCreateButton = this.buildPartyButton('germsfoxPartyCreate', 'Create Party', 'fa-plus', () => this.game.createParty());
+                this.partyLeaveButton = this.buildPartyButton('germsfoxPartyLeave', 'Leave Party', 'fa-sign-out-alt', () => this.game.exitParty());
                 this.resetText = document.getElementById('resetText');
                 this.lbList = document.getElementById('leaderboardList');
                 this.mapPlayer = $('#mapPlayer');
                 this.mapPlayerEl = this.mapPlayer[0];
-                // updateMinimap() moves this with a transform instead of top/left, so pin the
-                // origin once and let the translate carry the same numbers top/left used to.
-                // Safe to own the transform outright: germs.io's own #mapPlayer rule sets none,
-                // and centres the dot with negative margins, which transforms don't disturb.
                 this.mapPlayerEl.style.top = '0px';
                 this.mapPlayerEl.style.left = '0px';
                 this.leaderboard = $('#leaderboard');
                 this.mapSize = $('#map').width();
                 this.nodeX = 0;
                 this.nodeY = 0;
-                // Updated from Network.handleNodes() once a whole node-update packet has been
-                // processed, rather than on a timer - a timer can fire mid-packet (after some
-                // nodes in the batch have been added/removed but not all), reporting a
-                // transient, desynced mass/score/cell count.
             }
             // Runs every rendered frame, so avoid rewriting DOM/style properties that haven't
             // actually changed since the last call (jQuery's .css() doesn't diff for us).
@@ -2912,9 +2909,21 @@ function modules(ks) {
                 this.nodeY = this.game.camera.y / (this.game.border[3] * 2) * this.mapSize;
 
                 // Writing top/left relayouts the element every frame; a transform is
-                // composite-only, and it's one style write instead of two
+                // composite-only, and it's one style write instead of two.
+                //
+                // Rounded and deduped as well: this is a handful of pixels on a minimap, so the
+                // dot only moves a whole pixel every several frames even at speed, and the write
+                // that was happening on all of them was costing as much as the entire base
+                // Renderer.tick across every node in the game.
                 const el = this.mapPlayerEl;
-                el.style.transform = `translate(${this.nodeX + this.mapSize / 2}px, ${this.nodeY + this.mapSize / 2}px)`;
+                const mapX = Math.round(this.nodeX + this.mapSize / 2);
+                const mapY = Math.round(this.nodeY + this.mapSize / 2);
+
+                if (mapX !== this._mapX || mapY !== this._mapY) {
+                    this._mapX = mapX;
+                    this._mapY = mapY;
+                    el.style.transform = `translate(${mapX}px, ${mapY}px)`;
+                }
 
                 if (this.game.playerCells.size > 0) {
                     const cell = this.game.aliveCell;
@@ -2943,6 +2952,8 @@ function modules(ks) {
                 this._mapSkin = undefined;
                 this._mapBorderRgb = undefined;
                 this._mapBgRgb = undefined;
+                this._mapX = undefined;
+                this._mapY = undefined;
             }
             updateLeaderboardHTML() {
                 let leaderboardHTML = '';
@@ -3000,6 +3011,17 @@ function modules(ks) {
                 this.lbList.innerHTML = leaderboardHTML;
             }
 
+            buildPartyButton(id, title, icon, onClick) {
+                const button = document.createElement('button');
+                button.id = id;
+                button.className = 'germsfoxPartyButton';
+                button.title = title;
+                button.innerHTML = '<i class="fas ' + icon + '"></i>';
+                button.addEventListener('click', onClick);
+                this.partyText.parentElement.appendChild(button);
+                return button;
+            }
+
             clearPartyHTML() {
                 this.partyText.innerHTML = '';
                 this.mapParty.innerHTML = '';
@@ -3030,24 +3052,85 @@ function modules(ks) {
                 this.scoreLabels.mass.innerHTML = `<b>Mass:</b> ${this.getMass()}`;
             }
 
+            /**
+             *  Lays the debug panel out once, so updateDebugHTML() only ever has to write
+             *  numbers into it.
+             *
+             *  It used to rebuild the whole panel as a string of markup and assign innerHTML,
+             *  which runs on every node packet - tens of times a second - and makes the browser
+             *  reparse the HTML and relayout the panel each time for what is almost always the
+             *  same five labels with different digits. Profiled during a max-split cascade the
+             *  innerHTML setter alone came to 0.35ms a frame, before the layout and paint it
+             *  drags behind it.
+             */
+            buildDebugRows() {
+                this.debugText.textContent = '';
+                this.debugValues = [];
+                this.debugColors = [];
+
+                for (const label of DEBUG_LABELS) {
+                    if (this.debugValues.length) this.debugText.appendChild(document.createElement('br'));
+
+                    const labelEl = document.createElement('b');
+                    labelEl.textContent = label + ' ';
+
+                    const valueEl = document.createElement('span');
+                    valueEl.appendChild(document.createTextNode(''));
+
+                    this.debugText.append(labelEl, valueEl);
+                    this.debugValues.push(valueEl.firstChild);
+                    this.debugColors.push(null);
+                }
+
+                // The linesplit / mouse-frozen banner, hidden until one of them is on
+                this.debugStateBreak = document.createElement('br');
+                this.debugState = document.createElement('b');
+                this.debugState.style.color = 'red';
+                this.debugText.append(this.debugStateBreak, this.debugState);
+                this.debugStateText = null;
+                this.setDebugState(null);
+            }
+
+            setDebugValue(index, text, color) {
+                const node = this.debugValues[index];
+                if (node.nodeValue !== text) node.nodeValue = text;
+
+                // Cached rather than read back off the element: the browser normalises
+                // '#ff0000' to 'rgb(255, 0, 0)', so comparing against style.color never matches
+                if (this.debugColors[index] !== color) {
+                    this.debugColors[index] = color;
+                    node.parentNode.style.color = color;
+                }
+            }
+
+            setDebugState(text) {
+                if (this.debugStateText === text) return;
+                this.debugStateText = text;
+
+                this.debugState.textContent = text ?? '';
+                const display = text ? '' : 'none';
+                this.debugState.style.display = display;
+                this.debugStateBreak.style.display = display;
+            }
+
             updateDebugHTML() {
                 const game = this.game;
 
-                const debugHTML = [
-                    '<b>Mass:</b> ' + this.getMass(),
-                    '<b>Score:</b> ' + this.getScore(),
-                    '<b>Cells:</b> ' + this.getCellCountHTML(),
-                    '<b>FPS:</b> ' + this.getFPSHTML(),
-                    '<b>PING:</b> ' + this.getPingHTML()
-                ];
+                if (!this.debugValues) this.buildDebugRows();
 
-                if (game.linesplit) {
-                    debugHTML.push('<b style="color:red">[ LINESPLITTING ]</b>');
-                } else if (game.freeze) {
-                    debugHTML.push('<b style="color:red">[ MOUSE FROZEN ]</b>');
-                }
+                const [cells, cellsColor] = this.getCellCountValue();
+                const [fps, fpsColor] = this.getFPSValue();
+                const [ping, pingColor] = this.getPingValue();
 
-                this.debugText.innerHTML = debugHTML.join('<br>');
+                this.setDebugValue(0, String(this.getMass()), 'white');
+                this.setDebugValue(1, String(this.getScore()), 'white');
+                this.setDebugValue(2, cells, cellsColor);
+                this.setDebugValue(3, fps, fpsColor);
+                this.setDebugValue(4, ping, pingColor);
+
+                this.setDebugState(game.linesplit ? '[ LINESPLITTING ]'
+                    : game.freeze ? '[ MOUSE FROZEN ]'
+                    : null);
 
                 if (game.network.restart) {
                     const restartHTML = this.getRestartHTML();
@@ -3162,7 +3245,6 @@ function modules(ks) {
                 return mb + m8(mc) + ':' + m8(md) + ':' + m8(me);
             }
           
-            // TODO: Robust getMass, getScore
             getMass() {
                 let total = 0;
                 for (const cell of this.game.playerCells) {
@@ -3181,20 +3263,19 @@ function modules(ks) {
                 }
                 return count;
             }
-            getCellCountHTML() {
+            /**
+             *  Value plus colour rather than a <font> wrapper: the debug panel writes these into
+             *  nodes it already owns (see updateDebugHTML), so handing back markup would only
+             *  mean parsing it again on every packet.
+             */
+            getCellCountValue() {
                 const count = this.getCellCount();
                 const max = CELL_COUNT_CAPS[this.game.network.mode];
-                if (!max) return String(count); // Unrecognized mode name - just show the raw count
+                if (!max) return [String(count), 'white']; // Unrecognized mode - just the raw count
 
-                let color;
-                if (count >= max) {
-                    color = '#ff0000';
-                } else if (count > max / 2) {
-                    color = 'yellow';
-                } else {
-                    color = 'white';
-                }
-                return '<font color="' + color + '">' + count + ' / ' + max + '</font>';
+                if (count >= max) return [count + ' / ' + max, '#ff0000'];
+                if (count > max / 2) return [count + ' / ' + max, 'yellow'];
+                return [count + ' / ' + max, 'white'];
             }
             getScore() {
                 const mass = this.getMass();
@@ -3202,29 +3283,18 @@ function modules(ks) {
                 this.game.highestMass = Math.max(this.score, this.game.highestMass);
                 return ~~this.score;
             }
-            getFPSHTML() {
-                var FPS = ~~this.game.ticker?.FPS;
-                if (FPS <= 15) {
-                    return '<font color="#ff0000">' + FPS + '</font>';
-                } else if (FPS <= 30) {
-                    return '<font color="yellow">' + FPS + '</font>';
-                } else {
-                    return '<font color="#00ff00">' + FPS + '</font>';
-                }
+            getFPSValue() {
+                const FPS = ~~this.game.ticker?.FPS;
+                if (FPS <= 15) return [String(FPS), '#ff0000'];
+                if (FPS <= 30) return [String(FPS), 'yellow'];
+                return [String(FPS), '#00ff00'];
             }
-            getPingHTML() {
-                // Ping font color
-                var mk = ~~this.game.ping;
-                if (!mk) {
-                    return 'N/A';
-                }
-                if (mk >= 200) {
-                    return '<font color="#ff0000">' + mk + '</font>';
-                } else if (mk >= 100) {
-                    return '<font color="yellow">' + mk + '</font>';
-                } else {
-                    return '<font color="#00ff00">' + mk + '</font>';
-                }
+            getPingValue() {
+                const ping = ~~this.game.ping;
+                if (!ping) return ['N/A', 'white'];
+                if (ping >= 200) return [String(ping), '#ff0000'];
+                if (ping >= 100) return [String(ping), 'yellow'];
+                return [String(ping), '#00ff00'];
             }
         }
 
@@ -3332,7 +3402,7 @@ function modules(ks) {
                 
                 // Update zoom
                 let newZoom;
-                // Autozoom?
+                // Autozoom
                 if (this.game.settings.settings.autoZoom == true) {
                     newZoom = 0;
                     // Sometimes the server updates specZoom, might be from unimplemented spectate mode
@@ -3426,7 +3496,6 @@ function modules(ks) {
 
                 return entry.texture;
             }
-
 
             startCleanupInterval(interval) {
                 setInterval(() => {
@@ -3551,6 +3620,8 @@ function modules(ks) {
          *  every label draws from that one atlas instead.
          */
         const MASS_FONT = 'GermsfoxMass';
+        const DEBUG_LABELS = ['Mass:', 'Score:', 'Cells:', 'FPS:', 'PING:'];
+
         const MASS_FONT_SIZE = 75;       // atlas size, and the rendered size for shortened mass
         const MASS_FONT_SIZE_FULL = 60;  // unshortened values are longer, so they render smaller
 
@@ -3679,8 +3750,8 @@ function modules(ks) {
         }
 
         /**
-         *  The backgrounds behind the white/gray/black colour buttons. Previously these literals
-         *  lived inside drawGrid()'s switch, which is what made the colour buttons and the custom
+         *  The backgrounds behind the white/gray/black color buttons. Previously these literals
+         *  lived inside drawGrid()'s switch, which is what made the color buttons and the custom
          *  theme two separate systems: picking a preset never told the theme anything. setColor()
          *  now writes the preset straight into customTheme.background, so there is one value that
          *  decides the background and the theme panel always shows what is actually on screen.
@@ -3692,14 +3763,19 @@ function modules(ks) {
         };
 
         /**
-         *  Every themeable slot in one place: its label, and the colour its picker opens on while
-         *  the slot is still unset. That starting colour is load-bearing - see seedPicker().
+         *  Every themeable slot in one place: its label, and the color its picker opens on while
+         *  the slot is still unset. That starting color is load-bearing - see seedPicker().
          */
         const THEME_SLOTS = {
             // `unset` says what the swatch previews while the slot has no override: 'rainbow'
-            // for the two slots that fall back to the server's own varied colours, and 'border'
-            // for viruses, which come through in the map border's colour.
-            virus:      { label: "Virus",        unset: 'border' },
+            // where the server's own varied colors come through, 'preset' where the background
+            // follows a color button, and otherwise the slot's own `start` colour.
+            //
+            // Virus previews its own green rather than deferring to the map border. It used to
+            // read the border, which left the two looking joined at the hip in the panel - move
+            // the border and the virus swatch moved with it - even though nothing in the game
+            // ever coupled them.
+            virus:      { label: "Virus",        start: 0x33FF33 },
             food:       { label: "Food",         unset: 'rainbow', start: 0xAAAAAA },
             players:    { label: "Player Cells", unset: 'rainbow', start: 0xAAAAAA },
             background: { label: "Background",   unset: 'preset' },
@@ -3713,7 +3789,7 @@ function modules(ks) {
         };
 
         /**
-         *  Recolours `baseHex` toward `filterHex` while keeping its brightness, so a themed cell
+         *  Recolors `baseHex` toward `filterHex` while keeping its brightness, so a themed cell
          *  still shows the light/dark variation the server gave it instead of going flat.
          */
         function filterColor(baseHex, filterHex) {
@@ -3768,6 +3844,83 @@ function modules(ks) {
         const EATEN_FADE_CUTOFF = 0.745;
 
         /**
+         *  zIndex stamped on a parked renderer so it sorts ahead of every live cell.
+         *
+         *  Live cells index on (size | 0) + a sub-unit tiebreak, so they are never negative;
+         *  this can only ever collide with itself. Sorting them to the front is what lets
+         *  compactCellContainer() take the whole backlog as one leading slice.
+         */
+        const PARKED_Z_INDEX = -1e9;
+
+        /**
+         *  Parked roots to accumulate before compacting them out of the cell container.
+         *
+         *  Detaching costs one O(n) pass however many are taken, so the bigger the batch the
+         *  cheaper each one is; but leaving them in costs a sort and two traversals of the whole
+         *  child list every frame. A few hundred is the point where the per-frame tax outweighs
+         *  the one-off pass.
+         */
+        const CELL_COMPACT_THRESHOLD = 384;
+
+        /**
+         *  Body textures with the disc a skin covers punched out, keyed by texture and skin size.
+         *
+         *  A fading cell fades its body sprite and its skin sprite independently, so over a
+         *  background the result is `a*skin + a(1-a)*body + (1-a)^2*bg` where it should be
+         *  `a*skin + (1-a)*bg`. That middle term is the bug: the body's colour washes over an
+         *  opaque skin, peaking at a(1-a) = 0.19 at the cutoff above - a fifth of the cell's
+         *  colour, right at the most visible moment of the fade.
+         *
+         *  Two sprites that never overlap composite correctly at any alpha, so rather than
+         *  flattening them (a render target per corpse) or compositing them in one draw (a mesh
+         *  per corpse, non-batchable, and a split cascade would put hundreds in a frame), the
+         *  body simply stops drawing where the skin already covers it. Same sprite, same batch,
+         *  no per-frame cost - and slightly less overdraw than before.
+         *
+         *  Only ever two or three of these exist: cell, borderless cell, virus.
+         */
+        const rimTextures = new Map();
+
+        function rimTextureFor(texture, skinSize) {
+            const key = texture.uid + ':' + skinSize;
+            const cached = rimTextures.get(key);
+            if (cached) return cached;
+
+            let rim;
+            try {
+                // Copied out of the atlas rather than drawn from scratch: a virus's rim is a
+                // ring of spikes, not a circle, and nothing outside the artwork knows its shape.
+                const frame = texture.frame;
+                const canvas = document.createElement('canvas');
+                canvas.width = frame.width;
+                canvas.height = frame.height;
+
+                const context = canvas.getContext('2d');
+                context.drawImage(
+                    texture.source.resource,
+                    frame.x, frame.y, frame.width, frame.height,
+                    0, 0, frame.width, frame.height
+                );
+
+                context.globalCompositeOperation = 'destination-out';
+                context.beginPath();
+                context.arc(frame.width / 2, frame.height / 2, (frame.width / 2) * skinSize, 0, Math.PI * 2);
+                context.fill();
+
+                rim = new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: canvas }) });
+            } catch (error) {
+                // The atlas is a local extension asset, so this should not fail - but handing
+                // back the untouched texture restores the old bleed, which is a great deal
+                // better than a cell body that has stopped drawing at all.
+                console.warn('Germsfox: could not build a rim texture; eaten cells will bleed', error);
+                rim = texture;
+            }
+
+            rimTextures.set(key, rim);
+            return rim;
+        }
+
+        /**
          *  Breaks depth ties between cells that quantise to the same integer size, so their draw
          *  order stays put instead of shuffling whenever a node is added or removed.
          *
@@ -3784,8 +3937,20 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
 
-                this.root = new PIXI.Container();
-                this.root.sortableChildren = true;
+                this.root = this.createRoot();
+            }
+
+            /**
+             *  The display object this renderer moves, scales and fades as a unit.
+             *
+             *  A Container by default, because most cells stack a body, a skin, a name and a
+             *  mass label inside it. A renderer with nothing to group can override this and
+             *  hand back its own sprite instead - see FoodSpriteRenderer.
+             */
+            createRoot() {
+                const root = new PIXI.Container();
+                root.sortableChildren = true;
+                return root;
             }
             
             init(node) {
@@ -3806,9 +3971,14 @@ function modules(ks) {
                 this.root.alpha = 1;
                 this.root.visible = true;
                 this.onScreen = true;
+                this.culled = false;
                 this.hidden = false; // set by settings that suppress a whole node type, e.g. hideFood
                 this.animationDelay = this.game.settings.settings.animationDelay;
-                this.game.cellContainer.addChild(this.root);
+                // Already parented if this renderer came back out of the pool - clean() parks
+                // roots in place rather than detaching them
+                if (this.root.parent !== this.game.cellContainer) {
+                    this.game.cellContainer.addChild(this.root);
+                }
             }
            
             /**
@@ -3817,16 +3987,51 @@ function modules(ks) {
              */
 
             tick() {
-                // Framerate-agnostic delta
                 this.delta = Math.max(0, (Math.min(1,
                     (this.game.updateTime - this.lastUpdate) / this.animationDelay
                 )));
 
                 this.lastUpdate = this.game.updateTime;
 
+                /**
+                 *  Culled first, and against the node's own position rather than the
+                 *  interpolated one: everything below this is animation, and a cell nobody can
+                 *  see does not need animating. The interpolated position is deliberately stale
+                 *  while culled, so it is not fit to cull against.
+                 *
+                 *  `hidden` counts the same way - a node type switched off in settings (food,
+                 *  say) is just as invisible as one off the edge of the screen.
+                 */
+                this.onScreen = this.game.camera.isVisible(this.node.x, this.node.y, this.node.size);
+                this.culled = this.hidden || !this.onScreen;
+
+                if (this.culled) {
+                    this.root.visible = false;
+
+                    // Snapped rather than left behind, so a cell scrolling back into view is
+                    // already where it belongs instead of sliding in from wherever it was
+                    // standing when it left
+                    this.x = this.node.x;
+                    this.y = this.node.y;
+                    this.size = this.node.size;
+
+                    // Corpses still have to retire off screen, or they pile up in the node map
+                    // for as long as the camera looks away
+                    if (this.node.eaten) {
+                        this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
+                        if (this.root.alpha <= EATEN_FADE_CUTOFF) {
+                            this.game.removeNode(this.node);
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+
                 // Update position
                 if (this.node.eaten) {
                     // Cute eating animations
+                    this.node.trackHunter();
                     this.x = lerp(this.x, this.node.x, this.delta / 5);
                     this.y = lerp(this.y, this.node.y, this.delta / 5);
 
@@ -3844,10 +4049,7 @@ function modules(ks) {
                 // Update renderer size (not node size!)
                 this.size = lerp(this.size, this.node.size, this.delta);
 
-                // lerp approaches its target asymptotically and never actually arrives, so a
-                // settled cell would still register a microscopic change every frame forever.
-                // Snapping makes "has this stopped moving?" answerable with an equality check,
-                // which is what lets the writes below (and the uniform upload) go quiet.
+                // Let lerp snap so it doesn't have to keep recalculating if it has reached its destination
                 if (Math.abs(this.x - this.node.x) < CONVERGE_EPSILON) this.x = this.node.x;
                 if (Math.abs(this.y - this.node.y) < CONVERGE_EPSILON) this.y = this.node.y;
                 if (Math.abs(this.size - this.node.size) < CONVERGE_EPSILON) this.size = this.node.size;
@@ -3869,12 +4071,8 @@ function modules(ks) {
                  *  that budget kills the renderer mid-frame. An invisible container never
                  *  reaches the render pipe, so it costs no slot - culling is what keeps the
                  *  budget proportional to what's on screen rather than to lobby size.
-                 *
-                 *  This only gates visibility - the physics, geometry and position work above
-                 *  still runs for culled nodes, so nothing about their state can drift.
                  */
-                this.onScreen = this.game.camera.isVisible(this.x, this.y, this.size);
-                this.root.visible = this.onScreen && !this.hidden;
+                this.root.visible = true;
 
                 const scale = this.size * this.game.camera.renderZoom;
                 const LOD = Math.min(Math.floor(scale / LOD_SCALE), 2);
@@ -3888,13 +4086,32 @@ function modules(ks) {
             }
             
             // Prepare for putNode()
+            /**
+             *  Parks a renderer without detaching it.
+             *
+             *  Container.removeChild() is an indexOf followed by a splice over the whole child
+             *  list, so retiring cells costs time proportional to how many are on screen times
+             *  how many are dying: detaching 4000 roots measured 11.2ms of the 17ms it took to
+             *  retire them, against 0.7ms to attach the same 4000. A parked root keeps its slot
+             *  and simply stops drawing, which makes both checkout and return O(1).
+             *
+             *  The cost of that is a child list sized to the busiest the lobby has ever been
+             *  rather than to what is live now, and sortChildren() runs over all of it. Under
+             *  the load this is meant for those are the same number; it is only a quiet spell
+             *  after a storm that pays for headroom it isn't using.
+             */
             clean() {
-                this.game.cellContainer.removeChild(this.root);
                 this.root.visible = false;
+                // Sorts to the front, where compactCellContainer() can detach the whole backlog
+                // in a single slice instead of one indexOf per node
+                this.root.zIndex = PARKED_Z_INDEX;
+                this.game.parkedRoots++;
             }
 
             destroy() {
-                this.game.cellContainer.removeChild(this.root);
+                // May already be detached by a compaction pass, and removeChild on an orphan
+                // still scans the whole child list to find nothing
+                if (this.root.parent) this.root.parent.removeChild(this.root);
                 this.root.destroy({ children: true });
                 this.root = null;
             }
@@ -4870,16 +5087,25 @@ function modules(ks) {
          */
 
         class SpriteRenderer extends Renderer {
-            constructor(game) {
-                super(game);
-
+            createRoot() {
+                // Built here rather than in the constructor so a renderer with nothing to group
+                // can hand this sprite straight back as its own root
                 this.sprite = this.createSprite();
-                this.root.addChild(this.sprite);
+
+                const root = super.createRoot();
+                root.addChild(this.sprite);
+                return root;
             }
 
             init(node) {
                 super.init(node);
                 this.sprite.tint = this.node.color;
+
+                // A pooled renderer can still be wearing the rim it was swapped to while it
+                // faded. Doubles as food's shape texture, which is why FoodSpriteRenderer no
+                // longer sets it - `this.texture` reads the checked-out node either way.
+                this.sprite.texture = this.texture;
+                this.rimmed = false;
             }
 
             refreshColor() {
@@ -4889,7 +5115,29 @@ function modules(ks) {
             tick() {
                 if (!super.tick()) return false;
 
+                // Nothing below this changes anything a culled cell would show
+                if (this.culled) return;
+
                 this.applyScale(this.root);
+
+                // Only a fading cell needs the rim - at full alpha the body is hidden behind the
+                // skin either way, and swapping only here keeps a skin with transparent parts
+                // looking exactly as it always has for the whole of normal play.
+                if (this.node.eaten && !this.rimmed) this.applyRimTexture();
+            }
+
+            /**
+             *  Swaps the body for one with the skin's disc erased. One-shot: a skin that is
+             *  still loading when its cell is eaten keeps the plain body rather than making
+             *  every remaining frame of the fade re-check.
+             */
+            applyRimTexture() {
+                this.rimmed = true;
+
+                if (!this.heldSkin) return;
+                if (!this._skinSprite || this._skinSprite.texture === PIXI.Texture.EMPTY) return;
+
+                this.sprite.texture = rimTextureFor(this.texture, this.skinSize);
             }
 
             // Creates a Sprite with a texture defined by each node type
@@ -4986,9 +5234,19 @@ function modules(ks) {
         }
 
         class FoodSpriteRenderer extends SpriteRenderer {
+            /**
+             *  Food and ejected mass are a single tinted sprite - no skin, no name, no mass
+             *  label - so the container that exists to group those is pure overhead. Dropping it
+             *  halves the display objects for far and away the most numerous node in the game,
+             *  and every one saved is a transform the renderer no longer walks.
+             */
+            createRoot() {
+                this.sprite = this.createSprite();
+                return this.sprite;
+            }
+
             init(node) {
                 super.init(node);
-                this.sprite.texture = this.texture; // Update shape texture
 
                 if (!this.node.isEjected) {
                     this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
@@ -5045,11 +5303,10 @@ function modules(ks) {
                 this.size = size;
                 this.lockedPosition = lockedPosition;
                 this.lockedColor = lockedColor;
-                // Kept exactly as the server sent it. The displayed colour is always derived
-                // from this, never written over it, so a theme can be changed or removed at any
-                // point without a rejoin and without tinting an already-tinted colour.
+                // As the server sent it. Independent of actual cell color as affected by custom themes
                 this.baseColor = color;
                 this.baseRgb = rgb;
+                // Now we can customize the color
                 this.applyTheme();
 
                 this.isEjected = isEjected;
@@ -5058,6 +5315,7 @@ function modules(ks) {
                 this.created = this.lastUpdate;
 
                 this.eaten = false;
+                this.hunterId = null;
                 this.animationDelay = this.game.settings.settings.animationDelay;
             }
 
@@ -5068,34 +5326,60 @@ function modules(ks) {
 
             getEatenBy(hunter) {
                 this.eaten = true;
-                
+
                 // Max distance is 3x cell radius
-                const maxDist = this.size * 3;
+                this.eatenMaxDist = this.size * 3;
+
+                // Where it died, so every re-aim is measured from the same origin instead of
+                // compounding frame over frame
+                this.eatenX = this.x;
+                this.eatenY = this.y;
 
                 this.size *= 0.5;
 
                 if (!hunter) return;
 
-                const dx = hunter.x - this.x;
-                const dy = hunter.y - this.y;
-                const dist = Math.hypot(dx, dy);
+                // Held by id, not by reference: nodes are pooled, so a stored hunter can quietly
+                // come back as an entirely different cell
+                this.hunterId = hunter.id;
 
-                // Clamp distance
-                const moveDist = Math.min(dist, maxDist);
-
-                // Normalize direction
-                const invDist = dist > 0 ? 1 / dist : 0;
-
-                this.x += dx * invDist * moveDist;
-                this.y += dy * invDist * moveDist;
+                this.trackHunter();
             }
 
             /**
-             *  Derives the displayed colour from the server colour plus whatever the active theme
-             *  says about this node's type. Idempotent and cheap, which is the point: it can be
-             *  re-run across every live node the instant a theme changes, rather than only
-             *  affecting cells that happen to spawn afterwards.
+             *  Re-aims a corpse at where its hunter is *now*.
+             *
+             *  The target used to be a single snapshot taken at the moment of the eat, so a
+             *  hunter that kept moving - which is most of them - left its kill sliding toward a
+             *  point it had long since left, and the further it ran the more obviously the
+             *  corpse drifted off to nowhere.
+             *
+             *  The clamp is the original's: the corpse never travels more than three of its own
+             *  radii from where it died, so a hunter that runs swings the target around the
+             *  death spot rather than dragging the body across the map.
              */
+            trackHunter() {
+                if (this.hunterId === null) return;
+
+                const hunter = this.game.nodes.get(this.hunterId);
+                if (!hunter) return; // eaten, or dropped out of view - keep the last target
+
+                // The drawn position rather than the last one off the wire, since that is the
+                // cell the corpse visibly disappears into
+                const hunterX = hunter.renderer?.x ?? hunter.x;
+                const hunterY = hunter.renderer?.y ?? hunter.y;
+
+                const dx = hunterX - this.eatenX;
+                const dy = hunterY - this.eatenY;
+                const dist = Math.hypot(dx, dy);
+
+                const moveDist = Math.min(dist, this.eatenMaxDist);
+                const invDist = dist > 0 ? 1 / dist : 0;
+
+                this.x = this.eatenX + dx * invDist * moveDist;
+                this.y = this.eatenY + dy * invDist * moveDist;
+            }
+
             applyTheme() {
                 const key = this.themeKey;
                 const override = key === null ? null : this.game.customTheme[key];
@@ -5107,7 +5391,7 @@ function modules(ks) {
                 }
 
                 this.color = this.themeReplaces ? override : filterColor(this.baseColor, override);
-                // Derived from the final colour rather than the raw override, so the minimap dot
+                // Derived from the final color rather than the raw override, so the minimap dot
                 // and leaderboard entry agree with the cell instead of drifting from it
                 this.rgb = cssColorFrom(this.color);
             }
@@ -5117,7 +5401,7 @@ function modules(ks) {
             }
             get type() { console.error("This node has no type!"); }
 
-            // Which customTheme slot recolours this node type, and how. Tinting preserves the
+            // Which customTheme slot recolors this node type, and how. Tinting preserves the
             // per-cell variation the server sent; replacing ignores it outright.
             get themeKey() { return null; }
             get themeReplaces() { return false; }
@@ -5156,7 +5440,7 @@ function modules(ks) {
         class VirusNode extends Node {
             get type() { return nodeType.Virus; }
             get themeKey() { return 'virus'; }
-            // Viruses arrive in a single colour, so a tint would have no variation to preserve
+            // Viruses arrive in a single color, so a tint would have no variation to preserve
             get themeReplaces() { return true; }
         }
 
@@ -5167,10 +5451,17 @@ function modules(ks) {
                 this.virusPool = [];
                 this.foodPool = [];
 
+                /**
+                 *  `ceiling` is a memory guard, not the working capacity - see capacityFor().
+                 *  The old fixed caps (512/128/256) were far under what a busy lobby holds, so
+                 *  almost every node checked out was built from scratch and almost every node
+                 *  returned was thrown away: a 4000-node spawn measured 17.3ms, against 4.3ms
+                 *  once the pool could actually hold them.
+                 */
                 this.config = {
                     [nodeType.Player]: {
                         pool: 'playerPool',
-                        maxSize: 512,
+                        ceiling: 8192,
                         size: 128,
                         node: CellNode,
                         spriteRenderer: CellSpriteRenderer,
@@ -5178,7 +5469,7 @@ function modules(ks) {
                     },
                     [nodeType.Virus]: {
                         pool: 'virusPool',
-                        maxSize: 128,
+                        ceiling: 1024,
                         size: 64,
                         node: VirusNode,
                         spriteRenderer: VirusSpriteRenderer,
@@ -5186,14 +5477,35 @@ function modules(ks) {
                     },
                     [nodeType.Food]: {
                         pool: 'foodPool',
-                        maxSize: 256,
+                        ceiling: 16384,
                         size: 128,
                         node: FoodNode,
                         spriteRenderer: FoodSpriteRenderer,
                         jellyRenderer: FoodJellyRenderer,
                     }
                 }
+
+                for (const cfg of Object.values(this.config)) {
+                    cfg.live = 0;   // checked out right now
+                    cfg.peak = cfg.size; // most that have ever been out at once
+                }
             };
+
+            /**
+             *  How many spares this type is allowed to keep.
+             *
+             *  Pinned to the most of that type ever live at once, which is exactly the number
+             *  needed for the worst case - every one of them dying in the same frame - and never
+             *  more: a pool can only ever hold what was checked out, so `pool.length + live` can
+             *  never exceed the high-water mark. Sizing to it means a settled lobby stops
+             *  building and destroying renderers altogether.
+             *
+             *  The ceiling only exists so one freak lobby cannot pin that memory for the rest of
+             *  the session. Nothing shrinks the pool back down after a spike below it.
+             */
+            capacityFor(cfg) {
+                return Math.min(cfg.ceiling, cfg.peak);
+            }
 
             updateRendererType() {
                 const jelly = this.game.settings.settings.jellyPhysics;
@@ -5238,8 +5550,14 @@ function modules(ks) {
                 this.virusPool = [];
                 this.foodPool = [];
                 for (const [type, cfg] of Object.entries(this.config)) {
+                    cfg.live = 0;
+                    cfg.peak = cfg.size;
+                    // Straight onto the pool rather than through putNode(), which counts a
+                    // return and would drive `live` negative for nodes never checked out
                     for (let i = 0; i < cfg.size; i++) {
-                        this.putNode(this.createNode(type));
+                        const node = this.createNode(type);
+                        node.renderer.clean();
+                        this[cfg.pool].push(node);
                     }
                 }
                 cb?.();
@@ -5248,6 +5566,8 @@ function modules(ks) {
             getNode(type, nodeData) {
                 const cfg = this.config[type];
                 const pool = this[cfg.pool];
+
+                if (++cfg.live > cfg.peak) cfg.peak = cfg.live;
 
                 const node = pool.pop();
 
@@ -5264,7 +5584,9 @@ function modules(ks) {
                 const cfg = this.config[node.type];
                 const pool = this[cfg.pool];
 
-                if (pool.length < cfg.maxSize) {
+                if (cfg.live > 0) cfg.live--;
+
+                if (pool.length < this.capacityFor(cfg)) {
                     node.renderer.clean();
                     pool.push(node);
                 } else {
@@ -5906,9 +6228,8 @@ function modules(ks) {
                 if (p7 == 'invalid') {
                     return this.game.exitParty();
                 }
-                this.game.partyMove();
                 this.game.inParty = true;
-                $('#party').show();
+                this.game.syncPartyUI();
                 window.location.hash = p7;
                 $('#partyCopyCode').val('germs.io/' + p7);
                 $('.partyCreate').hide();
@@ -6257,9 +6578,9 @@ function modules(ks) {
                     'skin': '',
                     'theme': 'hex',
                     'color': 'gray',
-                    // Node colours default to unset so the server's own colours come through
-                    // untouched. The two scene colours do have defaults: the background tracks
-                    // the selected colour preset, and the border keeps the green drawGrid() used
+                    // Node colors default to unset so the server's own colours come through
+                    // untouched. The two scene colors do have defaults: the background tracks
+                    // the selected color preset, and the border keeps the green drawGrid() used
                     // to hardcode as its fallback.
                     'customTheme': {
                         virus: null,
@@ -6330,14 +6651,14 @@ function modules(ks) {
                     } else if (key === 'background'
                             && this.settings.customTheme[key] === COLOR_PRESETS[this.settings.color]) {
                         // An earlier build wrote the chosen preset into this slot, which now
-                        // reads as a deliberate custom colour and would leave every colour
+                        // reads as a deliberate custom color and would leave every colour
                         // button unselected. Exactly matching the active preset means it was
                         // written by that sync rather than picked, so hand it back.
                         this.settings.customTheme[key] = null;
                         this.save();
                     } else if (Array.isArray(this.settings.customTheme[key])) {
                         // Migration: slots used to hold [number, cssString]. The string half went
-                        // stale against the number the moment a colour was tinted, so only the
+                        // stale against the number the moment a color was tinted, so only the
                         // number is stored now and the css form is derived where it's needed.
                         this.settings.customTheme[key] = this.settings.customTheme[key][0];
                         this.save();
@@ -7335,7 +7656,7 @@ function modules(ks) {
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
                 this.foodEaten = 0;
-                this.lastColor = null; // colour/skin of the last cell we were alive as
+                this.lastColor = null; // color/skin of the last cell we were alive as
                 this.lastSkin = null;
                 this.highestMass = 0;
                 this.lastSubmittedMass = 0; // highestMass at the last community-leaderboard submission
@@ -7421,11 +7742,13 @@ function modules(ks) {
                 this.bgContainer = new PIXI.Container();
                 this.stage.addChild(this.bgContainer);
 
+                // Renderers parked since the last compaction pass - see compactCellContainer()
+                this.parkedRoots = 0;
                 this.cellContainer = new PIXI.Container();
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.6 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.7 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -7857,6 +8180,7 @@ function modules(ks) {
                 this.ui.updateMinimap();
 
                 this.cellContainer.sortChildren();
+                this.compactCellContainer();
 
                 this.stage.x = this.width / 2 - this.camera.x * this.camera.renderZoom;
                 this.stage.y = this.height / 2 - this.camera.y * this.camera.renderZoom;
@@ -7954,7 +8278,7 @@ function modules(ks) {
             /**
              *  Reflects the background actually in force in the #colors radios: the matching
              *  preset while the background is following one, and nothing selected at all once a
-             *  custom colour has taken over. Leaving a preset lit under a custom colour is what
+             *  custom color has taken over. Leaving a preset lit under a custom color is what
              *  made pressing one feel like it silently reset the custom choice.
              */
             syncColorButtons() {
@@ -7986,6 +8310,20 @@ function modules(ks) {
                 this.network.sendSpectate();
                 this.freeSpec = true;
             }
+            /**
+             *  The x/y here are the spectate camera centre in the agar.io-derived protocol this
+             *  game inherits: on an Ogar-style server they follow whichever player you are
+             *  spectating, and Space (opcode 17) cycles that target while Q (opcode 18, which
+             *  germs.io builds as "Extra" and binds to Q) toggles free roam. Germs.io's own
+             *  client discards them exactly like this one does.
+             *
+             *  Measured 2026-09-11 against us.germs.io: after asserting spectate, 30s of traffic
+             *  carried only 0x10 nodes, 0x31 leaderboard and 0x64 pong - no 0x11 at all, and no
+             *  unrecognised opcode that could have replaced it. The follow camera appears to be
+             *  gone server-side, so this is dead inherited protocol surface and the zoom is the
+             *  only part of the packet still worth reading. Spectating stays free-roam because of
+             *  it; do not "fix" the camera here without first confirming 0x11 actually arrives.
+             */
             updateCameraPos(unused1, unused2, zoom) {
                 console.debug(unused1, unused2, zoom);
                 if (this.playerCells.size == 0) {
@@ -8006,7 +8344,7 @@ function modules(ks) {
                 }
             }
             /**
-             *  Re-derives every live node's colour. Previously a theme only reached cells that
+             *  Re-derives every live node's color. Previously a theme only reached cells that
              *  spawned after it was picked, so changing one left the screen a mix of old and new
              *  until everything had been eaten and respawned.
              */
@@ -8216,6 +8554,46 @@ function modules(ks) {
                 }
             }
 
+            /**
+             *  Detaches parked renderers from the cell container once enough have piled up.
+             *
+             *  clean() deliberately leaves a pooled root attached, because removeChild is an
+             *  indexOf plus a splice and doing it per node made a death cascade quadratic. The
+             *  bill for that lands here instead: sortChildren and collectRenderables both walk
+             *  the entire child list every frame, so a container sized to the lobby's busiest
+             *  moment keeps costing after the crowd has gone. Profiled during a max-split
+             *  cascade those two came to 2.3ms a frame.
+             *
+             *  Parked roots carry PARKED_Z_INDEX, so the sort that just ran has already gathered
+             *  them into one leading run - and removeChildren() takes a whole range in a single
+             *  pass with the render group bookkeeping done properly, which hand-splicing would
+             *  not. One O(n) pass every few hundred deaths, rather than an O(n) scan per death.
+             */
+            compactCellContainer() {
+                if (this.parkedRoots < CELL_COMPACT_THRESHOLD) return;
+                this.parkedRoots = 0;
+
+                /**
+                 *  Sorted here rather than relying on the sort that runs during rendering: that
+                 *  one is skipped whenever nothing happened to dirty it, and a backlog parked
+                 *  during such a frame then sits scattered through the list where no leading
+                 *  slice can reach it - which is exactly how an earlier version of this quietly
+                 *  stopped compacting at all. Forcing it costs one sort on the frames that
+                 *  actually compact, which is a few hundred deaths apart.
+                 */
+                const container = this.cellContainer;
+                container.sortDirty = true;
+                container.sortChildren();
+
+                const children = container.children;
+                let parked = 0;
+                while (parked < children.length && children[parked].zIndex === PARKED_Z_INDEX) {
+                    parked++;
+                }
+
+                if (parked > 0) container.removeChildren(0, parked);
+            }
+
             removeNode(node) {
                 if (node === this.aliveCell) { // Get new aliveCell if it's removed
                     if (this.playerCells.size === 1) {
@@ -8394,7 +8772,7 @@ function modules(ks) {
             // shows up on the daily leaderboard well before it ends. lastSubmittedMass makes
             // each of those interval ticks a no-op unless there's an actual new high to report.
             /**
-             *  Keeps hold of the colour and skin of the cell we are currently alive as.
+             *  Keeps hold of the color and skin of the cell we are currently alive as.
              *
              *  Called every frame rather than at submit time, which is the whole point: onDeath()
              *  runs 100ms after the last cell is removed, so aliveCell is already null by then,
@@ -8403,13 +8781,13 @@ function modules(ks) {
              *  end without a single tick landing while alive, and the appearance would never be
              *  captured at all. Two scalar writes and no allocation, so the frame cost is noise.
              *
-             *  baseColor, not color: that is the colour the server gave this player, so the board
+             *  baseColor, not color: that is the color the server gave this player, so the board
              *  shows what everyone else sees rather than whatever local theme this client runs.
              */
             rememberAppearance() {
                 const cell = this.aliveCell;
                 if (!cell) return;
-                // A cell whose packet carried no colour leaves baseColor null; the board treats
+                // A cell whose packet carried no color leaves baseColor null; the board treats
                 // that as "no appearance" and falls back to a crown rather than drawing black.
                 this.lastColor = typeof cell.baseColor === 'number' ? cell.baseColor : null;
                 // Mirrors how the native leaderboard decides whether to draw a skin at all
@@ -8489,6 +8867,26 @@ function modules(ks) {
             }
             onContextMenu(ue) {
                 this.ejectKey = false;
+
+                // Chat is checked first and by position: .chatMessage is pointer-events:none so
+                // the click lands on whatever is behind it, which is also why the guard below
+                // would otherwise throw every chat right-click away.
+                const message = this.chatMessageAt(ue.clientX, ue.clientY);
+                if (message) {
+                    ue.preventDefault();
+                    this.chatCopyText = this.chatMessageText(message);
+
+                    let sender = null;
+                    try {
+                        sender = JSON.parse(message.dataset.germsfoxSender || 'null');
+                    } catch (error) {
+                        sender = null; // server notices and the like have no sender
+                    }
+                    return this.openUserMenu(sender);
+                }
+
+                this.chatCopyText = null;
+
                 if ($('#menu').is(':visible') || ue.target.id != 'gameMenu')
                     return false;
                 ue.preventDefault();
@@ -8503,7 +8901,120 @@ function modules(ks) {
                 }
                 return openUserMenu(null);
             }
+            /**
+             *  Text of a chat message as it was typed. Emotes and stickers are rendered as <img>,
+             *  so they have to become their keyword again or a copied message comes out full of
+             *  holes: germsfox's images carry it in `alt`, the game's only in the filename, which
+             *  is the same string because Emotes.php maps every key to "<key>.png".
+             */
+            chatMessageText(messageDiv) {
+                const paragraph = messageDiv.querySelector('p');
+                if (!paragraph) return messageDiv.textContent.trim();
+
+                const textOf = (node) => {
+                    // Not Node.TEXT_NODE: this bundle has its own Node class for game nodes,
+                    // which shadows the DOM one here and made every text node read as undefined
+                    // - so every message copied out empty.
+                    if (node.nodeName === '#text') return node.nodeValue;
+                    if (node.nodeName === 'IMG') {
+                        if (node.alt) return node.alt;
+                        const file = (node.getAttribute('src') || '').split('/').pop() || '';
+                        return file.replace(/\.[^.]+$/, '');
+                    }
+                    let text = '';
+                    for (const child of node.childNodes) text += textOf(child);
+                    return text;
+                };
+
+                let text = '';
+                for (const child of paragraph.childNodes) {
+                    // Everything up to and including the sender's name is chrome, not message
+                    if (child.nodeName === 'B') {
+                        text = '';
+                        continue;
+                    }
+                    text += textOf(child);
+                }
+
+                // The ": " between name and message belongs to neither
+                return text.replace(/^\s*:\s*/, '').trim();
+            }
+
+            /**
+             *  The chat message under a point, found by hit-testing rectangles rather than by
+             *  event target: .chatMessage is pointer-events:none so you can still aim through the
+             *  chat, which means a right-click on one never actually lands on it. Only messages
+             *  inside the tab's own visible box count, so a message scrolled out of view is not
+             *  picked by its stale rectangle.
+             */
+            chatMessageAt(x, y) {
+                for (const tab of document.querySelectorAll('.chatTab')) {
+                    const tabBox = tab.getBoundingClientRect();
+                    if (x < tabBox.left || x > tabBox.right || y < tabBox.top || y > tabBox.bottom) continue;
+
+                    // Newest first. Chat messages carry a -10px bottom margin, so each one's box
+                    // runs ten pixels into the box below it - and a row is only about twenty
+                    // tall, so that overlap is half of it. Both messages contain a point in that
+                    // band, and the one actually drawn there is the later of the two: taking the
+                    // first match instead handed back the previous sender for the top half of
+                    // every message in the tab.
+                    const messages = tab.querySelectorAll('.chatMessage, .adminMessage');
+                    for (let i = messages.length - 1; i >= 0; i--) {
+                        const box = messages[i].getBoundingClientRect();
+                        if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+                            return messages[i];
+                        }
+                    }
+                }
+                return null;
+            }
+
+            /** Adds "Copy Text" to the game's own user menu, once, matching its existing rows. */
+            ensureChatCopyItem() {
+                if (this.chatCopyItem) return this.chatCopyItem;
+
+                const list = document.querySelector('#userMenu > ul');
+                if (!list) return null;
+
+                const item = document.createElement('li');
+                item.id = 'userMenuCopyText';
+                item.className = 'userMenuItem';
+                item.innerHTML = '<i class="fas fa-copy"></i><p>Copy Text</p>';
+
+                item.addEventListener('click', async () => {
+                    $('#userMenu').hide();
+                    const text = this.chatCopyText;
+                    if (!text) return;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                    } catch (error) {
+                        // The clipboard API wants a focused document and a secure context, and
+                        // refuses often enough with a game canvas in play to be worth a fallback
+                        const scratch = document.createElement('textarea');
+                        scratch.value = text;
+                        scratch.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                        document.body.appendChild(scratch);
+                        scratch.select();
+                        document.execCommand('copy');
+                        scratch.remove();
+                    }
+                });
+
+                // Appended, never prepended: #userMenuPlayerCell is absolutely positioned at
+                // top:-6px left:-6px of #userMenu itself, so the player's cell always draws in
+                // the menu's top-left corner and only lines up with the name while the player
+                // section is the first thing in the menu. Putting a row above it left the cell
+                // stranded on that row with the name orphaned below.
+                list.append(item);
+                this.chatCopyItem = item;
+                return item;
+            }
+
             openUserMenu(node) {
+                // Only offered when the menu was opened from a chat message
+                const copyItem = this.ensureChatCopyItem();
+                if (copyItem) copyItem.style.display = this.chatCopyText ? '' : 'none';
+
                 if (node && this.myID != node.parent) {
                     this.lastSelectedPlayer = node;
 
@@ -8535,13 +9046,13 @@ function modules(ks) {
                 } else {
                     $('#userMenuPlayer').hide();
                 }
-                if (this.inParty) {
-                    $('#userMenuCreateParty').hide();
-                    $('#userMenuLeaveParty').show();
-                } else {
-                    $('#userMenuCreateParty').show();
-                    $('#userMenuLeaveParty').hide();
+                // Create and Leave Party used to be what this menu always had to show, so with
+                // both of them living in the party HUD now it can end up with nothing left in
+                // it. An empty rounded box is worse than no menu at all.
+                if (!this.chatCopyText && !(node && this.myID != node.parent)) {
+                    return $('#userMenu').hide();
                 }
+
                 var gameY = this.pageY;
                 var gameX = this.pageX;
                 if (gameX + $('#userMenu').width() >= $(window).width()) {
@@ -8581,14 +9092,6 @@ function modules(ks) {
             }
             userMenuBlock() {
                 // Default blocking behavior is useless, just let Germsfox handle blocking people
-                $('#userMenu').hide();
-            }
-            userMenuCreateParty() {
-                this.createParty();
-                $('#userMenu').hide();
-            }
-            userMenuLeaveParty() {
-                this.exitParty();
                 $('#userMenu').hide();
             }
             userMenuInvite() {
@@ -8655,6 +9158,28 @@ function modules(ks) {
                 });
             }
 
+            /**
+             * germs.io keeps #party hidden until a party exists, which was fine when the only
+             * thing in it was the member list. The party controls live there now, so the box
+             * stays up for the whole game and shows whichever half applies: the create button
+             * while solo, the member list and a leave button once in a party. #partyText is
+             * padded even when empty, so it has to be hidden rather than just left blank.
+             */
+            syncPartyUI() {
+                // Coerced: inParty starts out undefined, and jQuery's toggle() treats a
+                // non-boolean as "flip me" rather than "set me", which left both halves
+                // visible after the second spawn.
+                const inParty = !!this.inParty;
+
+                // Shown by class rather than .show(), which would write an inline display:block
+                // over the flex layout the box needs to sit the button beside the list.
+                $('#party').addClass('germsfoxPartyOpen');
+                $('#partyText').toggle(inParty);
+                $(this.ui.partyCreateButton).toggle(!inParty);
+                $(this.ui.partyLeaveButton).toggle(inParty);
+                this.partyMove();
+            }
+
             themeMove() {
                 const themeDiv = document.getElementById("theme");
                 if (!themeDiv) return;
@@ -8710,7 +9235,7 @@ function modules(ks) {
                 themeUI.style.height = `${openHeight}px`;
             }
 
-            // Re-paints every swatch from the current theme. Needed because the colour buttons
+            // Re-paints every swatch from the current theme. Needed because the color buttons
             // can now change a slot from outside the panel.
             refreshThemeUI() {
                 if (this.themeSwatchPainters) {
@@ -8740,12 +9265,6 @@ function modules(ks) {
 
                 const theme = this.settings.getItem('customTheme');
 
-                // The border colour a virus stands in for, falling back to the default if the
-                // border slot were ever empty
-                const borderColor = () => theme.border != null
-                    ? theme.border
-                    : this.settings.default.customTheme.border;
-
                 // The background a preset would give, for the slot that defers to one
                 const presetColor = () => COLOR_PRESETS[this.settings.getItem('color')]
                     ?? COLOR_PRESETS.gray;
@@ -8757,7 +9276,7 @@ function modules(ks) {
 
                     const pickerDiv = document.createElement("div");
                     pickerDiv.classList.add("themePicker");
-                    pickerDiv.title = `Pick a ${label.toLowerCase()} colour`;
+                    pickerDiv.title = `Pick a ${label.toLowerCase()} color`;
 
                     const resetButton = document.createElement("button");
                     resetButton.classList.add("themeReset");
@@ -8772,18 +9291,18 @@ function modules(ks) {
                     const defaultValue = this.settings.default.customTheme[key];
 
                     /**
-                     *  The colour this slot is actually showing right now: its own override if it
+                     *  The color this slot is actually showing right now: its own override if it
                      *  has one, otherwise whatever it defers to - the map border for viruses, the
-                     *  selected colour preset for the background. null means there is no single
-                     *  colour to show, which is the rainbow case: food and player cells keep the
-                     *  server's own varied colours.
+                     *  selected color preset for the background. null means there is no single
+                     *  color to show, which is the rainbow case: food and player cells keep the
+                     *  server's own varied colors.
                      */
                     const effectiveColor = () => {
                         const override = theme[key];
                         if (override != null) return override;
-                        if (slot.unset === 'border') return borderColor();
                         if (slot.unset === 'preset') return presetColor();
-                        return null;
+                        // Its own color, so no slot's swatch moves because another one changed
+                        return slot.start ?? null;
                     };
 
                     // An empty slot previews what you get instead of sitting blank.
@@ -8796,19 +9315,19 @@ function modules(ks) {
                         row.classList.toggle('themeRowSet', theme[key] !== defaultValue);
                     };
 
-                    // Opens the picker on the colour already in force rather than CP's default of
+                    // Opens the picker on the color already in force rather than CP's default of
                     // pure red. Only the very first set() is ever echoed back (see below); later
                     // ones, such as the reset path, are silent.
                     const seedPicker = () => {
-                        picker.set(new PIXI.Color(effectiveColor() ?? start ?? 0xFFFFFF).toHex());
+                        picker.set(new PIXI.Color(effectiveColor() ?? 0xFFFFFF).toHex());
                     };
 
-                    // CP announces its own colour exactly once, asynchronously, shortly after it
+                    // CP announces its own color exactly once, asynchronously, shortly after it
                     // is constructed - whatever it was seeded with, or pure red if it never was.
                     // That announcement is not a user action, so the first change from each picker
                     // is dropped. The previous code fought the same behaviour by discarding any
                     // change that happened to equal #ff0000, which is why red could never be
-                    // picked as a slot's first colour.
+                    // picked as a slot's first color.
                     let selfAnnounced = false;
 
                     picker.on('change', (color) => {
@@ -8817,7 +9336,7 @@ function modules(ks) {
                             return;
                         }
                         theme[key] = new PIXI.Color('#' + color).toNumber();
-                        // Repaints every row and re-syncs the colour buttons by itself: changing
+                        // Repaints every row and re-syncs the color buttons by itself: changing
                         // the border moves what the virus swatch previews, and choosing a custom
                         // background stands the presets down. Not re-seeded - mid-drag here.
                         this.changeSetting('customTheme', theme);
@@ -8844,11 +9363,11 @@ function modules(ks) {
             }
 
             exitParty() {
-                $('#party').hide();
                 this.party = {};
                 this.inParty = false;
                 this.network.sendParty(2);
                 this.ui.clearPartyHTML();
+                this.syncPartyUI();
                 history.pushState('', document.title, window.location.pathname + window.location.search);
                 $('.partyCard').removeClass('partyGlow');
                 $('.partyCreate').hide();
@@ -8918,8 +9437,7 @@ function modules(ks) {
                 $('#menu').hide();
                 if (!this.hideUI)
                     $('#gameMenu').show();
-                if (this.inParty)
-                    this.partyMove();
+                this.syncPartyUI();
             }
             showMenu() {
                 $('#gameMenu').hide();
@@ -9058,8 +9576,6 @@ function modules(ks) {
         self.userMenuBlock = instance.userMenuBlock.bind(instance);
         self.userMenuScreenshot = instance.userMenuScreenshot.bind(instance);
         self.userMenuInvite = instance.userMenuInvite.bind(instance);
-        self.userMenuCreateParty = instance.userMenuCreateParty.bind(instance);
-        self.userMenuLeaveParty = instance.userMenuLeaveParty.bind(instance);
         self.buyLocked = instance.login.buyLocked.bind(instance.login);
         self.buySkin = instance.login.buySkin.bind(instance.login);
         self.buyCoins = instance.login.buyCoins.bind(instance.login);
@@ -9281,6 +9797,15 @@ function modules(ks) {
             document.getElementById("userMenuBlockText").parentElement.after(blockSkinItem);
 
             blockSkinItem.addEventListener('click', instance.userMenuBlockSkin.bind(instance));
+
+            // The player section is the last thing in this menu now that Screenshot and both
+            // party items are gone, so its trailing rule separates it from nothing. Guarded on
+            // the rule actually being last: dom.js appends Copy Skin and a rule of its own at
+            // document_idle, and this must take that one, not leave a dangling pair.
+            const playerMenu = document.getElementById("userMenuPlayer");
+            if (playerMenu.lastElementChild?.tagName === "HR") {
+                playerMenu.lastElementChild.remove();
+            }
 
             // Settings changes
             // Remove General section (skip death screen moved to UI options)

@@ -2639,6 +2639,9 @@ function modules(ks) {
                 ];
 
                 this.wahbasQuotes = [
+                    "Look at the professionalism, big guy!ـط",
+                    "Give me my share of the tasteـس",
+                    "gsCool ـص",
                     "Your mother likes to be spanked on her bottom",
                     "Feed me, slave",
                     "I'm going to spank you",

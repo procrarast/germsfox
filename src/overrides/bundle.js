@@ -3371,6 +3371,10 @@ function modules(ks) {
             for (const buffer of pipe._buffers) buffer.data = grown;
         }
 
+        /** Zoom applied per wheel notch at the default sensitivity, and the span the slider covers. */
+        const ZOOM_STEP = 0.9;
+        const ZOOM_SENSITIVITY_RANGE = 4;
+
         const ZOOM_MIN = 0.01;
         const ZOOM_MAX = 5;
 
@@ -3389,6 +3393,7 @@ function modules(ks) {
                 this.renderZoom = 1;
 
                 this.cameraDelay = this.game.settings.settings.cameraDelay;
+                this.zoomSensitivity = this.game.settings.settings.zoomSensitivity;
             }
 
             tick() {
@@ -3425,7 +3430,7 @@ function modules(ks) {
             }
 
             // Routed through setZoom so the clamp lives in exactly one place
-            changeZoom(amount) { this.setZoom(this.userZoom * Math.pow(0.9, amount)); }
+            changeZoom(amount) { this.setZoom(this.userZoom * Math.pow(ZOOM_STEP, amount * this._zoomStep)); }
 
             setZoom(value) { this.userZoom = Math.min(Math.max(value, ZOOM_MIN), ZOOM_MAX); }
 
@@ -3459,6 +3464,20 @@ function modules(ks) {
             get viewRange() { return Math.max(this.game.width / 1080, this.game.height / 1920) * this.userZoom; }
             get cameraDelay() { return this._delay }
             set cameraDelay(cameraDelay) { this._delay = cameraDelay; }
+
+            /**
+             *  0-100 from the settings slider, kept as the multiplier a wheel notch is raised to.
+             *
+             *  The midpoint is 1, which is exactly the step the wheel always had, so a default
+             *  install zooms identically to before. Either end is a factor of ZOOM_SENSITIVITY_RANGE
+             *  away from it, and the mapping is exponential because sensitivity is multiplicative -
+             *  halving it should feel like the mirror of doubling it.
+             */
+            get zoomSensitivity() { return this._zoomSensitivity; }
+            set zoomSensitivity(value) {
+                this._zoomSensitivity = Number(value);
+                this._zoomStep = Math.pow(ZOOM_SENSITIVITY_RANGE, (this._zoomSensitivity - 50) / 50);
+            }
         }
 
         /**
@@ -3834,11 +3853,27 @@ function modules(ks) {
         const CONVERGE_EPSILON = 0.01;
 
         /**
-         *  Alpha an eaten cell fades to before it is removed. It starts at 1 and falls at a
-         *  constant rate, so the span it travels *is* how long the corpse lingers: 1 -> 0.745
-         *  is 0.255, or 85% of the 0.3 it used to cover, making them clear 15% sooner.
+         *  How far toward invisible a corpse gets before it is removed, as a fraction of
+         *  whatever opacity the cell was drawn at. The old per-frame fade covered 0.255 (a
+         *  1 -> 0.745 slide); this is one and a half times that, so a corpse thins out more
+         *  before it goes rather than popping while still most of the way solid.
          */
-        const EATEN_FADE_CUTOFF = 0.745;
+        const EATEN_FADE_DEPTH = 0.383;
+
+        /**
+         *  How long that fade takes, in multiples of the animation delay.
+         *
+         *  It used to subtract from alpha once per frame and remove the cell when it crossed a
+         *  fixed threshold, which stopped working the moment cells could be drawn at less than
+         *  full opacity: a cell already below the threshold was removed on the first frame it
+         *  died. Reading the clock instead keeps the same duration at every opacity, and still
+         *  follows the animation delay the way it always did.
+         *
+         *  The old per-frame arithmetic worked out to 1.275 (its 0.255 depth * 5); this is that,
+         *  a quarter shorter, so corpses clear sooner while fading by exactly the same fraction
+         *  of whatever opacity they were drawn at.
+         */
+        const EATEN_FADE_TIME = 0.956;
 
         /**
          *  zIndex stamped on a parked renderer so it sorts ahead of every live cell.
@@ -3965,7 +4000,7 @@ function modules(ks) {
                 this.y = node.y;
 
                 this.root.zIndex = (this.size | 0) + zOrderTiebreak(node.id); // same form as tick()
-                this.root.alpha = 1;
+                this.root.alpha = this.opacity;
                 this.root.visible = true;
                 this.onScreen = true;
                 this.culled = false;
@@ -3978,6 +4013,39 @@ function modules(ks) {
                 }
             }
            
+            /**
+             *  Fades a corpse toward invisible and retires it once it has gone far enough.
+             *  Returns true when the node was removed and this renderer is finished.
+             *
+             *  Driven off the clock rather than by subtracting a little alpha each frame, so the
+             *  corpse takes the same time to clear whatever opacity its cell was drawn at - see
+             *  EATEN_FADE_TIME.
+             */
+            fadeEaten() {
+                const progress = (this.game.updateTime - this.node.eatenAt)
+                    / (this.animationDelay * EATEN_FADE_TIME);
+
+                if (progress >= 1) {
+                    this.game.removeNode(this.node);
+                    return true;
+                }
+
+                this.root.alpha = this.opacity * (1 - EATEN_FADE_DEPTH * progress);
+                return false;
+            }
+
+            /**
+             *  The alpha this node is drawn at while it is alive.
+             *
+             *  Only player cells follow the opacity setting - seeing through the crowd is the
+             *  point of it, and food and viruses are small enough that fading them would just
+             *  make them hard to pick out. Keyed on the node rather than overridden per class so
+             *  both renderer families get it from one place.
+             */
+            get opacity() {
+                return this.node.type === nodeType.Player ? this.game.cellOpacity : 1;
+            }
+
             /**
              *  Update rendered position, size and alpha of the displayed Node
              *  Return true if rendering should continue after tick() returns
@@ -4014,13 +4082,7 @@ function modules(ks) {
 
                     // Corpses still have to retire off screen, or they pile up in the node map
                     // for as long as the camera looks away
-                    if (this.node.eaten) {
-                        this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
-                        if (this.root.alpha <= EATEN_FADE_CUTOFF) {
-                            this.game.removeNode(this.node);
-                            return false;
-                        }
-                    }
+                    if (this.node.eaten && this.fadeEaten()) return false;
 
                     return true;
                 }
@@ -4032,12 +4094,7 @@ function modules(ks) {
                     this.x = lerp(this.x, this.node.x, this.delta / 5);
                     this.y = lerp(this.y, this.node.y, this.delta / 5);
 
-                    // Update alpha
-                    this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
-                    if (this.root.alpha <= EATEN_FADE_CUTOFF) {
-                        this.game.removeNode(this.node);
-                        return false;
-                    }
+                    if (this.fadeEaten()) return false;
                 } else {
                     this.x = lerp(this.x, this.node.x, this.delta);
                     this.y = lerp(this.y, this.node.y, this.delta);
@@ -5103,6 +5160,7 @@ function modules(ks) {
                 // longer sets it - `this.texture` reads the checked-out node either way.
                 this.sprite.texture = this.texture;
                 this.rimmed = false;
+                this.eatenRimChecked = false;
             }
 
             refreshColor() {
@@ -5117,24 +5175,34 @@ function modules(ks) {
 
                 this.applyScale(this.root);
 
-                // Only a fading cell needs the rim - at full alpha the body is hidden behind the
-                // skin either way, and swapping only here keeps a skin with transparent parts
-                // looking exactly as it always has for the whole of normal play.
-                if (this.node.eaten && !this.rimmed) this.applyRimTexture();
+                // Checked once, on the frame it dies: a skin still loading at that moment keeps
+                // the plain body rather than making every remaining frame of the fade re-test.
+                if (this.node.eaten && !this.eatenRimChecked) {
+                    this.eatenRimChecked = true;
+                    this.refreshBodyTexture();
+                }
             }
 
             /**
-             *  Swaps the body for one with the skin's disc erased. One-shot: a skin that is
-             *  still loading when its cell is eaten keeps the plain body rather than making
-             *  every remaining frame of the fade re-check.
+             *  Chooses between the plain body texture and one with the skin's disc erased.
+             *
+             *  A body only bleeds through its skin once the two are drawn at less than full
+             *  alpha - while a corpse fades, or whenever the cell opacity setting is turned
+             *  down. At full opacity the plain texture is kept, so a skin with transparent parts
+             *  still shows the cell's colour through them exactly as it always has.
              */
-            applyRimTexture() {
-                this.rimmed = true;
+            refreshBodyTexture() {
+                const skinned = !!this.heldSkin
+                    && !!this._skinSprite
+                    && this._skinSprite.texture !== PIXI.Texture.EMPTY;
 
-                if (!this.heldSkin) return;
-                if (!this._skinSprite || this._skinSprite.texture === PIXI.Texture.EMPTY) return;
+                this.rimmed = skinned && (this.node.eaten || this.opacity < 1);
 
-                this.sprite.texture = rimTextureFor(this.texture, this.skinSize);
+                const texture = this.rimmed
+                    ? rimTextureFor(this.texture, this.skinSize)
+                    : this.texture;
+
+                if (this.sprite.texture !== texture) this.sprite.texture = texture;
             }
 
             // Creates a Sprite with a texture defined by each node type
@@ -5147,6 +5215,7 @@ function modules(ks) {
             applySkinTexture() {
                 this.skinSprite.texture = this.skinTexture;
                 this.skinSprite.scale.set(this.skinSize * (2 * this.textureSize / this.skinTexture.size));
+                this.refreshBodyTexture();
             }
 
             removeSkinTexture() {
@@ -5155,6 +5224,7 @@ function modules(ks) {
                 if (!this._skinSprite) return;
                 this._skinSprite.removeAllListeners();
                 this._skinSprite.texture = PIXI.Texture.EMPTY;
+                this.refreshBodyTexture();
             }
 
             get skinSprite() {
@@ -5216,7 +5286,9 @@ function modules(ks) {
 
             updateBorder() {
                 if (this.skinTexture) this.skinSprite.scale.set(this.skinSize * (2 * this.textureSize / this.skinTexture.size));
-                this.sprite.texture = this.texture;
+                // Through refreshBodyTexture rather than a direct write, or toggling the border
+                // would strip the rim off every skinned cell currently wearing one
+                this.refreshBodyTexture();
             }
 
             get texture() { return this.game.cellTexture };
@@ -5323,6 +5395,10 @@ function modules(ks) {
 
             getEatenBy(hunter) {
                 this.eaten = true;
+                // Falls back to the wall clock for the window before the first frame has set
+                // updateTime - an undefined start would make the fade's progress NaN, and a NaN
+                // alpha is an invisible cell that never retires
+                this.eatenAt = this.game.updateTime || performance.now();
 
                 // Max distance is 3x cell radius
                 this.eatenMaxDist = this.size * 3;
@@ -6610,13 +6686,14 @@ function modules(ks) {
                     'lockedColor': '#FF0000',
                     'lockedPosition': '#FF0000',
                     'disableProfanityFilter': false,
-                    'mouseArrow': false,
                     'deathCount': 0,
                     // Begin Germsfox settings
                     'lastMode': 'FFA',
                     'highQualitySkins': false,
                     'borderlessCells': false,
                     'cameraDelay': 45,
+                    'cellOpacity': 100,
+                    'zoomSensitivity': 50,
                     'shortenMass': true,
                     'hideMapGrid': true,
                     'dynamicLinesplitAxis': true,
@@ -6687,8 +6764,7 @@ function modules(ks) {
                     'hideFood',
                     'hideBorder',
                     'disableProfanityFilter',
-                    'autoZoom',
-                    'mouseArrow'
+                    'autoZoom'
                 ].forEach(id => {
                     document.getElementById(id).checked = this.getItem(id);
                 });
@@ -6737,6 +6813,19 @@ function modules(ks) {
                     case 'cameraDelay':
                         this.game.camera.cameraDelay = value;
                         break;
+                    case 'zoomSensitivity':
+                        this.game.camera.zoomSensitivity = value;
+                        break;
+                    case 'cellOpacity':
+                        this.game.cellOpacity = Number(value) / 100;
+                        // Below full opacity a skinned body shows through its own skin, so every
+                        // live cell has to reconsider which body texture it is wearing
+                        for (const node of this.game.nodes.values()) {
+                            const renderer = node.renderer;
+                            if (!node.eaten) renderer.root.alpha = renderer.opacity;
+                            renderer.refreshBodyTexture?.();
+                        }
+                        break;
                     case 'animationDelay':
                         for (const node of this.game.nodes.values()) {
                             node.animationDelay = value;
@@ -6761,7 +6850,6 @@ function modules(ks) {
                             if (node.type !== nodeType.Player) continue;
                             if (!node.renderer.sprite) continue;
                             node.renderer.updateBorder();
-                            node.renderer.sprite.texture = this.game.cellTexture;
                         }
                         for (const node of this.game.pool.playerPool) {
                             if (node.renderer.sprite) node.renderer.sprite.texture = this.game.cellTexture;
@@ -7760,6 +7848,9 @@ function modules(ks) {
                 this.hexTexture.source.autoGenerateMipmaps = true;
                 this.arrowTexture = PIXI.Assets.get('arrow');
 
+                // Cached rather than read through settings on every checkout and every frame of
+                // every corpse's fade
+                this.cellOpacity = this.settings.settings.cellOpacity / 100;
                 this.cellTexture = this.settings.settings.borderlessCells ? this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
                 this.virusTexture = this.spriteSheet.textures.virus;
                 this.foodTextures = [this.spriteSheet.textures.food1, this.spriteSheet.textures.food2, this.spriteSheet.textures.food3];
@@ -9297,6 +9388,8 @@ function modules(ks) {
                     const effectiveColor = () => {
                         const override = theme[key];
                         if (override != null) return override;
+                        // No single color to show - the server's own varied ones come through
+                        if (slot.unset === 'rainbow') return null;
                         if (slot.unset === 'preset') return presetColor();
                         // Its own color, so no slot's swatch moves because another one changed
                         return slot.start ?? null;
@@ -9316,7 +9409,9 @@ function modules(ks) {
                     // pure red. Only the very first set() is ever echoed back (see below); later
                     // ones, such as the reset path, are silent.
                     const seedPicker = () => {
-                        picker.set(new PIXI.Color(effectiveColor() ?? 0xFFFFFF).toHex());
+                        // `start` is the fallback for a rainbow slot, which has no single
+                        // effective color to open on
+                        picker.set(new PIXI.Color(effectiveColor() ?? start ?? 0xFFFFFF).toHex());
                     };
 
                     // CP announces its own color exactly once, asynchronously, shortly after it
@@ -9804,150 +9899,148 @@ function modules(ks) {
                 playerMenu.lastElementChild.remove();
             }
 
-            // Settings changes
-            // Remove General section (skip death screen moved to UI options)
+            // Settings changes ===================================================
+            // The General Options badge goes; its one row (skip match results) belongs under UI
             document.querySelector('#settings-general .badge.badge-pill.badge-primary').remove();
 
-            // Begin Render section ====================================
-            const animationDelayLabel = document.getElementById("animationDelayLabel");
-            animationDelayLabel.innerText = "Animation Delay";
+            const settingsGeneral = document.getElementById("settings-general");
+
+            /** The row a control sits in, whichever kind of control it is. */
+            const settingRow = (id) => {
+                const control = document.getElementById(id);
+                return control ? (control.closest(".clearfix") ?? control.parentElement) : null;
+            };
+
+            const addToggle = (key, label) => {
+                const row = document.createElement("div");
+                row.className = "clearfix";
+                row.innerHTML = `
+                    <h5 class="optionLabel">${label}</h5>
+                    <label class="switch">
+                        <input
+                            type="checkbox"
+                            id="${key}"
+                            onchange="changeSetting('${key}', this.checked);">
+                        <span class="slider round"></span>
+                    </label>
+                `;
+                row.querySelector("input").checked = instance.settings.settings[key];
+                settingsGeneral.appendChild(row);
+            };
+
+            const addSlider = (key, label, min, max) => {
+                const value = instance.settings.settings[key];
+                const row = document.createElement("div");
+                row.className = "clearfix";
+                row.innerHTML = `
+                    <h5 id="${key}Label" class="optionLabel">${label}</h5>
+                    <input
+                        data-placement="top"
+                        title=""
+                        type="range"
+                        min="${min}"
+                        max="${max}"
+                        value="${value}"
+                        class="range"
+                        id="${key}"
+                        oninput="changeSetting('${key}', this.value); $('#${key}Tooltip').text(this.value);"
+                        data-original-title="<div id='${key}Tooltip'>${value}</div>"
+                        data-toggle="tooltip">
+                `;
+                settingsGeneral.appendChild(row);
+            };
+
+            // The game's own animation slider, relabelled and given a usable range
+            document.getElementById("animationDelayLabel").innerText = "Animation Delay";
             const animationDelayInput = document.getElementById("animationDelay");
             animationDelayInput.max = 200;
             animationDelayInput.min = 10;
 
-            const animationDelayClearfix = animationDelayLabel.parentElement;
+            addSlider("cameraDelay", "Camera Delay", 10, 200);
+            addSlider("zoomSensitivity", "Zoom Sensitivity", 0, 100);
+            addSlider("cellOpacity", "Cell Opacity", 0, 100);
 
-            const cameraDelayClearfix = document.createElement("div");
-            cameraDelayClearfix.className = "clearfix";
-            cameraDelayClearfix.innerHTML = `
-                <h5 id="cameraDelayLabel" class="optionLabel">Camera Delay</h5>
-                <input
-                    data-placement="top"
-                    title=""
-                    type="range"
-                    min="10"
-                    max="200"
-                    value="${instance.settings.settings.cameraDelay}"
-                    class="range"
-                    id="cameraDelay"
-                    oninput="changeSetting('cameraDelay', this.value); $('#cameraDelayTooltip').text(this.value);"
-                    data-original-title="<div id='cameraDelayTooltip'>${instance.settings.settings.cameraDelay}</div>"
-                    data-toggle="tooltip">
-            `;
-
-            animationDelayClearfix.before(cameraDelayClearfix);
-
-            // New Render Options
-            const renderSettings = [
+            for (const [key, label] of [
                 ["highQualitySkins", "Hi-Res Skins"],
                 ["shortenMass", "Shorten Mass"],
-                ["hideMapGrid", "Hide Map Grid"],
-                ["acidMode", "Acid Mode"],
                 ["borderlessCells", "Borderless Cells"],
+                ["hideMapGrid", "Hide Map Grid"],
                 ["jellyPhysics", "Jelly Physics"],
+                ["acidMode", "Acid Mode"],
                 ["webGPU", "Use WebGPU"],
-            ];
-
-            for (const [key, label] of renderSettings) {
-                const clearfix = document.createElement("div");
-                clearfix.className = "clearfix";
-
-                clearfix.innerHTML = `
-                    <h5 class="optionLabel">${label}</h5>
-                    <label class="switch">
-                        <input
-                            type="checkbox"
-                            id="${key}"
-                            onchange="changeSetting('${key}', this.checked);">
-                        <span class="slider round"></span>
-                    </label>
-                `;
-
-                clearfix.querySelector("input").checked =
-                    instance.settings.settings[key];
-
-                animationDelayClearfix.after(clearfix);
-            }
-
-            // Move Auto Zoom into Render Options
-            const autoZoomRow =
-                document.getElementById("autoZoom").parentElement.parentElement;
-
-            autoZoomRow.after(autoZoomRow);
-
-            // Create Appearance section ===========================================
-            const appearanceBadge = document.createElement("span");
-            appearanceBadge.className = "badge badge-pill badge-primary";
-            appearanceBadge.textContent = "Appearance Options";
-
-            autoZoomRow.after(appearanceBadge);
-
-            const appearanceSettings = [
-                "showMass",
-                "shortenMass",
-                "hideFood",
-                "hideBorder",
-                "hideMapGrid",
-                "mouseArrow",
-                "showNames",
-                "showSkins",
-            ];
-
-            for (const id of appearanceSettings) {
-                let row = document.getElementById(id).parentElement;
-                if (row.className === "switch") row = row.parentElement;
-                appearanceBadge.after(row);
-            }
-
-            const acidModeInput = document.getElementById("acidMode").parentElement.parentElement;
-            acidModeInput.display = instance.renderer.type === 2 ? "none" : "block";
-
-            // Create Gameplay section =============================================
-            const gameplayBadge = document.createElement("span");
-            gameplayBadge.className = "badge badge-pill badge-primary";
-            gameplayBadge.textContent = "Gameplay Options";
-
-            appearanceBadge.before(gameplayBadge);
-
-            const gameplaySettings = [
                 ["dynamicLinesplitAxis", "Dynamic Linesplit Axis"],
                 ["diagonalLinesplits", "Diagonal Linesplits"],
                 ["deathFreecam", "Freecam on Death"],
-                ["bruhMode", "Bruh Mode"]
+                ["bruhMode", "Bruh Mode"],
+            ]) {
+                addToggle(key, label);
+            }
+
+            // Nothing in this bundle has drawn the mouse arrow for a long time, so the toggle
+            // did the same thing whichever way it was set
+            settingRow("mouseArrow")?.remove();
+
+            /**
+             *  Every row placed in one pass, rather than by shuffling them around each other.
+             *
+             *  Appearance is what a cell looks like, Render is how the picture is produced,
+             *  Gameplay is how it plays and UI is the furniture around it - so borderless cells
+             *  and hi-res skins sit with the cells they describe rather than with the renderer.
+             *  Anything not named here (Theme, Colour and their contents) keeps its own order,
+             *  after these.
+             */
+            const SETTINGS_SECTIONS = [
+                ["Appearance Options", [
+                    "cellOpacity", "showSkins", "highQualitySkins", "showNames",
+                    "showMass", "shortenMass", "borderlessCells",
+                    "hideFood", "hideBorder", "hideMapGrid",
+                ]],
+                ["Render Options", [
+                    "animationDelay", "cameraDelay", "zoomSensitivity",
+                    "autoZoom", "jellyPhysics", "acidMode", "webGPU",
+                ]],
+                ["Gameplay Options", [
+                    "dynamicLinesplitAxis", "diagonalLinesplits", "deathFreecam", "bruhMode",
+                ]],
+                ["UI Options", [
+                    "skipDeathScreen", "hideXP", "hideChat", "disableProfanityFilter",
+                ]],
             ];
 
-            for (const [key, label] of gameplaySettings) {
-                const clearfix = document.createElement("div");
-                clearfix.className = "clearfix";
+            const originalOrder = [...settingsGeneral.children];
+            const placed = new Set();
 
-                clearfix.innerHTML = `
-                    <h5 class="optionLabel">${label}</h5>
-                    <label class="switch">
-                        <input
-                            type="checkbox"
-                            id="${key}"
-                            onchange="changeSetting('${key}', this.checked);">
-                        <span class="slider round"></span>
-                    </label>
-                `;
+            for (const [title, ids] of SETTINGS_SECTIONS) {
+                let badge = originalOrder.find(el =>
+                    el.classList?.contains("badge") && el.textContent.trim() === title);
 
-                clearfix.querySelector("input").checked =
-                    instance.settings.settings[key];
+                if (!badge) {
+                    badge = document.createElement("span");
+                    badge.className = "badge badge-pill badge-primary";
+                    badge.textContent = title;
+                }
 
-                gameplayBadge.after(clearfix);
+                settingsGeneral.appendChild(badge);
+                placed.add(badge);
+
+                for (const id of ids) {
+                    const row = settingRow(id);
+                    if (!row) continue;
+                    settingsGeneral.appendChild(row);
+                    placed.add(row);
+                }
             }
 
-            // Move Skip Death Screen into UI Options
-            const uiBadge = [...document.querySelectorAll(
-                '#settings-general .badge.badge-pill.badge-primary'
-            )].find(el => el.textContent.trim() === 'UI Options');
-
-            const skipDeathRow =
-                document.getElementById("skipDeathScreen").parentElement.parentElement;
-
-            if (uiBadge && skipDeathRow) {
-                uiBadge.after(skipDeathRow);
+            for (const element of originalOrder) {
+                if (!placed.has(element)) settingsGeneral.appendChild(element);
             }
+
+            // Jelly cells draw their own border, and WebGPU always clears between frames, so
+            // each of those settings hides the one it would otherwise contradict
+            settingRow("borderlessCells").style.display =
+                instance.settings.settings.jellyPhysics ? "none" : "block";
+            settingRow("acidMode").style.display =
+                instance.settings.settings.webGPU ? "none" : "block";
 
             setInterval(instance.network.refresh.bind(instance.network), 30000);
             window.onbeforeunload = function() {

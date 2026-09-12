@@ -2906,9 +2906,21 @@ function modules(ks) {
                 this.nodeY = this.game.camera.y / (this.game.border[3] * 2) * this.mapSize;
 
                 // Writing top/left relayouts the element every frame; a transform is
-                // composite-only, and it's one style write instead of two
+                // composite-only, and it's one style write instead of two.
+                //
+                // Rounded and deduped as well: this is a handful of pixels on a minimap, so the
+                // dot only moves a whole pixel every several frames even at speed, and the write
+                // that was happening on all of them was costing as much as the entire base
+                // Renderer.tick across every node in the game.
                 const el = this.mapPlayerEl;
-                el.style.transform = `translate(${this.nodeX + this.mapSize / 2}px, ${this.nodeY + this.mapSize / 2}px)`;
+                const mapX = Math.round(this.nodeX + this.mapSize / 2);
+                const mapY = Math.round(this.nodeY + this.mapSize / 2);
+
+                if (mapX !== this._mapX || mapY !== this._mapY) {
+                    this._mapX = mapX;
+                    this._mapY = mapY;
+                    el.style.transform = `translate(${mapX}px, ${mapY}px)`;
+                }
 
                 if (this.game.playerCells.size > 0) {
                     const cell = this.game.aliveCell;
@@ -2937,6 +2949,8 @@ function modules(ks) {
                 this._mapSkin = undefined;
                 this._mapBorderRgb = undefined;
                 this._mapBgRgb = undefined;
+                this._mapX = undefined;
+                this._mapY = undefined;
             }
             updateLeaderboardHTML() {
                 let leaderboardHTML = '';
@@ -3035,24 +3049,85 @@ function modules(ks) {
                 this.scoreLabels.mass.innerHTML = `<b>Mass:</b> ${this.getMass()}`;
             }
 
+            /**
+             *  Lays the debug panel out once, so updateDebugHTML() only ever has to write
+             *  numbers into it.
+             *
+             *  It used to rebuild the whole panel as a string of markup and assign innerHTML,
+             *  which runs on every node packet - tens of times a second - and makes the browser
+             *  reparse the HTML and relayout the panel each time for what is almost always the
+             *  same five labels with different digits. Profiled during a max-split cascade the
+             *  innerHTML setter alone came to 0.35ms a frame, before the layout and paint it
+             *  drags behind it.
+             */
+            buildDebugRows() {
+                this.debugText.textContent = '';
+                this.debugValues = [];
+                this.debugColors = [];
+
+                for (const label of DEBUG_LABELS) {
+                    if (this.debugValues.length) this.debugText.appendChild(document.createElement('br'));
+
+                    const labelEl = document.createElement('b');
+                    labelEl.textContent = label + ' ';
+
+                    const valueEl = document.createElement('span');
+                    valueEl.appendChild(document.createTextNode(''));
+
+                    this.debugText.append(labelEl, valueEl);
+                    this.debugValues.push(valueEl.firstChild);
+                    this.debugColors.push(null);
+                }
+
+                // The linesplit / mouse-frozen banner, hidden until one of them is on
+                this.debugStateBreak = document.createElement('br');
+                this.debugState = document.createElement('b');
+                this.debugState.style.color = 'red';
+                this.debugText.append(this.debugStateBreak, this.debugState);
+                this.debugStateText = null;
+                this.setDebugState(null);
+            }
+
+            setDebugValue(index, text, color) {
+                const node = this.debugValues[index];
+                if (node.nodeValue !== text) node.nodeValue = text;
+
+                // Cached rather than read back off the element: the browser normalises
+                // '#ff0000' to 'rgb(255, 0, 0)', so comparing against style.color never matches
+                if (this.debugColors[index] !== color) {
+                    this.debugColors[index] = color;
+                    node.parentNode.style.color = color;
+                }
+            }
+
+            setDebugState(text) {
+                if (this.debugStateText === text) return;
+                this.debugStateText = text;
+
+                this.debugState.textContent = text ?? '';
+                const display = text ? '' : 'none';
+                this.debugState.style.display = display;
+                this.debugStateBreak.style.display = display;
+            }
+
             updateDebugHTML() {
                 const game = this.game;
 
-                const debugHTML = [
-                    '<b>Mass:</b> ' + this.getMass(),
-                    '<b>Score:</b> ' + this.getScore(),
-                    '<b>Cells:</b> ' + this.getCellCountHTML(),
-                    '<b>FPS:</b> ' + this.getFPSHTML(),
-                    '<b>PING:</b> ' + this.getPingHTML()
-                ];
+                if (!this.debugValues) this.buildDebugRows();
 
-                if (game.linesplit) {
-                    debugHTML.push('<b style="color:red">[ LINESPLITTING ]</b>');
-                } else if (game.freeze) {
-                    debugHTML.push('<b style="color:red">[ MOUSE FROZEN ]</b>');
-                }
+                const [cells, cellsColor] = this.getCellCountValue();
+                const [fps, fpsColor] = this.getFPSValue();
+                const [ping, pingColor] = this.getPingValue();
 
-                this.debugText.innerHTML = debugHTML.join('<br>');
+                this.setDebugValue(0, String(this.getMass()), 'white');
+                this.setDebugValue(1, String(this.getScore()), 'white');
+                this.setDebugValue(2, cells, cellsColor);
+                this.setDebugValue(3, fps, fpsColor);
+                this.setDebugValue(4, ping, pingColor);
+
+                this.setDebugState(game.linesplit ? '[ LINESPLITTING ]'
+                    : game.freeze ? '[ MOUSE FROZEN ]'
+                    : null);
 
                 if (game.network.restart) {
                     const restartHTML = this.getRestartHTML();
@@ -3185,20 +3260,19 @@ function modules(ks) {
                 }
                 return count;
             }
-            getCellCountHTML() {
+            /**
+             *  Value plus colour rather than a <font> wrapper: the debug panel writes these into
+             *  nodes it already owns (see updateDebugHTML), so handing back markup would only
+             *  mean parsing it again on every packet.
+             */
+            getCellCountValue() {
                 const count = this.getCellCount();
                 const max = CELL_COUNT_CAPS[this.game.network.mode];
-                if (!max) return String(count); // Unrecognized mode name - just show the raw count
+                if (!max) return [String(count), 'white']; // Unrecognized mode - just the raw count
 
-                let color;
-                if (count >= max) {
-                    color = '#ff0000';
-                } else if (count > max / 2) {
-                    color = 'yellow';
-                } else {
-                    color = 'white';
-                }
-                return '<font color="' + color + '">' + count + ' / ' + max + '</font>';
+                if (count >= max) return [count + ' / ' + max, '#ff0000'];
+                if (count > max / 2) return [count + ' / ' + max, 'yellow'];
+                return [count + ' / ' + max, 'white'];
             }
             getScore() {
                 const mass = this.getMass();
@@ -3206,29 +3280,18 @@ function modules(ks) {
                 this.game.highestMass = Math.max(this.score, this.game.highestMass);
                 return ~~this.score;
             }
-            getFPSHTML() {
-                var FPS = ~~this.game.ticker?.FPS;
-                if (FPS <= 15) {
-                    return '<font color="#ff0000">' + FPS + '</font>';
-                } else if (FPS <= 30) {
-                    return '<font color="yellow">' + FPS + '</font>';
-                } else {
-                    return '<font color="#00ff00">' + FPS + '</font>';
-                }
+            getFPSValue() {
+                const FPS = ~~this.game.ticker?.FPS;
+                if (FPS <= 15) return [String(FPS), '#ff0000'];
+                if (FPS <= 30) return [String(FPS), 'yellow'];
+                return [String(FPS), '#00ff00'];
             }
-            getPingHTML() {
-                // Ping font color
-                var mk = ~~this.game.ping;
-                if (!mk) {
-                    return 'N/A';
-                }
-                if (mk >= 200) {
-                    return '<font color="#ff0000">' + mk + '</font>';
-                } else if (mk >= 100) {
-                    return '<font color="yellow">' + mk + '</font>';
-                } else {
-                    return '<font color="#00ff00">' + mk + '</font>';
-                }
+            getPingValue() {
+                const ping = ~~this.game.ping;
+                if (!ping) return ['N/A', 'white'];
+                if (ping >= 200) return [String(ping), '#ff0000'];
+                if (ping >= 100) return [String(ping), 'yellow'];
+                return [String(ping), '#00ff00'];
             }
         }
 
@@ -3554,6 +3617,8 @@ function modules(ks) {
          *  every label draws from that one atlas instead.
          */
         const MASS_FONT = 'GermsfoxMass';
+        const DEBUG_LABELS = ['Mass:', 'Score:', 'Cells:', 'FPS:', 'PING:'];
+
         const MASS_FONT_SIZE = 75;       // atlas size, and the rendered size for shortened mass
         const MASS_FONT_SIZE_FULL = 60;  // unshortened values are longer, so they render smaller
 
@@ -3776,6 +3841,83 @@ function modules(ks) {
         const EATEN_FADE_CUTOFF = 0.745;
 
         /**
+         *  zIndex stamped on a parked renderer so it sorts ahead of every live cell.
+         *
+         *  Live cells index on (size | 0) + a sub-unit tiebreak, so they are never negative;
+         *  this can only ever collide with itself. Sorting them to the front is what lets
+         *  compactCellContainer() take the whole backlog as one leading slice.
+         */
+        const PARKED_Z_INDEX = -1e9;
+
+        /**
+         *  Parked roots to accumulate before compacting them out of the cell container.
+         *
+         *  Detaching costs one O(n) pass however many are taken, so the bigger the batch the
+         *  cheaper each one is; but leaving them in costs a sort and two traversals of the whole
+         *  child list every frame. A few hundred is the point where the per-frame tax outweighs
+         *  the one-off pass.
+         */
+        const CELL_COMPACT_THRESHOLD = 384;
+
+        /**
+         *  Body textures with the disc a skin covers punched out, keyed by texture and skin size.
+         *
+         *  A fading cell fades its body sprite and its skin sprite independently, so over a
+         *  background the result is `a*skin + a(1-a)*body + (1-a)^2*bg` where it should be
+         *  `a*skin + (1-a)*bg`. That middle term is the bug: the body's colour washes over an
+         *  opaque skin, peaking at a(1-a) = 0.19 at the cutoff above - a fifth of the cell's
+         *  colour, right at the most visible moment of the fade.
+         *
+         *  Two sprites that never overlap composite correctly at any alpha, so rather than
+         *  flattening them (a render target per corpse) or compositing them in one draw (a mesh
+         *  per corpse, non-batchable, and a split cascade would put hundreds in a frame), the
+         *  body simply stops drawing where the skin already covers it. Same sprite, same batch,
+         *  no per-frame cost - and slightly less overdraw than before.
+         *
+         *  Only ever two or three of these exist: cell, borderless cell, virus.
+         */
+        const rimTextures = new Map();
+
+        function rimTextureFor(texture, skinSize) {
+            const key = texture.uid + ':' + skinSize;
+            const cached = rimTextures.get(key);
+            if (cached) return cached;
+
+            let rim;
+            try {
+                // Copied out of the atlas rather than drawn from scratch: a virus's rim is a
+                // ring of spikes, not a circle, and nothing outside the artwork knows its shape.
+                const frame = texture.frame;
+                const canvas = document.createElement('canvas');
+                canvas.width = frame.width;
+                canvas.height = frame.height;
+
+                const context = canvas.getContext('2d');
+                context.drawImage(
+                    texture.source.resource,
+                    frame.x, frame.y, frame.width, frame.height,
+                    0, 0, frame.width, frame.height
+                );
+
+                context.globalCompositeOperation = 'destination-out';
+                context.beginPath();
+                context.arc(frame.width / 2, frame.height / 2, (frame.width / 2) * skinSize, 0, Math.PI * 2);
+                context.fill();
+
+                rim = new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: canvas }) });
+            } catch (error) {
+                // The atlas is a local extension asset, so this should not fail - but handing
+                // back the untouched texture restores the old bleed, which is a great deal
+                // better than a cell body that has stopped drawing at all.
+                console.warn('Germsfox: could not build a rim texture; eaten cells will bleed', error);
+                rim = texture;
+            }
+
+            rimTextures.set(key, rim);
+            return rim;
+        }
+
+        /**
          *  Breaks depth ties between cells that quantise to the same integer size, so their draw
          *  order stays put instead of shuffling whenever a node is added or removed.
          *
@@ -3792,8 +3934,20 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
 
-                this.root = new PIXI.Container();
-                this.root.sortableChildren = true;
+                this.root = this.createRoot();
+            }
+
+            /**
+             *  The display object this renderer moves, scales and fades as a unit.
+             *
+             *  A Container by default, because most cells stack a body, a skin, a name and a
+             *  mass label inside it. A renderer with nothing to group can override this and
+             *  hand back its own sprite instead - see FoodSpriteRenderer.
+             */
+            createRoot() {
+                const root = new PIXI.Container();
+                root.sortableChildren = true;
+                return root;
             }
             
             init(node) {
@@ -3814,9 +3968,14 @@ function modules(ks) {
                 this.root.alpha = 1;
                 this.root.visible = true;
                 this.onScreen = true;
+                this.culled = false;
                 this.hidden = false; // set by settings that suppress a whole node type, e.g. hideFood
                 this.animationDelay = this.game.settings.settings.animationDelay;
-                this.game.cellContainer.addChild(this.root);
+                // Already parented if this renderer came back out of the pool - clean() parks
+                // roots in place rather than detaching them
+                if (this.root.parent !== this.game.cellContainer) {
+                    this.game.cellContainer.addChild(this.root);
+                }
             }
            
             /**
@@ -3831,9 +3990,45 @@ function modules(ks) {
 
                 this.lastUpdate = this.game.updateTime;
 
+                /**
+                 *  Culled first, and against the node's own position rather than the
+                 *  interpolated one: everything below this is animation, and a cell nobody can
+                 *  see does not need animating. The interpolated position is deliberately stale
+                 *  while culled, so it is not fit to cull against.
+                 *
+                 *  `hidden` counts the same way - a node type switched off in settings (food,
+                 *  say) is just as invisible as one off the edge of the screen.
+                 */
+                this.onScreen = this.game.camera.isVisible(this.node.x, this.node.y, this.node.size);
+                this.culled = this.hidden || !this.onScreen;
+
+                if (this.culled) {
+                    this.root.visible = false;
+
+                    // Snapped rather than left behind, so a cell scrolling back into view is
+                    // already where it belongs instead of sliding in from wherever it was
+                    // standing when it left
+                    this.x = this.node.x;
+                    this.y = this.node.y;
+                    this.size = this.node.size;
+
+                    // Corpses still have to retire off screen, or they pile up in the node map
+                    // for as long as the camera looks away
+                    if (this.node.eaten) {
+                        this.root.alpha = Math.max(0, this.root.alpha - this.delta / 5);
+                        if (this.root.alpha <= EATEN_FADE_CUTOFF) {
+                            this.game.removeNode(this.node);
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+
                 // Update position
                 if (this.node.eaten) {
                     // Cute eating animations
+                    this.node.trackHunter();
                     this.x = lerp(this.x, this.node.x, this.delta / 5);
                     this.y = lerp(this.y, this.node.y, this.delta / 5);
 
@@ -3873,12 +4068,8 @@ function modules(ks) {
                  *  that budget kills the renderer mid-frame. An invisible container never
                  *  reaches the render pipe, so it costs no slot - culling is what keeps the
                  *  budget proportional to what's on screen rather than to lobby size.
-                 *
-                 *  This only gates visibility - the physics, geometry and position work above
-                 *  still runs for culled nodes, so nothing about their state can drift.
                  */
-                this.onScreen = this.game.camera.isVisible(this.x, this.y, this.size);
-                this.root.visible = this.onScreen && !this.hidden;
+                this.root.visible = true;
 
                 const scale = this.size * this.game.camera.renderZoom;
                 const LOD = Math.min(Math.floor(scale / LOD_SCALE), 2);
@@ -3892,13 +4083,32 @@ function modules(ks) {
             }
             
             // Prepare for putNode()
+            /**
+             *  Parks a renderer without detaching it.
+             *
+             *  Container.removeChild() is an indexOf followed by a splice over the whole child
+             *  list, so retiring cells costs time proportional to how many are on screen times
+             *  how many are dying: detaching 4000 roots measured 11.2ms of the 17ms it took to
+             *  retire them, against 0.7ms to attach the same 4000. A parked root keeps its slot
+             *  and simply stops drawing, which makes both checkout and return O(1).
+             *
+             *  The cost of that is a child list sized to the busiest the lobby has ever been
+             *  rather than to what is live now, and sortChildren() runs over all of it. Under
+             *  the load this is meant for those are the same number; it is only a quiet spell
+             *  after a storm that pays for headroom it isn't using.
+             */
             clean() {
-                this.game.cellContainer.removeChild(this.root);
                 this.root.visible = false;
+                // Sorts to the front, where compactCellContainer() can detach the whole backlog
+                // in a single slice instead of one indexOf per node
+                this.root.zIndex = PARKED_Z_INDEX;
+                this.game.parkedRoots++;
             }
 
             destroy() {
-                this.game.cellContainer.removeChild(this.root);
+                // May already be detached by a compaction pass, and removeChild on an orphan
+                // still scans the whole child list to find nothing
+                if (this.root.parent) this.root.parent.removeChild(this.root);
                 this.root.destroy({ children: true });
                 this.root = null;
             }
@@ -4874,16 +5084,25 @@ function modules(ks) {
          */
 
         class SpriteRenderer extends Renderer {
-            constructor(game) {
-                super(game);
-
+            createRoot() {
+                // Built here rather than in the constructor so a renderer with nothing to group
+                // can hand this sprite straight back as its own root
                 this.sprite = this.createSprite();
-                this.root.addChild(this.sprite);
+
+                const root = super.createRoot();
+                root.addChild(this.sprite);
+                return root;
             }
 
             init(node) {
                 super.init(node);
                 this.sprite.tint = this.node.color;
+
+                // A pooled renderer can still be wearing the rim it was swapped to while it
+                // faded. Doubles as food's shape texture, which is why FoodSpriteRenderer no
+                // longer sets it - `this.texture` reads the checked-out node either way.
+                this.sprite.texture = this.texture;
+                this.rimmed = false;
             }
 
             refreshColor() {
@@ -4893,7 +5112,29 @@ function modules(ks) {
             tick() {
                 if (!super.tick()) return false;
 
+                // Nothing below this changes anything a culled cell would show
+                if (this.culled) return;
+
                 this.applyScale(this.root);
+
+                // Only a fading cell needs the rim - at full alpha the body is hidden behind the
+                // skin either way, and swapping only here keeps a skin with transparent parts
+                // looking exactly as it always has for the whole of normal play.
+                if (this.node.eaten && !this.rimmed) this.applyRimTexture();
+            }
+
+            /**
+             *  Swaps the body for one with the skin's disc erased. One-shot: a skin that is
+             *  still loading when its cell is eaten keeps the plain body rather than making
+             *  every remaining frame of the fade re-check.
+             */
+            applyRimTexture() {
+                this.rimmed = true;
+
+                if (!this.heldSkin) return;
+                if (!this._skinSprite || this._skinSprite.texture === PIXI.Texture.EMPTY) return;
+
+                this.sprite.texture = rimTextureFor(this.texture, this.skinSize);
             }
 
             // Creates a Sprite with a texture defined by each node type
@@ -4990,9 +5231,19 @@ function modules(ks) {
         }
 
         class FoodSpriteRenderer extends SpriteRenderer {
+            /**
+             *  Food and ejected mass are a single tinted sprite - no skin, no name, no mass
+             *  label - so the container that exists to group those is pure overhead. Dropping it
+             *  halves the display objects for far and away the most numerous node in the game,
+             *  and every one saved is a transform the renderer no longer walks.
+             */
+            createRoot() {
+                this.sprite = this.createSprite();
+                return this.sprite;
+            }
+
             init(node) {
                 super.init(node);
-                this.sprite.texture = this.texture; // Update shape texture
 
                 if (!this.node.isEjected) {
                     this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
@@ -5061,6 +5312,7 @@ function modules(ks) {
                 this.created = this.lastUpdate;
 
                 this.eaten = false;
+                this.hunterId = null;
                 this.animationDelay = this.game.settings.settings.animationDelay;
             }
 
@@ -5071,26 +5323,58 @@ function modules(ks) {
 
             getEatenBy(hunter) {
                 this.eaten = true;
-                
+
                 // Max distance is 3x cell radius
-                const maxDist = this.size * 3;
+                this.eatenMaxDist = this.size * 3;
+
+                // Where it died, so every re-aim is measured from the same origin instead of
+                // compounding frame over frame
+                this.eatenX = this.x;
+                this.eatenY = this.y;
 
                 this.size *= 0.5;
 
                 if (!hunter) return;
 
-                const dx = hunter.x - this.x;
-                const dy = hunter.y - this.y;
+                // Held by id, not by reference: nodes are pooled, so a stored hunter can quietly
+                // come back as an entirely different cell
+                this.hunterId = hunter.id;
+
+                this.trackHunter();
+            }
+
+            /**
+             *  Re-aims a corpse at where its hunter is *now*.
+             *
+             *  The target used to be a single snapshot taken at the moment of the eat, so a
+             *  hunter that kept moving - which is most of them - left its kill sliding toward a
+             *  point it had long since left, and the further it ran the more obviously the
+             *  corpse drifted off to nowhere.
+             *
+             *  The clamp is the original's: the corpse never travels more than three of its own
+             *  radii from where it died, so a hunter that runs swings the target around the
+             *  death spot rather than dragging the body across the map.
+             */
+            trackHunter() {
+                if (this.hunterId === null) return;
+
+                const hunter = this.game.nodes.get(this.hunterId);
+                if (!hunter) return; // eaten, or dropped out of view - keep the last target
+
+                // The drawn position rather than the last one off the wire, since that is the
+                // cell the corpse visibly disappears into
+                const hunterX = hunter.renderer?.x ?? hunter.x;
+                const hunterY = hunter.renderer?.y ?? hunter.y;
+
+                const dx = hunterX - this.eatenX;
+                const dy = hunterY - this.eatenY;
                 const dist = Math.hypot(dx, dy);
 
-                // Clamp distance
-                const moveDist = Math.min(dist, maxDist);
-
-                // Normalize direction
+                const moveDist = Math.min(dist, this.eatenMaxDist);
                 const invDist = dist > 0 ? 1 / dist : 0;
 
-                this.x += dx * invDist * moveDist;
-                this.y += dy * invDist * moveDist;
+                this.x = this.eatenX + dx * invDist * moveDist;
+                this.y = this.eatenY + dy * invDist * moveDist;
             }
 
             applyTheme() {
@@ -5164,10 +5448,17 @@ function modules(ks) {
                 this.virusPool = [];
                 this.foodPool = [];
 
+                /**
+                 *  `ceiling` is a memory guard, not the working capacity - see capacityFor().
+                 *  The old fixed caps (512/128/256) were far under what a busy lobby holds, so
+                 *  almost every node checked out was built from scratch and almost every node
+                 *  returned was thrown away: a 4000-node spawn measured 17.3ms, against 4.3ms
+                 *  once the pool could actually hold them.
+                 */
                 this.config = {
                     [nodeType.Player]: {
                         pool: 'playerPool',
-                        maxSize: 512,
+                        ceiling: 8192,
                         size: 128,
                         node: CellNode,
                         spriteRenderer: CellSpriteRenderer,
@@ -5175,7 +5466,7 @@ function modules(ks) {
                     },
                     [nodeType.Virus]: {
                         pool: 'virusPool',
-                        maxSize: 128,
+                        ceiling: 1024,
                         size: 64,
                         node: VirusNode,
                         spriteRenderer: VirusSpriteRenderer,
@@ -5183,14 +5474,35 @@ function modules(ks) {
                     },
                     [nodeType.Food]: {
                         pool: 'foodPool',
-                        maxSize: 256,
+                        ceiling: 16384,
                         size: 128,
                         node: FoodNode,
                         spriteRenderer: FoodSpriteRenderer,
                         jellyRenderer: FoodJellyRenderer,
                     }
                 }
+
+                for (const cfg of Object.values(this.config)) {
+                    cfg.live = 0;   // checked out right now
+                    cfg.peak = cfg.size; // most that have ever been out at once
+                }
             };
+
+            /**
+             *  How many spares this type is allowed to keep.
+             *
+             *  Pinned to the most of that type ever live at once, which is exactly the number
+             *  needed for the worst case - every one of them dying in the same frame - and never
+             *  more: a pool can only ever hold what was checked out, so `pool.length + live` can
+             *  never exceed the high-water mark. Sizing to it means a settled lobby stops
+             *  building and destroying renderers altogether.
+             *
+             *  The ceiling only exists so one freak lobby cannot pin that memory for the rest of
+             *  the session. Nothing shrinks the pool back down after a spike below it.
+             */
+            capacityFor(cfg) {
+                return Math.min(cfg.ceiling, cfg.peak);
+            }
 
             updateRendererType() {
                 const jelly = this.game.settings.settings.jellyPhysics;
@@ -5235,8 +5547,14 @@ function modules(ks) {
                 this.virusPool = [];
                 this.foodPool = [];
                 for (const [type, cfg] of Object.entries(this.config)) {
+                    cfg.live = 0;
+                    cfg.peak = cfg.size;
+                    // Straight onto the pool rather than through putNode(), which counts a
+                    // return and would drive `live` negative for nodes never checked out
                     for (let i = 0; i < cfg.size; i++) {
-                        this.putNode(this.createNode(type));
+                        const node = this.createNode(type);
+                        node.renderer.clean();
+                        this[cfg.pool].push(node);
                     }
                 }
                 cb?.();
@@ -5245,6 +5563,8 @@ function modules(ks) {
             getNode(type, nodeData) {
                 const cfg = this.config[type];
                 const pool = this[cfg.pool];
+
+                if (++cfg.live > cfg.peak) cfg.peak = cfg.live;
 
                 const node = pool.pop();
 
@@ -5261,7 +5581,9 @@ function modules(ks) {
                 const cfg = this.config[node.type];
                 const pool = this[cfg.pool];
 
-                if (pool.length < cfg.maxSize) {
+                if (cfg.live > 0) cfg.live--;
+
+                if (pool.length < this.capacityFor(cfg)) {
                     node.renderer.clean();
                     pool.push(node);
                 } else {
@@ -7417,6 +7739,8 @@ function modules(ks) {
                 this.bgContainer = new PIXI.Container();
                 this.stage.addChild(this.bgContainer);
 
+                // Renderers parked since the last compaction pass - see compactCellContainer()
+                this.parkedRoots = 0;
                 this.cellContainer = new PIXI.Container();
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
@@ -7853,6 +8177,7 @@ function modules(ks) {
                 this.ui.updateMinimap();
 
                 this.cellContainer.sortChildren();
+                this.compactCellContainer();
 
                 this.stage.x = this.width / 2 - this.camera.x * this.camera.renderZoom;
                 this.stage.y = this.height / 2 - this.camera.y * this.camera.renderZoom;
@@ -8224,6 +8549,46 @@ function modules(ks) {
                 } catch (tU) {
                     this.log('Failed to refresh ads');
                 }
+            }
+
+            /**
+             *  Detaches parked renderers from the cell container once enough have piled up.
+             *
+             *  clean() deliberately leaves a pooled root attached, because removeChild is an
+             *  indexOf plus a splice and doing it per node made a death cascade quadratic. The
+             *  bill for that lands here instead: sortChildren and collectRenderables both walk
+             *  the entire child list every frame, so a container sized to the lobby's busiest
+             *  moment keeps costing after the crowd has gone. Profiled during a max-split
+             *  cascade those two came to 2.3ms a frame.
+             *
+             *  Parked roots carry PARKED_Z_INDEX, so the sort that just ran has already gathered
+             *  them into one leading run - and removeChildren() takes a whole range in a single
+             *  pass with the render group bookkeeping done properly, which hand-splicing would
+             *  not. One O(n) pass every few hundred deaths, rather than an O(n) scan per death.
+             */
+            compactCellContainer() {
+                if (this.parkedRoots < CELL_COMPACT_THRESHOLD) return;
+                this.parkedRoots = 0;
+
+                /**
+                 *  Sorted here rather than relying on the sort that runs during rendering: that
+                 *  one is skipped whenever nothing happened to dirty it, and a backlog parked
+                 *  during such a frame then sits scattered through the list where no leading
+                 *  slice can reach it - which is exactly how an earlier version of this quietly
+                 *  stopped compacting at all. Forcing it costs one sort on the frames that
+                 *  actually compact, which is a few hundred deaths apart.
+                 */
+                const container = this.cellContainer;
+                container.sortDirty = true;
+                container.sortChildren();
+
+                const children = container.children;
+                let parked = 0;
+                while (parked < children.length && children[parked].zIndex === PARKED_Z_INDEX) {
+                    parked++;
+                }
+
+                if (parked > 0) container.removeChildren(0, parked);
             }
 
             removeNode(node) {

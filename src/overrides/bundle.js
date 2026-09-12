@@ -3717,6 +3717,75 @@ function modules(ks) {
             }
         }
 
+        /**
+         *  How wide a square the skin is sampled down to for the opacity check below.
+         *
+         *  A skin canvas is 512 or 1024 across, so scanning it whole is up to a million alpha
+         *  reads on the main thread every time a new skin loads. Sampling it down first costs a
+         *  single drawImage and makes the scan a few thousand reads. Averaging is the right
+         *  direction of error, too: a hole anywhere in a neighbourhood drags that sample below
+         *  full alpha, so the check gets *more* willing to call a skin transparent, not less.
+         */
+        const SKIN_OPACITY_PROBE = 64;
+
+        /**
+         *  How opaque a sampled pixel has to be to count as covered.
+         *
+         *  Not 255. Every skin the game ships carries a few hundred pixels sitting at 240-254
+         *  from whatever resampling produced the art - a couple of percent of the body showing
+         *  through, which is nothing - and demanding the full 255 called two of them transparent
+         *  over pixels no one can see. At this threshold a probe sample has to be more than an
+         *  eighth clear to fail, which no real hole ever isn't and no resampling noise ever is.
+         */
+        const SKIN_OPACITY_MIN_ALPHA = 224;
+
+        /**
+         *  Whether a skin paints its whole circle solid.
+         *
+         *  This decides whether the body underneath it may be erased - see rimTextureFor(). A
+         *  skin with holes in it has to keep its body, because the erased area is a plain disc
+         *  rather than the skin's own outline, and anything the skin does not cover would show
+         *  the map through the cell.
+         *
+         *  Only the inside of the circle is looked at. The canvas is clipped to a disc, so its
+         *  corners are transparent on every skin ever drawn - scanning the full square would
+         *  call all of them transparent. The radius is trimmed a little further to clear the
+         *  clip's own antialiased edge, which the downsample smears over a pixel or so.
+         */
+        function skinFillsItsCircle(canvas) {
+            const size = SKIN_OPACITY_PROBE;
+            const probe = document.createElement('canvas');
+            probe.width = size;
+            probe.height = size;
+
+            const ctx = probe.getContext('2d');
+            ctx.drawImage(canvas, 0, 0, size, size);
+
+            let data;
+            try {
+                data = ctx.getImageData(0, 0, size, size).data;
+            } catch (error) {
+                // A skin host without CORS headers taints the canvas despite crossOrigin. Treat
+                // it as opaque: that is what the overwhelming majority of skins are, and it
+                // leaves such a skin behaving exactly as it did before this check existed.
+                return true;
+            }
+
+            const centre = size / 2;
+            const radius = centre * 0.94;
+
+            for (let y = 0; y < size; y++) {
+                const dy = y + 0.5 - centre;
+                const half = Math.sqrt(Math.max(0, radius * radius - dy * dy));
+                const to = Math.floor(centre + half);
+                for (let x = Math.ceil(centre - half); x <= to; x++) {
+                    if (data[(y * size + x) * 4 + 3] < SKIN_OPACITY_MIN_ALPHA) return false;
+                }
+            }
+
+            return true;
+        }
+
         class SkinResource {
             constructor(src, isHighQuality) {
                 this.texture = null;
@@ -3752,6 +3821,8 @@ function modules(ks) {
                 ctx.arc(this.size / 2, this.size / 2, this.size / 2, 0, Math.PI * 2);
                 ctx.clip();
                 ctx.drawImage(this.image, 0, 0, this.size, this.size);
+
+                this.opaque = skinFillsItsCircle(canvas);
 
                 this.texture = new PIXI.Texture({ 
                     source: new PIXI.CanvasSource({ 
@@ -4255,6 +4326,10 @@ function modules(ks) {
                     if (!texture) return; 
                     this.skinTexture = texture;
                     this.skinTexture.size = resource.size; // Funi hack
+                    // Rides on the texture rather than the renderer so it cannot go
+                    // stale: refreshBodyTexture() reads it off whichever texture is
+                    // actually mounted, and a pooled renderer carries nothing over.
+                    this.skinTexture.opaque = resource.opaque;
                     this.applySkinTexture();
                 });
             }
@@ -5193,11 +5268,18 @@ function modules(ks) {
              *  alpha - while a corpse fades, or whenever the cell opacity setting is turned
              *  down. At full opacity the plain texture is kept, so a skin with transparent parts
              *  still shows the cell's colour through them exactly as it always has.
+             *
+             *  Erasing is only safe under a skin that covers its whole circle. What gets cut out
+             *  of the body is a plain disc, not the skin's outline, so under a skin with holes
+             *  in it the map itself would show through them. Those skins keep their body and go
+             *  back to the milder artefact this erasing was added to remove - a faint wash of
+             *  cell colour over the skin as it fades, rather than a hole clean through the cell.
              */
             refreshBodyTexture() {
                 const skinned = !!this.heldSkin
                     && !!this._skinSprite
-                    && this._skinSprite.texture !== PIXI.Texture.EMPTY;
+                    && this._skinSprite.texture !== PIXI.Texture.EMPTY
+                    && this._skinSprite.texture.opaque !== false;
 
                 this.rimmed = skinned && (this.node.eaten || this.opacity < 1);
 

@@ -3352,6 +3352,22 @@ function modules(ks) {
          *  arrives faster than one split per tick can drain.
          */
         const SPLIT_QUEUE_MAX = 8;
+
+        /**
+         *  Copies sent per tick once a macro is known to end at the cell cap.
+         *
+         *  Spacing splits apart buys accuracy by giving up throughput: the queue asks for one
+         *  every splitSpacing on a server that will take one every tick. That trade is worth
+         *  making when the count matters and worthless when it doesn't - past the cap the
+         *  server discards the surplus regardless, so there is nothing left to protect.
+         *
+         *  So a capped run stops pacing and blankets the ticks instead, which is exactly what
+         *  hand-spamming does and why it has always felt faster: with a copy always waiting,
+         *  a split goes in the moment the tick flips rather than a jitter margin later. Three
+         *  a tick covers the measured jitter; the surplus lands in a tick that has already
+         *  taken one and costs nothing.
+         */
+        const SPLIT_RUSH_COPIES = 3;
         const SPLIT_SPACING_MIN = 45;
         const SPLIT_SPACING_MAX = 90;
 
@@ -7023,6 +7039,7 @@ function modules(ks) {
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
                 this.pendingSplits = 0;   // see queueSplits()
+                this.splitRushSpacing = 0;
                 this.lastSplitAt = 0;
                 this.splitTimer = null;
                 this.foodEaten = 0;
@@ -8074,8 +8091,38 @@ function modules(ks) {
              *  land in the same tick as a macro's, and the queue cannot space against a send it
              *  never saw.
              */
+            /**
+             *  Whether `count` more splits would finish at the cell cap.
+             *
+             *  Each split doubles, so this is just the cell count shifted left by the number of
+             *  splits. Deliberately measured against the cells on screen right now rather than
+             *  against anything already queued: chaining macros is how people reach the cap, and
+             *  each press sees the cells the previous one produced. Building 128x out of a 4x
+             *  and a 3x under a 200 cap stays exact both times (1 -> 16, then 16 -> 128), and
+             *  the press after that sees 128 and knows it is going to top out.
+             *
+             *  An unknown mode has no cap to reason about, so it keeps the accurate path.
+             */
+            splitsWillCap(count) {
+                const cap = CELL_COUNT_CAPS[this.network.mode];
+                const cells = this.playerCells.size;
+                if (!cap || !cells) return false;
+                return cells * Math.pow(2, count) >= cap;
+            }
+
             queueSplits(count) {
-                this.pendingSplits = Math.min(SPLIT_QUEUE_MAX, this.pendingSplits + count);
+                if (this.splitsWillCap(count)) {
+                    /**
+                     *  A capped run is measured in ticks to cover, not packets to send: the
+                     *  copies multiply and the interval divides by the same factor, so the run
+                     *  still spans count ticks - it just arrives with something always waiting.
+                     */
+                    this.pendingSplits = Math.min(SPLIT_QUEUE_MAX * SPLIT_RUSH_COPIES,
+                        this.pendingSplits + count * SPLIT_RUSH_COPIES);
+                    this.splitRushSpacing = this.network.tickPeriod / SPLIT_RUSH_COPIES;
+                } else {
+                    this.pendingSplits = Math.min(SPLIT_QUEUE_MAX, this.pendingSplits + count);
+                }
                 this.pumpSplits();
             }
 
@@ -8087,7 +8134,8 @@ function modules(ks) {
             pumpSplits() {
                 if (this.splitTimer || !this.pendingSplits) return;
 
-                const wait = this.lastSplitAt + this.network.splitSpacing - performance.now();
+                const spacing = this.splitRushSpacing || this.network.splitSpacing;
+                const wait = this.lastSplitAt + spacing - performance.now();
                 if (wait <= 0) return this.releaseSplit();
 
                 this.splitTimer = setTimeout(() => {
@@ -8098,6 +8146,8 @@ function modules(ks) {
 
             releaseSplit() {
                 this.pendingSplits--;
+                // The rush only lasts as long as the run that asked for it
+                if (!this.pendingSplits) this.splitRushSpacing = 0;
                 this.lastSplitAt = performance.now();
                 this.network.send(new packet.Split());
                 // Re-entrant by one hop only: lastSplitAt has just moved, so the next call
@@ -8110,6 +8160,7 @@ function modules(ks) {
                 if (this.splitTimer) clearTimeout(this.splitTimer);
                 this.splitTimer = null;
                 this.pendingSplits = 0;
+                this.splitRushSpacing = 0;
             }
 
             onKeyUp(event) {

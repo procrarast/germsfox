@@ -215,7 +215,7 @@ function renderUpdateNotice() {
 
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
-    body.textContent = "Self Feed is saved! Split macros have been fixed. They're not 100%, but they're as consistent as they can be and you can press macros as quickly as you want. You'll have to adjust your muscle memory accordingly for merging.\n\nFor example, under 400k, you'll have to press 16x and 8x (for 128x), and above 400k you'll press 16x twice (for 200x).";
+    body.textContent = "Minor tweak to spectate camera speed curve and made max splits as fast as possible. Consistent splits sacrifice speed, so the game now detects when you are max splitting to optimize for maximum speed.\n\nThank you for balling.";
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";

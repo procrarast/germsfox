@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.3.9
+ * @version     1.3.9.1
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -3436,7 +3436,7 @@ function modules(ks) {
         const ZOOM_STEP = 0.9;
         const ZOOM_SENSITIVITY_RANGE = 4;
 
-        const SPECTATE_CURVE = 1.5;
+        const SPECTATE_CURVE = 1.25;
 
         const ZOOM_MIN = 0.01;
         const ZOOM_MAX = 5;
@@ -3461,7 +3461,7 @@ function modules(ks) {
 
             tick() {
                 // Update position
-                const speed = this.game.freeSpec ? 25 : this.cameraDelay / 10;
+                const speed = this.game.freeSpec ? 20 : this.cameraDelay / 10;
                 this.x = lerp(this.x, this.targetX, this.game.delta / speed);
                 this.y = lerp(this.y, this.targetY, this.game.delta / speed);
                 
@@ -3706,7 +3706,7 @@ function modules(ks) {
 
         /**
          *  The old canvas label was ceil(fontSize * 1.5) tall plus stroke padding, and an
-         *  anchor.y of -0.8 pushed it that far below the cell's centre. A bitmap font's line
+         *  anchor.y of -0.8 pushed it that far below the cell's center. A bitmap font's line
          *  metrics aren't that height, so anchoring the same way would move every label.
          *  Deriving the offset from the old geometry keeps them exactly where they were.
          */
@@ -3831,14 +3831,14 @@ function modules(ks) {
                 return true;
             }
 
-            const centre = size / 2;
-            const radius = centre * 0.94;
+            const center = size / 2;
+            const radius = center * 0.94;
 
             for (let y = 0; y < size; y++) {
-                const dy = y + 0.5 - centre;
+                const dy = y + 0.5 - center;
                 const half = Math.sqrt(Math.max(0, radius * radius - dy * dy));
-                const to = Math.floor(centre + half);
-                for (let x = Math.ceil(centre - half); x <= to; x++) {
+                const to = Math.floor(center + half);
+                for (let x = Math.ceil(center - half); x <= to; x++) {
                     if (data[(y * size + x) * 4 + 3] < SKIN_OPACITY_MIN_ALPHA) return false;
                 }
             }
@@ -7135,7 +7135,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9.1 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -7388,7 +7388,7 @@ function modules(ks) {
                      *  screen from the middle of the view, so the far edge went unpopulated
                      *  while bandwidth went on nodes behind the cursor that were off screen.
                      *  The dead zone makes it worse rather than better: the cursor now sits well
-                     *  away from centre for as long as you are panning at all.
+                     *  away from center for as long as you are panning at all.
                      *
                      *  The outer condition already guarantees freeSpec whenever this is not
                      *  alive, so the two cases are the whole set.
@@ -7477,14 +7477,6 @@ function modules(ks) {
                         const reach = Math.hypot(this.width, this.height) / 2;
                         const offset = reach * Math.pow(distance / reach, SPECTATE_CURVE);
 
-                        /**
-                         *  Zero whenever the camera should hold: dead centre, while the zoom
-                         *  lerp still has renderZoom at 0 (which would divide to Infinity), and
-                         *  before the first mousemove has given rawMouseX a value - that last one
-                         *  arrives as NaN, which compares false here and needs no guard of its
-                         *  own. The branch below then keeps NaN out of the target, since NaN * 0
-                         *  would otherwise poison the camera position permanently.
-                         */
                         const scale = distance > 0 && zoom > 0 ? offset / distance / zoom : 0;
 
                         const targetX = scale ? this.camera.x + dx * scale : this.camera.x;
@@ -7639,7 +7631,7 @@ function modules(ks) {
                 this.freeSpec = true;
             }
             /**
-             *  The x/y here are the spectate camera centre in the agar.io-derived protocol this
+             *  The x/y here are the spectate camera center in the agar.io-derived protocol this
              *  game inherits: on an Ogar-style server they follow whichever player you are
              *  spectating, and Space (opcode 17) cycles that target while Q (opcode 18, which
              *  germs.io builds as "Extra" and binds to Q) toggles free roam. Germs.io's own

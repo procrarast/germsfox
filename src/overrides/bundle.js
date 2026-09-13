@@ -3327,6 +3327,47 @@ function modules(ks) {
         const CULL_MARGIN = 64;
 
         /**
+         *  Spacing between the splits of a 2x/3x/4x macro.
+         *
+         *  The server advances a tick at a time and takes at most one split per tick, so two
+         *  splits landing inside the same tick means the second is dropped outright - which is
+         *  how a 4x comes out as a 3x. Spacing them is the only lever the client has, since
+         *  there is no macro support server-side to ask for.
+         *
+         *  Measured against us.germs.io over 2465 ticks: the stream runs at 25 Hz (mean 39.2ms,
+         *  median 39.7ms) but arrives badly jittered - consecutive ticks land 26ms to 49ms apart
+         *  at the 10th and 90th percentiles. Split packets ride the same link, so a nominal
+         *  spacing S reaches the server at roughly S-14ms .. S+9ms. That is exactly why the old
+         *  45ms dropped splits: a good share of the time it arrived under one tick apart and
+         *  collapsed. One tick plus this margin clears the jitter both ways without feeling
+         *  sluggish, and replaces the old split personality where 2x and 3x used 75ms (safe but
+         *  slow) and 4x used 45ms (fast but lossy).
+         */
+        const SPLIT_JITTER_MARGIN = 18;
+
+        /**
+         *  Ceiling on splits waiting to go out. Chaining two 4x presses for eight splits is a
+         *  real Self Feed technique and has to fit exactly; this is also what stops a held key
+         *  building a queue that keeps splitting long after it was let go, since key repeat
+         *  arrives faster than one split per tick can drain.
+         */
+        const SPLIT_QUEUE_MAX = 8;
+        const SPLIT_SPACING_MIN = 45;
+        const SPLIT_SPACING_MAX = 90;
+
+        /**
+         *  The tick rate is measured rather than assumed, so a server on a different rate paces
+         *  itself. Several packets can arrive for one tick, so anything closer than COALESCE is
+         *  one tick smeared rather than a new one; anything past STALL is a hiccup and says
+         *  nothing about the server's rate. The average of a jittered arrival gap is still the
+         *  true period, which is the whole reason a slow EMA works here.
+         */
+        const SERVER_TICK_ESTIMATE = 40;
+        const TICK_COALESCE_MS = 10;
+        const TICK_STALL_MS = 100;
+        const TICK_EMA = 0.05;
+
+        /**
          *  Raises PIXI's per-frame ceiling on separately-shaded objects.
          *
          *  Anything that can't be batched takes one slot in the WebGPU uniform buffer batch,
@@ -5222,6 +5263,9 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
                 this.open = false;
+                // Paced off the server's own rate rather than a guess - see SPLIT_JITTER_MARGIN
+                this.tickPeriod = SERVER_TICK_ESTIMATE;
+                this.lastTickAt = 0;
                 this.ping = Date.now();
                 this.searching = false;
                 this.verifying = false;
@@ -5322,6 +5366,22 @@ function modules(ks) {
                 if (this.open) {
                     this.ws.send(packet.build());
                 }
+            }
+
+            // One node packet per server tick, so their spacing is the server's rate as seen
+            // from here - jitter and all, which averages out.
+            noteServerTick() {
+                const now = performance.now();
+                const gap = now - this.lastTickAt;
+                if (gap < TICK_COALESCE_MS) return;
+                this.lastTickAt = now;
+                if (gap > TICK_STALL_MS) return;
+                this.tickPeriod += (gap - this.tickPeriod) * TICK_EMA;
+            }
+
+            get splitSpacing() {
+                return Math.min(SPLIT_SPACING_MAX,
+                    Math.max(SPLIT_SPACING_MIN, this.tickPeriod + SPLIT_JITTER_MARGIN));
             }
             async sendNick(oK) {
                 await this.verify();
@@ -5662,6 +5722,8 @@ function modules(ks) {
             }
 
             handleNodes(buffer) {
+                this.noteServerTick();
+
                 let eatCount = buffer.readUInt16();
                 for (let i = 0; i < eatCount; i++) {
                     let hunter = this.game.nodes.get(buffer.readUInt32());
@@ -6949,6 +7011,9 @@ function modules(ks) {
                 this.login = new Login(this);
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
+                this.pendingSplits = 0;   // see queueSplits()
+                this.lastSplitAt = 0;
+                this.splitTimer = null;
                 this.foodEaten = 0;
                 this.lastColor = null; // color/skin of the last cell we were alive as
                 this.lastSkin = null;
@@ -7733,6 +7798,7 @@ function modules(ks) {
                 }
             }
             clearNodes() {
+                this.flushSplits();
                 this.deleteLastKiller();
                 for (const node of this.nodes.values()) { this.pool.putNode(node); }
                 this.nodes.clear();
@@ -7909,7 +7975,7 @@ function modules(ks) {
                             this.bruh.currentTime = 0.15;
                             this.bruh.play();
                         }
-                        this.network.send(new packet.Split());
+                        this.queueSplits(1);
                         break;
                     /*case this.controls.Spectate[0]:
                         if (this.playerCells.size > 0) {
@@ -7954,35 +8020,87 @@ function modules(ks) {
                         this.freeze = false;
                         this.ui.updateDebugHTML();
                         break;
+                    // Held keys repeat as plain single splits rather than restarting the macro,
+                    // which is what these did before and what leaning on the key should do
                     case this.controls.Double[0]:
                         this.splitPending = false;
-                        this.network.send(new packet.Split());
-                        if (event.repeat)
+                        if (event.repeat) {
+                            this.queueSplits(1);
                             return;
-                        setTimeout( () => this.network.send(new packet.Split()), 75);
+                        }
+                        this.queueSplits(2);
                         break;
                     case this.controls.Triple[0]:
                         this.splitPending = false;
-                        this.network.send(new packet.Split());
-                        if (event.repeat)
+                        if (event.repeat) {
+                            this.queueSplits(1);
                             return;
-                        setTimeout( () => {
-                            this.network.send(new packet.Split());
-                            setTimeout( () => this.network.send(new packet.Split()), 75);
                         }
-                        , 75);
+                        this.queueSplits(3);
                         break;
                     case this.controls['16x'][0]:
                         this.splitPending = false;
-                        for (let i = 0; i < 4; i++) {
-                            setTimeout( () => this.network.send(new packet.Split()), 45 * i);
-                            if (i === 0 && event.repeat)
-                                return;
+                        if (event.repeat) {
+                            this.queueSplits(1);
+                            return;
                         }
+                        this.queueSplits(4);
                         break;
                     }
                 }
             }
+            /**
+             *  Adds `count` splits to the outgoing queue.
+             *
+             *  A queue rather than a fresh schedule per press, because chaining macros is a real
+             *  technique - two 4x presses for eight splits in Self Feed - and restarting would
+             *  throw away whatever of the first macro had not gone out yet, then send on top of
+             *  its last split inside the same tick. Both halves of that are a dropped split. Now
+             *  a press only ever adds to the count, and nothing else decides when they leave.
+             *
+             *  Every split in the game goes through here, plain Space included. That is what
+             *  keeps the spacing honest: pacing only the macros would still let a manual split
+             *  land in the same tick as a macro's, and the queue cannot space against a send it
+             *  never saw.
+             */
+            queueSplits(count) {
+                this.pendingSplits = Math.min(SPLIT_QUEUE_MAX, this.pendingSplits + count);
+                this.pumpSplits();
+            }
+
+            /**
+             *  Releases the next split once a full spacing has passed since the last one -
+             *  immediately when the queue has been idle, which is the ordinary case for a single
+             *  press, so nothing pays latency for the pacing it doesn't need.
+             */
+            pumpSplits() {
+                if (this.splitTimer || !this.pendingSplits) return;
+
+                const wait = this.lastSplitAt + this.network.splitSpacing - performance.now();
+                if (wait <= 0) return this.releaseSplit();
+
+                this.splitTimer = setTimeout(() => {
+                    this.splitTimer = null;
+                    this.releaseSplit();
+                }, wait);
+            }
+
+            releaseSplit() {
+                this.pendingSplits--;
+                this.lastSplitAt = performance.now();
+                this.network.send(new packet.Split());
+                // Re-entrant by one hop only: lastSplitAt has just moved, so the next call
+                // always schedules rather than releasing again
+                this.pumpSplits();
+            }
+
+            // Dying mid-macro must not leave splits queued, or they fire into the next life
+            flushSplits() {
+                if (this.splitTimer) clearTimeout(this.splitTimer);
+                this.splitTimer = null;
+                this.pendingSplits = 0;
+            }
+
             onKeyUp(event) {
                 if (event.keyCode === this.controls.Feed[0]) {
                     clearInterval(this.feedInterval);

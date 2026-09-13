@@ -59,6 +59,7 @@ async function init() {
     renderNick();
     renderGermsfoxButton();
     renderPlayerMenu();
+    renderUpdateNotice();
 
     const showNamesSelect = document.getElementById("showNames");
     const showSkinsSelect = document.getElementById("showSkins");

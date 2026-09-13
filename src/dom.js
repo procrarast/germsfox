@@ -171,6 +171,113 @@ function renderDailyLeaderboardPanel() {
     });
 }
 
+/**
+ *  One-time notice after an update, in the game's own card style.
+ *
+ *  Built from the same pieces the game's settings panel uses - a .card inside a dimmed
+ *  full-screen layer, closed by an `i.fas.fa-times` - and parented to #menu rather than to
+ *  <body>, so it shows and hides with the menu the way every other panel does instead of
+ *  needing its own visibility rules.
+ *
+ *  The version comes from the manifest rather than a constant here, so there is one place to
+ *  bump it and this can never disagree with what the extension actually is.
+ */
+function renderUpdateNotice() {
+    const menu = document.getElementById("menu");
+    if (!menu) return;
+
+    const version = chrome.runtime.getManifest().version;
+    if (settings.lastSeenVersion === version) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "germsfoxUpdateNotice";
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.id = "germsfoxUpdateCard";
+
+    const close = document.createElement("i");
+    close.className = "fas fa-times";
+    close.id = "germsfoxUpdateClose";
+
+    // The toolbar button's icon, taken from the 38px source so it stays crisp when the
+    // stylesheet scales it down on a high-DPI display
+    const titleIcon = document.createElement("img");
+    titleIcon.className = "germsfoxUpdateIcon";
+    titleIcon.src = chrome.runtime.getURL("images/gsDuhFox-38.png");
+    titleIcon.alt = "";
+
+    const title = document.createElement("h4");
+    title.id = "germsfoxUpdateTitle";
+    // append() rather than innerHTML: the version is interpolated into this, and a text node
+    // cannot become markup no matter what it holds
+    title.append(titleIcon, `Germsfox ${version}`);
+
+    const body = document.createElement("p");
+    body.id = "germsfoxUpdateBody";
+    body.textContent = "Self Feed is saved! Split macros have been fixed. They're not 100%, but they're as consistent as they can be and you can press macros as quickly as you want. You'll have to adjust your muscle memory accordingly for merging.\n\nFor example, under 400k, you'll have to press 16x and 8x (for 128x), and above 400k you'll press 16x twice (for 200x).";
+
+    const signoffEmote = document.createElement("img");
+    signoffEmote.className = "germsfoxUpdateIcon";
+    signoffEmote.src = chrome.runtime.getURL("images/emotes/pcStare.png");
+    signoffEmote.alt = "";
+
+    const signoff = document.createElement("div");
+    signoff.id = "germsfoxUpdateSignoff";
+    signoff.append("~pc ", signoffEmote);
+
+    /**
+     *  The body sits in its own inset panel, the way the settings card holds everything below
+     *  its title in #settingsTabsContent. The tab-content class is carried for structural
+     *  parity with that markup - it is inert on its own, so the look comes from our own rule.
+     */
+    const content = document.createElement("div");
+    content.id = "germsfoxUpdateContent";
+    content.className = "tab-content";
+    content.append(body, signoff);
+
+    card.append(close, title, content);
+    overlay.appendChild(card);
+    menu.appendChild(overlay);
+
+    const onKey = event => { if (event.key === "Escape") dismiss(); };
+    const dismiss = () => {
+        document.removeEventListener("keydown", onKey);
+        overlay.classList.remove("germsfoxUpdateVisible");
+        overlay.addEventListener("transitionend", () => overlay.remove(), { once: true });
+
+        /**
+         *  Recorded here rather than when the notice is built, so that only a notice somebody
+         *  actually closed counts as seen.
+         *
+         *  Marking it on show looks equivalent and is not: the first build of this shipped
+         *  while style.css was still a revision behind, so the panel was appended with none of
+         *  its positioning, rendered as an invisible block inside a flex container, and marked
+         *  itself seen on the way past. One silent failure then suppressed it forever. Anything
+         *  that can go wrong between here and the screen should cost a repeat showing, not the
+         *  notice itself.
+         */
+        setSetting("lastSeenVersion", version);
+    };
+
+    close.addEventListener("click", dismiss);
+    // Only the backdrop itself, or every click inside the card would close it
+    overlay.addEventListener("click", event => { if (event.target === overlay) dismiss(); });
+    document.addEventListener("keydown", onKey);
+
+    /**
+     *  Reading offsetWidth forces the 0 opacity to be computed before the class changes it, so
+     *  the transition has a value to animate away from instead of the two landing in one style
+     *  recalculation and the fade being skipped.
+     *
+     *  Deliberately not requestAnimationFrame, which is the usual way to do this: it does not
+     *  fire in a background tab, and the extension loading into one is exactly the ordinary
+     *  case here - the notice would sit at opacity 0 until the tab was focused.
+     */
+    void overlay.offsetWidth;
+    overlay.classList.add("germsfoxUpdateVisible");
+}
+
 function renderGameMenu() {
 
     const spectateIcon = document.getElementById("spectate").querySelector("i");

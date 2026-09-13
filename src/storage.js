@@ -80,6 +80,8 @@ const DEFAULT_CONTROLS = {
 
 const DEFAULT_SETTINGS = {
     controls: DEFAULT_CONTROLS,
+    // Last version whose update notice has been shown - see renderUpdateNotice()
+    lastSeenVersion: "",
     disablePishi: false,
     setSkin: "None", //document.getElementById("skin").style.backgroundImage.slice(5, -2)
     setColor: "None",

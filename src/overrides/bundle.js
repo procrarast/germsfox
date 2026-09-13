@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.3.8
+ * @version     1.3.9
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -4748,10 +4748,14 @@ function modules(ks) {
                 // As the server sent it. Independent of actual cell color as affected by custom themes
                 this.baseColor = color;
                 this.baseRgb = rgb;
+
+                // Set before applyTheme(), not after: FoodNode.themeKey reads it, and deriving
+                // the colour first left every ejected node reading it as undefined and taking
+                // the food theme anyway on the frame it spawned
+                this.isEjected = isEjected;
+
                 // Now we can customize the color
                 this.applyTheme();
-
-                this.isEjected = isEjected;
 
                 this.lastUpdate = this.game.updateTime;
                 this.created = this.lastUpdate;
@@ -4863,7 +4867,14 @@ function modules(ks) {
 
         class FoodNode extends Node {
             get type() { return nodeType.Food; }
-            get themeKey() { return 'food'; }
+
+            /**
+             *  Ejected mass is a food node to the renderer, but to everyone looking at it it is
+             *  a player's mass - it carries the colour of whoever spat it out, and that is how
+             *  you tell whose it is. The food theme recolouring it threw that away, so it keeps
+             *  the colour the server sent and only real food answers to the theme.
+             */
+            get themeKey() { return this.isEjected ? null : 'food'; }
             get shape() {
                 if (this._shape == null) {
                     this._shape = Math.floor(Math.random() * 3);
@@ -7107,7 +7118,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.8 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 

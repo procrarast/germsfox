@@ -1175,3 +1175,100 @@ input:focus + .slider.danger {
 #debugText {
     min-width: 126px;
 }
+
+/* First-run update notice (renderUpdateNotice() in dom.js).
+ *
+ * Values are lifted from the game's own #settings overlay and #settingsCard rather than
+ * invented, so the panel reads as part of the menu: the same 0.46 dim, the same 52/58/64
+ * card on a 5px radius with a 420px width and 13px of padding, and the same soft shadow.
+ * Only the fade is ours - the game's panels are toggled by jQuery, which a content script
+ * has no access to, so this transitions on a class instead. */
+#germsfoxUpdateNotice {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 80; /* above #settings, which sits at 76 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.46);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+#germsfoxUpdateNotice.germsfoxUpdateVisible {
+    opacity: 1;
+}
+
+#germsfoxUpdateCard {
+    position: relative;
+    /* germs.io's own .card rule sets margin-top: 10px, which would sit the panel off-centre */
+    margin: 0;
+    width: 420px;
+    max-width: 90%;
+    padding: 13px;
+    background-color: rgb(52, 58, 64);
+    border-radius: 5px;
+    box-shadow: rgba(0, 0, 0, 0.35) 0 0 15px 1px;
+    color: #fff;
+    font-family: Ubuntu, Roboto, "Segoe UI", sans-serif;
+}
+
+#germsfoxUpdateTitle {
+    margin: 0 0 10px 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* One size for both marks, so the title icon and the signoff emote sit alike */
+.germsfoxUpdateIcon {
+    width: 22px;
+    height: 22px;
+    flex: none;
+}
+
+#germsfoxUpdateSignoff {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 12px;
+    opacity: 0.7;
+}
+
+/* Lifted from #settingsTabsContent - the class alone carries none of this */
+#germsfoxUpdateContent {
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 5px;
+    padding: 10px;
+    color: #fff;
+    font-size: 16px;
+}
+
+#germsfoxUpdateBody {
+    margin: 0;
+    line-height: 1.45;
+    /* The description is set as textContent with \n\n between paragraphs, which would
+     * otherwise collapse to a single space */
+    white-space: pre-line;
+}
+
+/* The game's own close button, values taken straight off #settingsClose: a blue disc that
+ * overhangs the corner of the card rather than sitting inside it. The padding and line-height
+ * are what size the circle, so they are copied rather than replaced with a width/height. */
+#germsfoxUpdateClose {
+    position: absolute;
+    top: -23px;
+    right: -19px;
+    padding: 10px;
+    background-color: rgb(9, 85, 255);
+    color: #fff;
+    font-size: 20px;
+    line-height: 14px;
+    border-radius: 50%;
+    cursor: pointer;
+}

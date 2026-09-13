@@ -5191,9 +5191,19 @@ function modules(ks) {
             init(node) {
                 super.init(node);
 
-                if (!this.node.isEjected) {
-                    this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
-                }
+                /**
+                 *  tick() folds this into root.visible, and a hidden node is culled outright -
+                 *  it returns before any interpolation and never reaches the render pipe.
+                 *
+                 *  Ejected mass answers to its own setting rather than to Hide Food. It is
+                 *  gameplay rather than scenery, so hiding it along with the pellets was wrong;
+                 *  but in a feed mode it is both the most numerous food node and the only one
+                 *  that draws a border, so the players who hide food for the frames in the first
+                 *  place need some way to drop it.
+                 */
+                this.hidden = this.node.isEjected
+                    ? this.game.settings.settings.hideEjectedMass
+                    : this.game.settings.settings.hideFood;
 
                 this.root.rotation = this.node.rotation; 
             }
@@ -5402,9 +5412,19 @@ function modules(ks) {
             init(node) {
                 super.init(node);
 
-                if (!this.node.isEjected) {
-                    this.hidden = this.game.settings.settings.hideFood; // tick() folds this into root.visible
-                }
+                /**
+                 *  tick() folds this into root.visible, and a hidden node is culled outright -
+                 *  it returns before any interpolation and never reaches the render pipe.
+                 *
+                 *  Ejected mass answers to its own setting rather than to Hide Food. It is
+                 *  gameplay rather than scenery, so hiding it along with the pellets was wrong;
+                 *  but in a feed mode it is both the most numerous food node and the only one
+                 *  that draws a border, so the players who hide food for the frames in the first
+                 *  place need some way to drop it.
+                 */
+                this.hidden = this.node.isEjected
+                    ? this.game.settings.settings.hideEjectedMass
+                    : this.game.settings.settings.hideFood;
 
                 this.root.rotation = this.node.rotation; 
             }
@@ -6767,6 +6787,7 @@ function modules(ks) {
                     'hideXP': false,
                     'hideChat': false,
                     'hideFood': false,
+                    'hideEjectedMass': false,
                     'hideBorder': false,
                     'lockedColor': '#FF0000',
                     'lockedPosition': '#FF0000',
@@ -6979,9 +7000,20 @@ function modules(ks) {
                         }
                         break;
                     case 'hideFood':
+                    case 'hideEjectedMass':
+                        /**
+                         *  Re-derived per node rather than assigned `value`, which is what the
+                         *  two settings sharing one flag demands: assigning it made toggling
+                         *  either one overwrite what the other said, and left live nodes
+                         *  disagreeing with what init() does for the very next spawn - so
+                         *  whether ejected mass was culled came down to whether it happened to
+                         *  exist when the switch was flipped.
+                         */
                         for (const node of this.game.nodes.values()) {
-                            if (node.type === nodeType.Food)
-                                node.renderer.hidden = value;
+                            if (node.type !== nodeType.Food) continue;
+                            node.renderer.hidden = node.isEjected
+                                ? this.settings.hideEjectedMass
+                                : this.settings.hideFood;
                         }
                         break;
                     case 'hideXP':
@@ -10050,6 +10082,7 @@ function modules(ks) {
                 ["shortenMass", "Shorten Mass"],
                 ["borderlessCells", "Borderless Cells"],
                 ["hideMapGrid", "Hide Map Grid"],
+                ["hideEjectedMass", "Hide Ejected Mass"],
                 ["jellyPhysics", "Jelly Physics"],
                 ["acidMode", "Acid Mode"],
                 ["webGPU", "Use WebGPU"],
@@ -10078,7 +10111,7 @@ function modules(ks) {
                 ["Appearance Options", [
                     "cellOpacity", "showSkins", "highQualitySkins", "showNames",
                     "showMass", "shortenMass", "borderlessCells",
-                    "hideFood", "hideBorder", "hideMapGrid",
+                    "hideFood", "hideEjectedMass", "hideBorder", "hideMapGrid",
                 ]],
                 ["Render Options", [
                     "animationDelay", "cameraDelay", "zoomSensitivity",

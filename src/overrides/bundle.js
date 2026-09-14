@@ -48,19 +48,6 @@ var moduleRegistry = {
                 }
                 ).join(this.splitRegex.exec(a6)?.[0] ?? '');
             }
-            addWords() {
-                let a8 = Array.from(arguments);
-                this.list.push(...a8);
-                a8.map(a9 => a9.toLowerCase()).forEach(aa => {
-                    if (this.exclude.includes(aa)) {
-                        this.exclude.splice(this.exclude.indexOf(aa), 1);
-                    }
-                }
-                );
-            }
-            removeWords() {
-                this.exclude.push(...Array.from(arguments).map(ab => ab.toLowerCase()));
-            }
         }
         filter.exports = Filter;
     }
@@ -2485,11 +2472,6 @@ function modules(ks) {
                 this._offset += 2;
                 return value;
             }
-            readInt16() {
-                var value = this._buffer.readInt16LE(this._offset);
-                this._offset += 2;
-                return value;
-            }
             readUInt32() {
                 var value = this._buffer.readUInt32LE(this._offset);
                 this._offset += 4;
@@ -2500,23 +2482,10 @@ function modules(ks) {
                 this._offset += 4;
                 return value;
             }
-            readFloat() {
-                var value = this._buffer.readFloatLE(this._offset);
-                this._offset += 4;
-                return value;
-            }
             readDouble() {
                 var value = this._buffer.readDoubleLE(this._offset);
                 this._offset += 8;
                 return value;
-            }
-            readBytes(length) {
-                var value = this._buffer.slice(this._offset, this._offset + length);
-                this._offset += length;
-                return value;
-            }
-            skipBytes(length) {
-                this._offset += length;
             }
             readStringUtf8(length) {
                 if (length == null)
@@ -2925,8 +2894,14 @@ function modules(ks) {
                     el.style.transform = `translate(${mapX}px, ${mapY}px)`;
                 }
 
-                if (this.game.playerCells.size > 0) {
-                    const cell = this.game.aliveCell;
+                /**
+                 *  aliveCell, not playerCells.size: eaten cells stay in playerCells for the
+                 *  length of their fade, so the size outlives the last living cell by about a
+                 *  second. Guarding on it dereferenced a null aliveCell the moment the last
+                 *  cell died - and before that, it painted the minimap from a corpse.
+                 */
+                const cell = this.game.aliveCell;
+                if (cell) {
                     if (cell.renderer.heldSkin) {
                         if (this._mapSkin !== cell.skin) {
                             this._mapSkin = cell.skin;
@@ -2973,7 +2948,7 @@ function modules(ks) {
                         player.name = player.name.replace('[YT]', '');
                         playerIconHTML = '<b class="lbYT">YT</b>';
                         if (this.game.myID == player.id) {
-                            if (this.game.playerCells.size > 0) {
+                            if (this.game.aliveCell) {
                                 this.game.topPosition = Math.min(this.game.topPosition, player.rank);
                                 myPlayerHTML = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
                                 if (player.rank < 10) {
@@ -2983,7 +2958,7 @@ function modules(ks) {
                         }
                     } else {
                         if (this.game.myID == player.id) {
-                            if (this.game.playerCells.size > 0) {
+                            if (this.game.aliveCell) {
                                 this.game.topPosition = Math.min(this.game.topPosition, player.rank);
                                 myPlayerHTML = 'style="color: ' + this.game.aliveCell.rgb + '; font-weight: bold;"';
                                 if (player.rank > 2 && player.rank < 10) {
@@ -3027,30 +3002,6 @@ function modules(ks) {
                 this.mapParty.innerHTML = '';
             }
             
-            // TODO: Remove related information from debug, move debug elsewhere
-            updateScoreDiv() {
-                if (!this.scoreDiv) {
-                    this.scoreDiv = document.createElement("div");
-                    this.scoreDiv.id = "uiScore";
-
-                    // I wanna have a bigger mario-kart style rank in the top left before score/mass
-                    this.scoreLabels = {
-                        rank: document.createElement("b"),
-                        mass: document.createElement("b"),
-                        topRank: document.createElement("b"),
-                        topMass: document.createElement("b")
-                    };
-
-                    for (const label of this.scoreLabels) {
-                        const lineBreak = document.createElement("br");
-                        scoreDiv.append(lineBreak, label);
-                    }
-                }
-
-                // TODO to be continued
-                this.scoreLabels.rank.innerHTML = `<b>Rank:</b> ${this.getRank()}`;
-                this.scoreLabels.mass.innerHTML = `<b>Mass:</b> ${this.getMass()}`;
-            }
 
             /**
              *  Lays the debug panel out once, so updateDebugHTML() only ever has to write
@@ -3160,7 +3111,7 @@ function modules(ks) {
 
                     const border = game.border[3] * 2;
 
-                    if (game.playerCells.size > 0) {
+                    if (game.aliveCell) {
                         const partyNameHTML = getNameHTML(game.aliveCell.name);
 
                         partyTextHTML += `
@@ -3452,7 +3403,6 @@ function modules(ks) {
                 this.targetY = 0;
 
                 this.userZoom = 0.25;
-                this.specZoom = 0;
                 this.renderZoom = 1;
 
                 this.cameraDelay = this.game.settings.settings.cameraDelay;
@@ -3470,10 +3420,6 @@ function modules(ks) {
                 // Autozoom
                 if (this.game.settings.settings.autoZoom == true) {
                     newZoom = 0;
-                    // Sometimes the server updates specZoom, might be from unimplemented spectate mode
-                    if (this.game.playerCells.size === 0 && this.specZoom) {
-                        newZoom = this.specZoom * this.viewRange;
-                    }
                     for (const cell of this.game.playerCells) {
                         newZoom += cell.size;
                     }
@@ -3633,7 +3579,6 @@ function modules(ks) {
                 console.warn("Could not find texture for deletion!");
             }
 
-            getTexture(entry) { return entry.texture ?? null; }
 
             clear() {
                 // Delete all textures so they don't leak all over the place
@@ -3666,8 +3611,6 @@ function modules(ks) {
                 canvas.width = Math.ceil(Math.max(...lines.map(line => ctx.measureText(line).width))) + pad * 2;
                 canvas.height = Math.ceil(lines.length * lineHeight) + pad * 2;
 
-                //ctx.fillStyle = 'red';
-                //ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.font = font;
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'center';
@@ -3763,7 +3706,6 @@ function modules(ks) {
                 return this.set(skinName, resource);
             }
 
-            getTexture(entry) { return entry.resource.texture ?? null; }
 
             destroyTexture(entry) { 
                 //console.debug("Destroying skin resource");
@@ -3962,12 +3904,6 @@ function modules(ks) {
 
         function cssColorFrom(hex) {
             return `rgb(${(hex >> 16) & 0xFF}, ${(hex >> 8) & 0xFF}, ${hex & 0xFF})`;
-        }
-
-        const foodShape = {
-            'Pentagon': 0,
-            'Hexagon': 1,
-            'Circle': 2
         }
 
         /**
@@ -4394,7 +4330,7 @@ function modules(ks) {
                 const size = this.node.size;
                 
                 // Hide the texture if...
-                let zoomThreshold = 16 + this.game.nodeCountRoot;
+                let zoomThreshold = 24 + this.game.nodeCountRoot;
 
                 if (this.massSprite?.visible) zoomThreshold -= 10; // Otherwise it flickers sometimes
 
@@ -4715,6 +4651,7 @@ function modules(ks) {
 
             get texture() { 
                 if (!this.node) return PIXI.Texture.EMPTY;
+                // shape is 0/1/2 - pentagon, hexagon, circle - matching foodTextures' order
                 return this.game.foodTextures[this.node.shape]; 
             }
 
@@ -4774,7 +4711,6 @@ function modules(ks) {
                 this.applyTheme();
 
                 this.lastUpdate = this.game.updateTime;
-                this.created = this.lastUpdate;
 
                 this.eaten = false;
                 this.hunterId = null;
@@ -4788,6 +4724,9 @@ function modules(ks) {
 
             getEatenBy(hunter) {
                 this.eaten = true;
+                // Hand off now rather than a fade later, while there is still something alive
+                // to hand off to - see repointAliveCell()
+                this.game.repointAliveCell(this);
                 // Falls back to the wall clock for the window before the first frame has set
                 // updateTime - an undefined start would make the fade's progress NaN, and a NaN
                 // alpha is an invisible cell that never retires
@@ -5276,7 +5215,6 @@ function modules(ks) {
             'Mouse': MouseWriter,
             'Split': SplitWriter,
             'Eject': EjectWriter,
-            /*'Extra': od,*/
             'Party': PartyWriter
         };
         ;const oj = 'g-h';
@@ -5370,12 +5308,6 @@ function modules(ks) {
                 this.ws.onmessage = this.onMessage.bind(this);
                 this.ws.onclose = this.onClose.bind(this);
                 this.ws.onerror = this.onClose.bind(this);
-            }
-            h2(oB) {
-                var oC = [], oD;
-                for (var oE = 0; oE < oB.length - 1; oE += 2)
-                    oC.push(parseInt(oB.substr(oE, 2), 16));
-                return String.fromCharCode.apply(String, oC);
             }
             getParameterByName(oF, oG) {
                 if (!oG)
@@ -5600,9 +5532,6 @@ function modules(ks) {
                 switch (oZ) {
                     case 16:
                         this.handleNodes(oY);
-                        break;
-                    case 0x11:
-                        this.handlePosition(oY);
                         break;
                     case 0x12:
                     case 20:
@@ -5857,6 +5786,24 @@ function modules(ks) {
                     node.y = y;
                     node.size = size;
 
+                    /**
+                     *  Colour is state like any other: a cell carries a new one when its owner
+                     *  disconnects and turns grey, and reading it only on the packet that
+                     *  created the node left those cells their old colour for the rest of their
+                     *  lives.
+                     *
+                     *  Written through baseColor and re-derived rather than assigned to `color`
+                     *  directly, the same way a theme change does it - the displayed colour is
+                     *  always derived from the server's, so whatever theme is running survives
+                     *  the update instead of being painted over.
+                     */
+                    if (hasColor && color !== node.baseColor) {
+                        node.baseColor = color;
+                        node.baseRgb = rgb;
+                        node.applyTheme();
+                        node.renderer.refreshColor();
+                    }
+
                     // ...And its rendered mass sprite
                     if (node.type === nodeType.Player) node.renderer.setSize();
                 }
@@ -5906,9 +5853,6 @@ function modules(ks) {
             }
             handleClear() {
                 this.game.clearNodes();
-            }
-            handlePosition(reader) {
-                this.game.updateCameraPos(reader.readFloat(), reader.readFloat(), reader.readFloat());
             }
             handleRestart(reader) {
                 this.verified = true;
@@ -6057,8 +6001,7 @@ function modules(ks) {
                         '16x': [0x54, 'T'],
                         'Freeze': [0x46, 'F'],
                         'Vertical': [0x56, 'V'],
-                        'Hide': [0x48, 'H'],
-                        'Spectate': [81, 'Q']
+                        'Hide': [0x48, 'H']
                     },
                     'autoZoom': false,
                     'showSkins': 'all',
@@ -6538,42 +6481,6 @@ function modules(ks) {
                 }
                 rm += '</ul>';
                 $('#shopTabLocked').html(rm);
-            }
-            updateLimited() {
-                var rt = '<h3>Limited Time Skins <i class="far fa-clock"></i></h3><h5>Get them quick before they are gone!</h5><ul>';
-                var ru = this.limited.sort( (rv, rw) => {
-                    if (rv.Bucks > 0 && rw.Bucks > 0) {
-                        return rv.Bucks - rw.Bucks;
-                    }
-                    if (rv.Bucks > 0 && rw.Coins > 0) {
-                        return 1;
-                    }
-                    if (rw.Bucks > 0 && rv.Coins > 0) {
-                        return -1;
-                    }
-                    return rv.Coins - rw.Coins;
-                }
-                );
-                for (var rx = 0; rx < ru.length; rx++) {
-                    var ry = ru[rx];
-                    if (ry.Skin != '') {
-                        var rz = ry.Skin.split('limited/')[1].capitalize();
-                        rt += '<li><img class="nodrag" data-src="res/skins/' + ry.Skin + '.png"><p>' + rz + '</p>';
-                        if (this.skins.indexOf(ry.Skin) > -1) {
-                            rt += `<input onclick="setSkin('` + ry.Skin + `')" type="button" class="btn btn-sm btn-success" value="Use This Skin">`;
-                        } else {
-                            if (ry.Coins > 0) {
-                                rt += `<button onclick="buySkin(this, '` + ry.Skin + `')" class="btn btn-sm btn-primary">` + ry.Coins + ' <i class="fas fa-coins"></i></button>';
-                            }
-                            if (ry.Bucks > 0) {
-                                rt += `<button onclick="buySkin(this, '` + ry.Skin + `')" class="btn btn-sm btn-primary">` + ry.Bucks + ' <img src="res/gbux.png" class="nodrag"></button>';
-                            }
-                        }
-                        rt += '</li>';
-                    }
-                }
-                rt += '</ul>';
-                $('#shopTabLimited').html(rt);
             }
             updateVeteran() {
                 var rA = '<ul>';
@@ -7081,9 +6988,6 @@ function modules(ks) {
                                 alias: 'grid',
                                 src: 'grid.png'
                             }, {
-                                alias: 'arrow',
-                                src: 'arrow.png'
-                            }, {
                                 alias: 'sheet',
                                 src: 'texture.json'
                             }]
@@ -7148,7 +7052,6 @@ function modules(ks) {
                 this.gridTexture.source.autoGenerateMipmaps = true;
                 this.hexTexture = PIXI.Assets.get('hex');
                 this.hexTexture.source.autoGenerateMipmaps = true;
-                this.arrowTexture = PIXI.Assets.get('arrow');
 
                 // Cached rather than read through settings on every checkout and every frame of
                 // every corpse's fade
@@ -7156,15 +7059,6 @@ function modules(ks) {
                 this.cellTexture = this.settings.settings.borderlessCells ? this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
                 this.virusTexture = this.spriteSheet.textures.virus;
                 this.foodTextures = [this.spriteSheet.textures.food1, this.spriteSheet.textures.food2, this.spriteSheet.textures.food3];
-
-                this.gameTextures = [
-                    this.gridTexture,
-                    this.hexTexture,
-                    this.arrowTexture,
-                    this.cellTexture,
-                    this.virusTexture,
-                    ...this.foodTextures
-                ];
 
                 this.bruh = new Audio(`${extensionURL}sound/bruh.mp3`);
 
@@ -7224,9 +7118,6 @@ function modules(ks) {
                 }
             }
             
-            urlFromSkin(sY) {
-                return sY.includes('i.imgur.com/') ? sY : sY.includes('.png') ? 'res/skins/' + sY : 'res/skins/' + sY + '.png';
-            }
             calcMouse() {
                 let newX = (this.rawMouseX - this.width / 2) / this.camera.renderZoom + this.camera.x;
                 let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.y;
@@ -7630,26 +7521,6 @@ function modules(ks) {
                 this.network.sendSpectate();
                 this.freeSpec = true;
             }
-            /**
-             *  The x/y here are the spectate camera center in the agar.io-derived protocol this
-             *  game inherits: on an Ogar-style server they follow whichever player you are
-             *  spectating, and Space (opcode 17) cycles that target while Q (opcode 18, which
-             *  germs.io builds as "Extra" and binds to Q) toggles free roam. Germs.io's own
-             *  client discards them exactly like this one does.
-             *
-             *  Measured 2026-09-11 against us.germs.io: after asserting spectate, 30s of traffic
-             *  carried only 0x10 nodes, 0x31 leaderboard and 0x64 pong - no 0x11 at all, and no
-             *  unrecognised opcode that could have replaced it. The follow camera appears to be
-             *  gone server-side, so this is dead inherited protocol surface and the zoom is the
-             *  only part of the packet still worth reading. Spectating stays free-roam because of
-             *  it; do not "fix" the camera here without first confirming 0x11 actually arrives.
-             */
-            updateCameraPos(unused1, unused2, zoom) {
-                console.debug(unused1, unused2, zoom);
-                if (this.playerCells.size == 0) {
-                    this.camera.specZoom = zoom;
-                }
-            }
             setBorder(tE, tF, tG, tH) {
                 var tI = [tE, tG, tF, tH];
                 if (this.border != tI) {
@@ -7915,19 +7786,36 @@ function modules(ks) {
                 if (parked > 0) container.removeChildren(0, parked);
             }
 
-            removeNode(node) {
-                if (node === this.aliveCell) { // Get new aliveCell if it's removed
-                    if (this.playerCells.size === 1) {
-                        this.aliveCell = null;
-                    } else { 
-                        for (const cell of this.playerCells) {
-                            if (cell !== node) {
-                                this.aliveCell = cell; 
-                                break;
-                            }
-                        }
+            /**
+             *  Moves aliveCell off `node` onto a cell that is still alive, or to null when there
+             *  is none left.
+             *
+             *  Driven by a cell being eaten rather than by its corpse being collected. Those are
+             *  about a second apart - removeNode() only runs once the fade finishes, see
+             *  EATEN_FADE_TIME - and for all of it aliveCell used to point at something dead.
+             *  Everything reading it read a corpse: the camera's gate, the leaderboard entry's
+             *  colour and skin, the minimap cell, the party name.
+             *
+             *  Eaten cells are skipped when choosing, which the old version in removeNode() did
+             *  not do: the first cell that merely wasn't this one could just as easily be another
+             *  corpse mid-fade, which only moved the problem along by one cell.
+             */
+            repointAliveCell(node) {
+                if (this.aliveCell !== node) return;
+
+                this.aliveCell = null;
+                for (const cell of this.playerCells) {
+                    if (cell !== node && !cell.eaten) {
+                        this.aliveCell = cell;
+                        break;
                     }
                 }
+            }
+
+            removeNode(node) {
+                // Usually a no-op by now - being eaten already moved it - but a node can leave
+                // without ever being eaten (a clear, or leaving the viewport for good)
+                this.repointAliveCell(node);
                 if (this.playerCells.size === 1 && this.playerCells.has(node)) {
                     if (this.settings.settings.deathFreecam) this.freeSpec = true;
                     this.deathTimeout = setTimeout(this.onDeath.bind(this), 100);
@@ -7997,11 +7885,6 @@ function modules(ks) {
                         }
                         this.queueSplits(1);
                         break;
-                    /*case this.controls.Spectate[0]:
-                        if (this.playerCells.size > 0) {
-                            this.network.send(new packet.Extra());
-                        }
-                        break;*/
                     case this.controls.Feed[0]:
                         if (event.repeat || this.feedInterval)
                             return;
@@ -8268,8 +8151,6 @@ function modules(ks) {
                 }
             }
             onContextMenu(ue) {
-                this.ejectKey = false;
-
                 // Chat is checked first and by position: .chatMessage is pointer-events:none so
                 // the click lands on whatever is behind it, which is also why the guard below
                 // would otherwise throw every chat right-click away.
@@ -9405,12 +9286,7 @@ function modules(ks) {
                 $('#btnEmote').blur();
                 $('#btnChannel').blur();
             });
-            
-            // uncomment keySpectate, unfortunately Extra packets dont seem to do anything
-            /*const controlsDiv = document.getElementById("settings-controls")
-            const controlsHTML = controlsDiv.innerHTML.replace("<!--", "").replace("-->", "");
-            controlsDiv.innerHTML = controlsHTML;*/
-            
+
             $("#settings-controls input[type='text']").on('click focus', function() {
                 $(this).select();
             });
@@ -9443,9 +9319,6 @@ function modules(ks) {
                 case 'keyHide':
                     instance.controls.Hide = [vF.which, vG];
                     break;
-                /*case 'keySpectate':
-                    instance.controls.Spectate = [vF.which, vG];
-                    break;*/
                 }
                 instance.settings.setItem('controls', instance.controls);
                 $(this).val(vG);

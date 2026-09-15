@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.3.9.2
+ * @version     1.3.9.3
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -2607,6 +2607,34 @@ function modules(ks) {
                     "forward.gif"
                 ];
 
+                this.blazzerQuotes = [
+                    "A tiny  useless dick",
+                    "Zing is a femboy",
+                    "Dont cry tiny dick",
+                    "Future has frustation on ur tiny dick",
+                    "Nahaahaa brazil in the list bigger dicj",
+                    "Future e zing sounds like venezuelano xd",
+                    "Maybe virgins tiny dicks wanting atettion",
+                    "I'm not mentally ill like you guys.",
+                    "It's quite possible you'll experience bullying at school.",
+                    "Yes u mom is obsessed w my dick brazilian 20cm",
+                    "List of tiny dicks w high ego: Future, zing and lu",
+                    "Just cry, you envious little-dick people.",
+                    "You guys live in a favela compared to mine.",
+                    "Lu must be a psychopath just like the guys from Colubine.",
+                    "Future maybe a nigga nerd",
+                    "Canadians are all cowards with a reputation for liking to give their ass.",
+                    "Like sucks biggers black dicks and licks butthole of my friends",
+                    "future assumes his frustration because I'm Brazilian and have a bigger penis.",
+                    "Your mother would love to taste my Brazilian cock, something you don't have to please.",
+                    "Are you dating your hand?",
+                    "It had to be a black monkey.",
+                    "OMG I hate Israel",
+                    "Who are the girls in this group?",
+                    "Even though the Barcode is from the RSK age, I'm still older than him.",
+                    "Lu=🐒"
+                ];
+
                 this.wahbasQuotes = [
                     "Look at the professionalism, big guy!ـط",
                     "Give me my share of the tasteـس",
@@ -2669,7 +2697,10 @@ function modules(ks) {
             }
             send(lg) {
                 // /wahbas sends a random line from wahbasQuotes instead of the literal command
-                if (lg.trim() === '/wahbas' && this.wahbasQuotes.length > 0) {
+                if (lg.trim() === '/blazzer') {
+                    lg = this.blazzerQuotes[Math.floor(Math.random() * this.blazzerQuotes.length)];
+                }
+                if (lg.trim() === '/wahbas') {
                     lg = this.wahbasQuotes[Math.floor(Math.random() * this.wahbasQuotes.length)];
                 }
                 this.game.network.sendChat(lg, this.channel);
@@ -3301,6 +3332,9 @@ function modules(ks) {
          *  real Self Feed technique and has to fit exactly; this is also what stops a held key
          *  building a queue that keeps splitting long after it was let go, since key repeat
          *  arrives faster than one split per tick can drain.
+         *
+         *  Counted in splits the player asked for, not packets queued: a rushed run sends
+         *  SPLIT_RUSH_COPIES packets per split and still costs the queue one. See queuedSplits.
          */
         const SPLIT_QUEUE_MAX = 8;
 
@@ -3410,6 +3444,31 @@ function modules(ks) {
          *  the prediction in Camera.predict() has to divide by the same number.
          */
         const FREE_SPEC_SPEED = 20;
+
+        /**
+         *  How often sendMouse() fires. Named because leadMs() has to reason about it: the
+         *  server acts on the newest position it has, so between sends that position ages.
+         */
+        const MOUSE_SEND_PERIOD = 40;
+
+        /**
+         *  DIAGNOSTIC - freeSpec lead measurement, driven by util/leadprobe.js.
+         *
+         *  Kept rather than deleted because the server-side wait leadMs() compensates for is
+         *  not a constant: it measured 1.5 ticks in an empty region and 2.8 under load, so a
+         *  different server or a busier one wants re-measuring rather than guessing. Gated off;
+         *  it costs two dead branch tests per packet and per send while `on` is false.
+         */
+        const GF_DIAG = {
+            marker: 'leadprobe-2',
+            on: false,
+            sent: [],
+            recv: [],
+            start() { this.sent.length = 0; this.recv.length = 0; this.on = true; return this.marker; },
+            stop() { this.on = false; return { sent: this.sent.length, recv: this.recv.length }; },
+            dump() { return JSON.stringify({ marker: this.marker, sent: this.sent, recv: this.recv }); },
+        };
+        self.__gfDiag = GF_DIAG;
 
         // PIXI normalises tick.deltaTime against 60Hz, so this is what one unit of delta buys
         const MS_PER_DELTA = 1000 / 60;
@@ -5977,6 +6036,27 @@ function modules(ks) {
                     }
                 }
 
+                if (GF_DIAG.on) {
+                    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, n = 0;
+                    for (const node of this.game.nodes.values()) {
+                        if (node.eaten) continue;
+                        n++;
+                        if (node.x < minX) minX = node.x;
+                        if (node.x > maxX) maxX = node.x;
+                        if (node.y < minY) minY = node.y;
+                        if (node.y > maxY) maxY = node.y;
+                    }
+                    if (n > 0) {
+                        GF_DIAG.recv.push({
+                            t: performance.now(), n,
+                            cx: (minX + maxX) / 2, cy: (minY + maxY) / 2,
+                            w: maxX - minX, h: maxY - minY,
+                            camX: this.game.camera.x, camY: this.game.camera.y,
+                        });
+                        if (GF_DIAG.recv.length > 6000) GF_DIAG.recv.shift();
+                    }
+                }
+
                 // Whole packet is settled now - safe to read mass/score/cell count.
                 this.game.ui.updateDebugHTML();
 
@@ -7112,9 +7192,9 @@ function modules(ks) {
                 this.login = new Login(this);
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
-                this.pendingSplits = 0;   // see queueSplits()
-                this.splitRushSpacing = 0;
+                this.splitQueue = [];     // see queueSplits()
                 this.lastSplitAt = 0;
+                this.lastSplitRush = false;
                 this.splitTimer = null;
                 this.foodEaten = 0;
                 this.lastColor = null; // color/skin of the last cell we were alive as
@@ -7206,7 +7286,7 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9.2 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9.3 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 
@@ -7257,7 +7337,7 @@ function modules(ks) {
                     $('#loader').fadeOut();
 
                     setInterval(this.counter.bind(this), 1000);
-                    setInterval(this.sendMouse.bind(this), 40);
+                    setInterval(this.sendMouse.bind(this), MOUSE_SEND_PERIOD);
                     setInterval(this.refreshMenuAds.bind(this), 120 * 1000);
                     setInterval(this.submitLeaderboardScore.bind(this), 30 * 1000);
                     
@@ -7457,6 +7537,15 @@ function modules(ks) {
                      */
                     if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
 
+                    if (GF_DIAG.on && this.freeSpec) {
+                        GF_DIAG.sent.push({
+                            t: performance.now(), x: position.x, y: position.y,
+                            camX: this.camera.x, camY: this.camera.y,
+                            dX: this.camera.driftX, dY: this.camera.driftY,
+                            lead: this.leadMs(), ping: this.ping,
+                        });
+                        if (GF_DIAG.sent.length > 6000) GF_DIAG.sent.shift();
+                    }
                     if (!this.lastMouseSent || Math.abs(position.x - this.lastMouseSent.x) > 1 || Math.abs(position.y - this.lastMouseSent.y) > 1) {
                         this.network.sendMouse(position);
                         this.lastMouseSent = {
@@ -7483,14 +7572,50 @@ function modules(ks) {
              *  Leading by the upstream leg alone still lands half a trip short, which is the
              *  part of the lag that stays visible while the camera is moving fast.
              *
-             *  The half tick on top is the wait for the server to act on it. Sends and ticks are
-             *  both 40ms and unsynchronised, so a position is on average half a tick old by the
-             *  time a tick reads it.
+             *  On top of that sit two waits, and only one of them is guessable from here.
+             *
+             *  The server's own wait is measured, not derived. Stepping the requested view
+             *  20000 units with the camera held still and timing the first node to arrive
+             *  beyond the old viewport gives onset - ping directly: 1.5 tick periods across six
+             *  trials in an empty region (onset 100-120ms at a 53ms ping), tight enough to read
+             *  as a mechanism - half a tick to the next boundary, then one whole tick, i.e. the
+             *  server queues an incoming position and the tick *after* the one that receives it
+             *  is the one that acts on it. This subsumes any wait for the position to be read;
+             *  there is no separate term for that. The half tick this used to assume was simply
+             *  too small, and that missing tick is most of the lag that showed on fast pans.
+             *
+             *  The other is display staleness: node packets are a tick apart and the one on
+             *  screen stays until the next replaces it, so what the player is looking at is
+             *  half a tick old again. That leg was missing outright.
+             *
+             *  1.5 + 0.5 is why this is two whole tick periods. Both legs are read off the
+             *  measured tickPeriod so a server on a different rate paces itself, and it assumes
+             *  MOUSE_SEND_PERIOD is about one tick, which it is - sending much slower than the
+             *  server ticks would need a send-quantisation term of its own.
+             *
+             *  Not a constant, though: the same measurement in a crowded region gave 2.8 ticks
+             *  (onset 140-180ms), so the wait grows with server load and this leads short under
+             *  it. One tick is deliberately the low end - over-leading starves the edge behind
+             *  you, which is its own visible artefact, and the server streams a box roughly
+             *  1.1-1.7x the screen width, so a few hundred units of slack absorbs the rest.
+             *  Re-measure with util/leadprobe.js rather than guessing.
+             *
+             *  Finally, camera.x is only recomputed in render() while this fires off its own
+             *  interval, so it is up to a frame stale by the time it is read - the lead is
+             *  measured from the frame it belongs to, not from now.
              */
             leadMs() {
                 // Number.isFinite, not truthiness: ping is legitimately 0 before the first pong
                 const rtt = Number.isFinite(this.ping) ? this.ping : 0;
-                return rtt + this.network.tickPeriod / 2;
+                /**
+                 *  Clamped, because a backgrounded tab pauses requestAnimationFrame while this
+                 *  interval keeps firing: camera.x would sit still for seconds while driftX
+                 *  held its last value, and an unbounded age would extrapolate that stale
+                 *  velocity right off the map. One send period is already longer than a frame
+                 *  at any frame rate worth predicting for. (Observed at 80s during testing.)
+                 */
+                const cameraAge = Math.min(MOUSE_SEND_PERIOD, Math.max(0, performance.now() - this.updateTime));
+                return cameraAge + rtt + this.network.tickPeriod * 2;
             }
 
             leadCamera() {
@@ -8153,32 +8278,25 @@ function modules(ks) {
                         this.freeze = false;
                         this.ui.updateDebugHTML();
                         break;
-                    // Held keys repeat as plain single splits rather than restarting the macro,
-                    // which is what these did before and what leaning on the key should do
                     case this.controls.Double[0]:
-                        this.splitPending = false;
-                        if (event.repeat) {
-                            this.queueSplits(1);
-                            return;
-                        }
-                        this.queueSplits(2);
-                        break;
                     case this.controls.Triple[0]:
+                    case this.controls['16x'][0]: {
                         this.splitPending = false;
+                        // Held keys repeat as plain single splits rather than restarting the
+                        // macro, which is what these did before and what leaning on the key
+                        // should do
                         if (event.repeat) {
                             this.queueSplits(1);
                             return;
                         }
-                        this.queueSplits(3);
+                        const count = event.keyCode === this.controls.Double[0] ? 2
+                                    : event.keyCode === this.controls.Triple[0] ? 3
+                                    : 4;
+                        // Only the 16x key has an intent known up front - see MAX_SPLIT_MODES,
+                        // which is the list to add to rather than a mode name spelled out here
+                        this.queueSplits(count, count === 4 && MAX_SPLIT_MODES.has(this.network.mode));
                         break;
-                    case this.controls['16x'][0]:
-                        this.splitPending = false;
-                        if (event.repeat) {
-                            this.queueSplits(1);
-                            return;
-                        }
-                        this.queueSplits(4, this.network.mode === "Self Feed");
-                        break;
+                    }
                     }
                 }
             }
@@ -8231,50 +8349,149 @@ function modules(ks) {
              */
             queueSplits(count, rush = false) {
                 /**
+                 *  Room is counted in splits the player asked for, never in packets on the
+                 *  wire, so a rushed run occupies exactly what it means rather than three times
+                 *  it. Two 4x presses still fill the queue exactly, rushed or not.
+                 *
+                 *  A press that only partly fits is clamped rather than dropped - "no more than
+                 *  eight" reads as a ceiling, not as an all-or-nothing admission test, and
+                 *  clamping is what keeps the 4x+4x chain landing on exactly eight. One edge
+                 *  falls out of it: with seven already queued a 4x clamps to one, and a single
+                 *  split fails the count > 1 test below, so that last split goes out paced
+                 *  instead of blanketed. That is the correct call for a lone split and not a bug.
+                 */
+                const room = SPLIT_QUEUE_MAX - this.queuedSplits;
+                if (room <= 0) return;
+                count = Math.min(count, room);
+
+                /**
                  *  count > 1, because the rush exists to get a *run* of splits into consecutive
                  *  ticks. A single split has no sequencing problem to solve - one packet always
                  *  lands - so the redundant copies can only do harm: three of them spread over
                  *  two thirds of a tick, so a tick boundary falls between them most of the time
                  *  and one press comes out as two splits.
+                 *
+                 *  Decided against the clamped count, not the requested one, so the rush matches
+                 *  the run actually queued.
                  */
-                if (count > 1 && (rush || this.splitsWillCap(count))) {
-                    /**
-                     *  A capped run is measured in ticks to cover, not packets to send: the
-                     *  copies multiply and the interval divides by the same factor, so the run
-                     *  still spans count ticks - it just arrives with something always waiting.
-                     */
-                    this.pendingSplits = Math.min(SPLIT_QUEUE_MAX * SPLIT_RUSH_COPIES,
-                        this.pendingSplits + count * SPLIT_RUSH_COPIES);
-                    this.splitRushSpacing = this.network.tickPeriod / SPLIT_RUSH_COPIES;
-                } else {
-                    this.pendingSplits = Math.min(SPLIT_QUEUE_MAX, this.pendingSplits + count);
-                }
+                const capped = this.splitsWillCap(count);
+                const rushing = count > 1 && (rush || capped);
+
+                /**
+                 *  Pushed as its own run rather than added to a running total, because a rushed
+                 *  run and a paced one are counted in different units and drain at different
+                 *  rates. One scalar could hold the count or the cadence of whichever press
+                 *  landed last but never both, so mixing the two kinds corrupted them in both
+                 *  directions: a paced press arriving behind a rushed one clamped the shared
+                 *  total against a limit in the wrong unit and silently destroyed queued copies,
+                 *  and whichever press set the shared spacing dragged every split still waiting
+                 *  into its cadence - so a paced 3x pressed alongside a rushed 4x came out at
+                 *  one copy per third of a tick and collapsed into it on the server.
+                 *
+                 *  A rushed run is measured in ticks to cover, not packets to send: the copies
+                 *  multiply and the interval divides by the same factor, so the run still spans
+                 *  count ticks - it just arrives with something always waiting.
+                 */
+                const copies = rushing ? SPLIT_RUSH_COPIES : 1;
+
+                /**
+                 *  ...but count * copies packets span count*tick - tick/3, and the ticks that
+                 *  can consume them are the ones in (0, span + tick]. That is count + 1 ticks
+                 *  for two thirds of all tick phases, and the press comes out a split long -
+                 *  a 16x turning 1 cell into 32 rather than 16. Ending the blanket on the last
+                 *  tick it actually has to cover pins the count instead, at the same speed,
+                 *  because the run still finishes on the same tick.
+                 *
+                 *  Only short of the cap, though. Past it the surplus is discarded anyway, and
+                 *  a trimmed run's end ticks carry one packet each rather than three, so jitter
+                 *  can drop one and lose a split - which is the one outcome that costs anything
+                 *  when the whole point of the press was to reach the cap.
+                 */
+                const packets = rushing && !capped ? (count - 1) * copies + 1 : count * copies;
+
+                /**
+                 *  perSplit rather than copies, because a trimmed run's packets no longer
+                 *  divide evenly into its splits - 10 packets carry 4 - and dividing by copies
+                 *  would quietly under-count what the run still owes, letting a press past the
+                 *  ceiling. It is packets-per-split for every shape: 1 paced, COPIES blanketed,
+                 *  and the fraction in between when trimmed.
+                 */
+                this.splitQueue.push({ left: packets, copies, perSplit: packets / count });
                 this.pumpSplits();
+            }
+
+            /** Splits the player has asked for and not yet seen leave, rush copies counted once. */
+            get queuedSplits() {
+                let total = 0;
+                // perSplit is 1 for a paced run, so this is the same arithmetic either way
+                for (const run of this.splitQueue) total += Math.ceil(run.left / run.perSplit);
+                return total;
             }
 
             /**
              *  Releases the next split once a full spacing has passed since the last one -
              *  immediately when the queue has been idle, which is the ordinary case for a single
              *  press, so nothing pays latency for the pacing it doesn't need.
+             *
+             *  The spacing belongs to the run at the head of the queue, not to the queue, which
+             *  is what lets a rushed press and a paced one sit in it at the same time without
+             *  either adopting the other's cadence.
+             *
+             *  Blanketing is only ever allowed *inside* a rushed run, or across a boundary where
+             *  the run on both sides is rushed - chained max splits stay continuous, the way
+             *  hand-spamming them is. A boundary with a paced run on either side takes the full
+             *  splitSpacing instead: those are two different splits the player asked for, and
+             *  two splits a third of a tick apart are one split as far as the server is
+             *  concerned.
              */
             pumpSplits() {
-                if (this.splitTimer || !this.pendingSplits) return;
+                if (this.splitTimer || !this.splitQueue.length) return;
 
-                const spacing = this.splitRushSpacing || this.network.splitSpacing;
-                const wait = this.lastSplitAt + spacing - performance.now();
+                const run = this.splitQueue[0];
+                /**
+                 *  Mid-run this is always true, because the packet before it came from this
+                 *  same run - the head does not change until a run is exhausted - so there is
+                 *  no separate "first packet of the run" test to make. What it actually reads
+                 *  is whether the run either side of this boundary blankets.
+                 */
+                const blanketing = run.copies > 1 && this.lastSplitRush;
+                const spacing = blanketing
+                    ? this.network.tickPeriod / run.copies
+                    : this.network.splitSpacing;
+
+                /**
+                 *  Scheduled against when this packet was *due*, not when the last one actually
+                 *  went, because setTimeout runs late and anchoring on the achieved time makes
+                 *  that lateness compound. Measured in the page: a rushed 4x that should span
+                 *  146.7ms spanned 156.6ms, every hop a couple of ms late and never recovering.
+                 *  Ten milliseconds is a quarter of a tick, which is the difference between a
+                 *  blanket that covers four ticks and one that clips a fifth.
+                 *
+                 *  Falling behind by more than a whole spacing is a stall rather than drift, so
+                 *  that path re-anchors on the clock instead of trying to catch up - which would
+                 *  fire the backlog together and collapse it on the server.
+                 */
+                const due = this.lastSplitAt + spacing;
+                const wait = due - performance.now();
                 if (wait <= 0) return this.releaseSplit();
 
                 this.splitTimer = setTimeout(() => {
                     this.splitTimer = null;
-                    this.releaseSplit();
+                    this.releaseSplit(due);
                 }, wait);
             }
 
-            releaseSplit() {
-                this.pendingSplits--;
-                // The rush only lasts as long as the run that asked for it
-                if (!this.pendingSplits) this.splitRushSpacing = 0;
-                this.lastSplitAt = performance.now();
+            /** `at` is the time this packet was due; absent, it is going out unscheduled. */
+            releaseSplit(at) {
+                const run = this.splitQueue[0];
+                if (!run) return;
+
+                // The run leaves the queue as its last packet goes, so the next pump reads the
+                // next run's cadence rather than this one's
+                if (--run.left <= 0) this.splitQueue.shift();
+
+                this.lastSplitAt = at === undefined ? performance.now() : at;
+                this.lastSplitRush = run.copies > 1;
                 this.network.send(new packet.Split());
                 // Re-entrant by one hop only: lastSplitAt has just moved, so the next call
                 // always schedules rather than releasing again
@@ -8285,8 +8502,8 @@ function modules(ks) {
             flushSplits() {
                 if (this.splitTimer) clearTimeout(this.splitTimer);
                 this.splitTimer = null;
-                this.pendingSplits = 0;
-                this.splitRushSpacing = 0;
+                this.splitQueue.length = 0;
+                this.lastSplitRush = false;
             }
 
             onKeyUp(event) {
@@ -9063,6 +9280,8 @@ function modules(ks) {
         ;
 
         var instance = new Game();
+        GF_DIAG.game = instance; // DIAGNOSTIC - see GF_DIAG
+
         $('#play').click(function(v7) {
             if (v7.originalEvent === undefined) {
                 return;

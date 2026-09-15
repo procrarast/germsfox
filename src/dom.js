@@ -215,7 +215,7 @@ function renderUpdateNotice() {
 
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
-    body.textContent = "Minor tweak to spectate camera speed curve and made max splits as fast as possible. Consistent splits sacrifice speed, so the game now detects when you are max splitting to optimize for maximum speed.\n\nThank you for balling.";
+    body.textContent = "I feel like merge is mostly fixed. If you have any problems at all, please bother me. I'll be annoyed, but I will fix it. Spectate also no longer lags behind your cursor.";
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";

@@ -86,5 +86,51 @@ function fresh(mode = 'FFA', cells = 1) {
     return new Game(mode, cells);
 }
 
-module.exports = { Game, fresh, advance, clock, performance,
+/**
+ *  The tick-measurement half, extracted the same way: noteServerTick() learns the server's
+ *  rate and the jitter around it, and splitSpacing reads the margin off that.
+ */
+const netMethods = slice('            noteServerTick() {', '            async sendNick(');
+const Net = new Function(
+    'TICK_COALESCE_MS','TICK_STALL_MS','TICK_EMA','TICK_PHASE_EMA','TICK_JITTER_EMA',
+    'JITTER_ABS_TO_GAP_SD','SPLIT_JITTER_SIGMAS','SPLIT_JITTER_MARGIN',
+    'SPLIT_SPACING_MIN','SPLIT_SPACING_MAX','SERVER_TICK_ESTIMATE','performance',
+    `return class Net {
+        constructor() {
+            this.tickPeriod = SERVER_TICK_ESTIMATE;
+            this.lastTickAt = 0;
+            this.tickAnchor = undefined;
+            this.tickJitter = SPLIT_JITTER_MARGIN / (SPLIT_JITTER_SIGMAS * JITTER_ABS_TO_GAP_SD);
+        }
+${netMethods}
+    }`
+)(constOf('TICK_COALESCE_MS'), constOf('TICK_STALL_MS'), 0.05, 0.1, 0.02,
+  1.2533 * Math.SQRT2, constOf('SPLIT_JITTER_SIGMAS'), constOf('SPLIT_JITTER_MARGIN'),
+  constOf('SPLIT_SPACING_MIN'), constOf('SPLIT_SPACING_MAX'), constOf('SERVER_TICK_ESTIMATE'),
+  performance);
+
+/**
+ *  Feed a Net a run of arrivals on a `period` grid with gaussian jitter of `sd`.
+ *
+ *  Seeded, because tickPeriod and tickJitter are estimators over a random signal: with
+ *  Math.random the same assertion passes or fails run to run (measured: 20% flake on a 0.5ms
+ *  tolerance). Callers sweep seeds instead, so a claim has to hold across realisations rather
+ *  than get lucky on one.
+ */
+function feedTicks(net, { period = 40, sd = 0, ticks = 600, seed = 1 } = {}) {
+    let z = (seed * 0x9e3779b9) >>> 0;
+    const rand = () => { z = (z + 0x6d2b79f5) >>> 0; let t = z;
+        t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const gauss = () => { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const base = clock.now;
+    for (let k = 1; k <= ticks; k++) {
+        clock.now = base + k * period + gauss() * sd;
+        net.noteServerTick();
+    }
+    return net;
+}
+
+module.exports = { Game, fresh, advance, clock, performance, Net, feedTicks,
                    TICK, SPLIT_SPACING, SPLIT_QUEUE_MAX, SPLIT_RUSH_COPIES };

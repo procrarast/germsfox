@@ -2,7 +2,7 @@
  *  Behaviour tests for the split queue, driving the REAL source from bundle.js against a fake
  *  clock (see splitharness.js). Run with:  node util/splittest.js
  */
-const { fresh, advance, clock, SPLIT_QUEUE_MAX, SPLIT_RUSH_COPIES, SPLIT_SPACING, TICK } = require('./splitharness.js');
+const { fresh, advance, clock, Net, feedTicks, SPLIT_QUEUE_MAX, SPLIT_RUSH_COPIES, SPLIT_SPACING, TICK } = require('./splitharness.js');
 const RUSH_SPACING = TICK / SPLIT_RUSH_COPIES;
 // A rushed run short of the cap is trimmed so it covers exactly `count` ticks.
 const TRIM = (c) => (c - 1) * SPLIT_RUSH_COPIES + 1;
@@ -182,6 +182,49 @@ console.log('\n8. blanket length pins the split count');
     advance(now() + 4000);
     check('a third press past the ceiling still adds nothing',
         g.sentAt.length === 2 * TRIM(4), `got ${g.sentAt.length}`);
+}
+
+// --- 9. the margin is measured, and only ever widens ---------------------------------------
+console.log('\n9. split margin adapts to the line, downward never');
+{
+    // us.germs.io measured at 2.05ms arrival SD over 839 packets - a clean line
+    // Asserted on the margin, not the absolute spacing: tickPeriod is an EMA of a jittered
+    // signal, so it wanders a few hundredths even when the rate is exactly 40.
+    const MARGIN = SPLIT_SPACING - TICK;
+    const SEEDS = Array.from({ length: 25 }, (_, i) => i + 1);
+    const worst = (fn) => SEEDS.map(fn).sort((a, b) => b - a)[0];
+
+    // us.germs.io measured at 2.05ms arrival SD over 839 packets - a clean line
+    for (const sd of [0, 2.05]) {
+        const off = worst(seed => Math.abs(feedTicks(new Net(), { sd, seed }).splitSpacing
+                                         - feedTicks(new Net(), { sd, seed }).tickPeriod - MARGIN));
+        check(`arrival SD ${sd}ms leaves the margin at the tuned ${MARGIN}ms, all ${SEEDS.length} seeds`,
+            off < 0.01, `worst deviation ${off.toFixed(3)}`);
+    }
+    const narrowest = SEEDS.map(seed => feedTicks(new Net(), { sd: 6, seed }).splitSpacing)
+        .sort((a, b) => a - b)[0];
+    check('three times the jitter widens the margin, every seed',
+        narrowest > SPLIT_SPACING + 4, `narrowest ${narrowest.toFixed(1)}`);
+    const widest = worst(seed => feedTicks(new Net(), { sd: 12, seed }).splitSpacing);
+    check('and it still stops at SPLIT_SPACING_MAX', widest <= 90.001, `got ${widest.toFixed(1)}`);
+
+    // The rate estimate has to survive the jitter it is measuring. Tolerance is set from the
+    // estimator's actual spread across seeds, not from a guess - it was 0.5ms, which flaked 20%.
+    const rateErr = worst(seed => Math.abs(feedTicks(new Net(), { sd: 6, seed }).tickPeriod - TICK));
+    check('tickPeriod still lands on the real rate under heavy jitter, every seed',
+        rateErr < 1.5, `worst error ${rateErr.toFixed(2)}ms`);
+}
+{
+    // A stall must not drag the phase estimate a slot sideways
+    const worstStall = Array.from({ length: 25 }, (_, i) => {
+        const n = feedTicks(new Net(), { sd: 2, seed: i + 1 });
+        const before = n.splitSpacing;
+        clock.now += 500; n.noteServerTick();      // one long hiccup
+        feedTicks(n, { sd: 2, ticks: 200, seed: i + 100 });
+        return Math.abs(n.splitSpacing - before);
+    }).sort((a, b) => b - a)[0];
+    check('a 500ms stall does not poison the margin, every seed',
+        worstStall < 2, `worst shift ${worstStall.toFixed(2)}ms`);
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)\n` : '\nall checks passed\n');

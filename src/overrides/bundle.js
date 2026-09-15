@@ -3319,6 +3319,21 @@ function modules(ks) {
          *  taken one and costs nothing.
          */
         const SPLIT_RUSH_COPIES = 3;
+
+        /**
+         *  Modes where the 16x key is only ever pressed to reach the cell cap.
+         *
+         *  Everywhere else the queue waits for splitsWillCap() to prove overshoot is free
+         *  before it stops pacing. In a feed mode that proof arrives too late to be useful: it
+         *  reads playerCells, which trails the server by a round trip, so the first press of a
+         *  max split still looks like it starts from one cell and gets paced - and at any real
+         *  ping the second press often does too. Both then run at one split per splitSpacing
+         *  rather than one per tick, which is the whole of the "max split is slow" complaint.
+         *
+         *  Here the intent is not in doubt, so the key skips the check. Add a mode to rush its
+         *  16x from the first press.
+         */
+        const MAX_SPLIT_MODES = new Set(['Self Feed']);
         const SPLIT_SPACING_MIN = 45;
         const SPLIT_SPACING_MAX = 90;
 
@@ -3389,6 +3404,16 @@ function modules(ks) {
 
         const SPECTATE_CURVE = 1.25;
 
+        /**
+         *  Lerp divisor for the free-spectate camera, where cameraDelay does not apply - the
+         *  pan rate comes from SPECTATE_CURVE and the cursor's distance instead. Named because
+         *  the prediction in Camera.predict() has to divide by the same number.
+         */
+        const FREE_SPEC_SPEED = 20;
+
+        // PIXI normalises tick.deltaTime against 60Hz, so this is what one unit of delta buys
+        const MS_PER_DELTA = 1000 / 60;
+
         const ZOOM_MIN = 0.01;
         const ZOOM_MAX = 5;
 
@@ -3402,6 +3427,10 @@ function modules(ks) {
                 this.targetX = 0;
                 this.targetY = 0;
 
+                // World units per millisecond the free-spectate pan is travelling - see predict()
+                this.driftX = 0;
+                this.driftY = 0;
+
                 this.userZoom = 0.25;
                 this.renderZoom = 1;
 
@@ -3409,11 +3438,29 @@ function modules(ks) {
                 this.zoomSensitivity = this.game.settings.settings.zoomSensitivity;
             }
 
+            /**
+             *  Fraction of the remaining distance to cover this frame, for a smoothing that
+             *  takes the same wall-clock time to close whatever the frame rate is.
+             *
+             *  `1/speed` is the share a 60Hz frame covers, so what is left after n of them is
+             *  (1 - 1/speed)^n - compounded, not multiplied. Multiplying (the old delta/speed)
+             *  is only right while n is near 1, and delta was clamped at 1, so under 60fps the
+             *  camera quietly covered less ground per second than it should: at 30fps it moved
+             *  half as fast, at 20fps a third. Compounding also saturates instead of
+             *  overshooting, which is what the clamp was there to prevent - after a long stall
+             *  this approaches 1 and the camera simply arrives.
+             */
+            smoothing(speed) {
+                const perFrame = Math.min(1, 1 / speed);
+                return 1 - Math.pow(1 - perFrame, this.game.frames);
+            }
+
             tick() {
                 // Update position
-                const speed = this.game.freeSpec ? 20 : this.cameraDelay / 10;
-                this.x = lerp(this.x, this.targetX, this.game.delta / speed);
-                this.y = lerp(this.y, this.targetY, this.game.delta / speed);
+                const speed = this.game.freeSpec ? FREE_SPEC_SPEED : this.cameraDelay / 10;
+                const move = this.smoothing(speed);
+                this.x = lerp(this.x, this.targetX, move);
+                this.y = lerp(this.y, this.targetY, move);
                 
                 // Update zoom
                 let newZoom;
@@ -3428,7 +3475,19 @@ function modules(ks) {
                     newZoom = this.viewRange / 2;
                 }
 
-                this.renderZoom = Math.max(0, lerp(this.renderZoom, newZoom, 10 * this.game.delta / this.cameraDelay));
+                this.renderZoom = Math.max(0, lerp(this.renderZoom, newZoom, this.smoothing(this.cameraDelay / 10)));
+            }
+
+            /**
+             *  Where the camera will be `ms` from now if nothing changes.
+             *
+             *  A straight line is the correct extrapolation here rather than an approximation:
+             *  the spectate pan recomputes its target relative to the camera every frame, so a
+             *  cursor held still produces a constant velocity, not a decaying approach to a
+             *  fixed point. Nothing curves for it to cut a corner off.
+             */
+            predict(ms) {
+                return { x: this.x + this.driftX * ms, y: this.y + this.driftY * ms };
             }
 
             setPosition(x, y) {
@@ -3494,6 +3553,29 @@ function modules(ks) {
          *  TextureCache subclasses define how they create new textures or, in skins' case, what we call 'resources'
          */
 
+        /**
+         *  DIAGNOSTIC - caches that are not allowed to free their textures.
+         *
+         *  Chasing the WebGPU crash "the resource bound as textureSourceN was destroyed while a
+         *  shader still uses it", which fires perhaps once in a couple of hours of loaded play.
+         *  Two clients watching the same part of the map only ever crash one at a time, so it is
+         *  not anything in the streamed data - it is a local race between eviction here and
+         *  something still drawing the texture.
+         *
+         *  Naming a cache leaves its bookkeeping completely alone - entries still expire on the
+         *  same schedule and are still rebuilt on demand - and skips only the GPU free. If the
+         *  crash stops, that cache's eviction is the cause. If it does not, that cache is
+         *  exonerated and the fault lies outside it, which is worth just as much.
+         *
+         *  Only one cache should be listed at a time, or a clean session proves nothing about
+         *  which of them it was. NameCache first: its textures churn with every new player and
+         *  it sweeps ten times as often as skins, so it has by far the most chances to race.
+         *
+         *  This leaks GPU memory for as long as it is set. It is a session tool, not a fix -
+         *  empty the set to restore normal behaviour.
+         */
+        const TEXTURE_FREE_DISABLED = new Set(['NameCache']);
+
         class TextureCache {
             constructor(game) {
                 this.game = game;
@@ -3540,7 +3622,11 @@ function modules(ks) {
 
                             // Clear the texture if it's ready
                             if (entry.clearAt < this.game.updateTime) {
-                                this.destroyTexture(entry);
+                                if (TEXTURE_FREE_DISABLED.has(this.constructor.name)) {
+                                    this.noteSkippedFree(key);
+                                } else {
+                                    this.destroyTexture(entry);
+                                }
                                 this.entries.delete(key);
                                 cleared++;
                             }
@@ -3569,6 +3655,20 @@ function modules(ks) {
                     return true;
                 }
                 console.warn(`Tried to release nonexistent resource ${key}. This should never happen!`);
+            }
+
+            /**
+             *  Counts frees the diagnostic skipped, and says so at 1, 10, 100... - enough to
+             *  confirm the path is actually being exercised without filling the console. A
+             *  session that ends on zero proves nothing: the eviction never ran.
+             */
+            noteSkippedFree(key) {
+                this.skippedFrees = (this.skippedFrees ?? 0) + 1;
+                if (Math.log10(this.skippedFrees) % 1 === 0) {
+                    console.warn(`[Germsfox] ${this.constructor.name}: held ${this.skippedFrees} `
+                        + `texture(s) back from being freed (latest "${key}"). `
+                        + `Diagnostic is active - see TEXTURE_FREE_DISABLED.`);
+                }
             }
 
             destroyTexture(entry) { 
@@ -5235,6 +5335,11 @@ function modules(ks) {
                 this.searching = false;
                 this.verifying = false;
                 this.verified = false;
+                // See verify() and flushSpectate()
+                this.verifyWait = null;
+                this.resolveVerify = null;
+                this.spectatePending = false;
+                this.flushingSpectate = false;
                 this.turnstileReady = false;
                 this.token = null;
                 this.cfToken = null;
@@ -5343,6 +5448,8 @@ function modules(ks) {
                     Math.max(SPLIT_SPACING_MIN, this.tickPeriod + SPLIT_JITTER_MARGIN));
             }
             async sendNick(oK) {
+                // Spawning supersedes any spectate still waiting on verification
+                this.spectatePending = false;
                 await this.verify();
                 if (this.skin != '') {
                     this.send(new packet.Name('<' + this.skin + '>' + oK));
@@ -5360,9 +5467,40 @@ function modules(ks) {
                     this.skin = value;
                 }
             }
-            async sendSpectate() {
-                await this.verify();
-                this.send(new packet.Spectate());
+            /**
+             *  Spectating is an intent that survives until it actually takes effect, rather
+             *  than one packet fired at whatever moment the button happened to be clicked.
+             *
+             *  Two windows used to swallow it. send() is a no-op while the socket is closed, so
+             *  a Spectate built during a reconnect went nowhere and nothing retried it; and the
+             *  server ignores one that arrives before verification. Either way the client had
+             *  already hidden the menu and set freeSpec, so it looked like it had worked while
+             *  no node stream ever arrived - and the only way out was to reopen the menu and
+             *  click again. Holding the intent lets onOpen and handleRestart flush it the
+             *  moment both conditions are true.
+             */
+            sendSpectate() {
+                this.spectatePending = true;
+                this.flushSpectate();
+            }
+
+            async flushSpectate() {
+                if (!this.spectatePending || this.flushingSpectate) return;
+
+                this.flushingSpectate = true;
+                try {
+                    await this.verify();
+
+                    // Re-checked after awaiting: the connection can have dropped in the
+                    // meantime, and the intent is deliberately left set so the next onOpen
+                    // picks it up instead of the packet being quietly discarded.
+                    if (!this.spectatePending || !this.open || !this.verified) return;
+
+                    this.spectatePending = false;
+                    this.send(new packet.Spectate());
+                } finally {
+                    this.flushingSpectate = false;
+                }
             }
             sendMouse(oO) {
                 if (!this.game.freeze && document.getElementById("menu").style.display == "none")
@@ -5371,21 +5509,38 @@ function modules(ks) {
             sendChat(oP, oQ) {
                 this.send(new packet.Chat(oP,oQ));
             }
+            /**
+             *  Resolves once the server has acknowledged verification (handleRestart), or as
+             *  soon as the connection goes away - so nothing is left waiting on a socket that
+             *  is never coming back. Callers must therefore re-check `verified` and `open`
+             *  after awaiting rather than assuming both.
+             *
+             *  One shared wait, not one per caller. This used to open an interval per call and
+             *  keep the handle in a single field, so a second verify() overwrote the first
+             *  one's handle: whichever interval fired first cleared the *other* one and
+             *  resolved only its own promise, leaving the loser pending forever. Clicking
+             *  Spectate while another verify() was already in flight - a second click, or a
+             *  Play attempt - was a click that silently did nothing, which is exactly the
+             *  "press escape and click it again" symptom.
+             */
             verify() {
-                return new Promise( (oR, oS) => {
-                    if (this.verified) {
-                        return oR();
-                    }
-                    if (!this.verifying) this.tryVerifyCf();
-                    this.captchaInterval = setInterval( () => {
-                        if (this.verified) {
-                            clearInterval(this.captchaInterval);
-                            oR();
-                        }
-                    }
-                    , 100);
+                if (this.verified) return Promise.resolve();
+
+                if (!this.verifyWait) {
+                    this.verifyWait = new Promise(resolve => { this.resolveVerify = resolve; });
                 }
-                );
+                if (!this.verifying) this.tryVerifyCf();
+
+                return this.verifyWait;
+            }
+
+            // Releases anyone awaiting verify(), whether it succeeded or the socket went away
+            settleVerify() {
+                if (!this.resolveVerify) return;
+                const resolve = this.resolveVerify;
+                this.verifyWait = null;
+                this.resolveVerify = null;
+                resolve();
             }
             sendVerification() {
                 if (this.cfToken) {
@@ -5492,6 +5647,8 @@ function modules(ks) {
             }
             onOpen() {
                 this.verified = false;
+                // Release anything still waiting on the previous connection's verification
+                this.settleVerify();
                 this.token = null;
                 this.cfToken = null;
                 this.tryVerifyCf();
@@ -5504,6 +5661,8 @@ function modules(ks) {
                 this.game.clearNodes();
                 this.open = true;
                 this.send(new packet.Login(this.game.login.uuid ? this.game.login.uuid : ''));
+                // A spectate clicked before this connection existed is still waiting
+                this.flushSpectate();
                 if (this.pingInterval)
                     clearInterval(this.pingInterval);
                 this.pingInterval = setInterval(function() {
@@ -5584,6 +5743,8 @@ function modules(ks) {
                 }
                 this.game.clearNodes();
                 this.open = false;
+                // Nothing should be left awaiting verification on a socket that has closed
+                this.settleVerify();
                 this.game.setConnecting(true);
                 if (this.reconnect) {
                     clearTimeout(this.reconnect);
@@ -5856,6 +6017,8 @@ function modules(ks) {
             }
             handleRestart(reader) {
                 this.verified = true;
+                this.settleVerify();
+                this.flushSpectate();
                 this.restart = reader.readStringZeroUnicode();
                 $('#resetCenter').show();
                 this.game.ui.updateDebugHTML();
@@ -6919,6 +7082,10 @@ function modules(ks) {
                 this.updateTime = performance.now();
                 this.startTime = performance.now();
                 this.delta = 1;
+                this.frames = 1;
+                // No round trip has been measured yet - and undefined here poisons anything
+                // that does arithmetic with it, see leadCamera()
+                this.ping = 0;
                 this.myID = -1;
                 this.hideUI = false;
                 this.freeze = false;
@@ -7271,20 +7438,24 @@ function modules(ks) {
                 this.calcMouse();
                 if (this.mouse && (this.playerCells.size > 0 || (this.freeSpec)) && this.network.open) {
                     /**
-                     *  Alive, this is movement input and has to stay the cursor. Spectating, the
-                     *  cursor only steers the camera - what the screen is actually built around
-                     *  is the camera itself, so that is what the server is told to stream from.
-                     *
-                     *  Sending the cursor meant asking for nodes around a point up to half a
-                     *  screen from the middle of the view, so the far edge went unpopulated
-                     *  while bandwidth went on nodes behind the cursor that were off screen.
-                     *  The dead zone makes it worse rather than better: the cursor now sits well
-                     *  away from center for as long as you are panning at all.
-                     *
-                     *  The outer condition already guarantees freeSpec whenever this is not
-                     *  alive, so the two cases are the whole set.
+                     *  Alive this is movement input and stays the cursor. Spectating it is a
+                     *  request for nodes around the view, and the view is the camera - but the
+                     *  camera this packet describes has to be the one in front of the player
+                     *  when the packet lands, not the one in front of them now. Sending the
+                     *  current position asks the server for a view that is already a trip out
+                     *  of date, so the edge being panned toward arrives last.
                      */
-                    const position = this.playerCells.size > 0 ? this.mouse : this.camera;
+                    const position = this.playerCells.size > 0 ? this.mouse : this.leadCamera();
+
+                    /**
+                     *  A non-finite position is dropped rather than sent, because the filter
+                     *  below is a comparison and every comparison against NaN is false: one bad
+                     *  value recorded here stops the filter ever passing again, and mouse input
+                     *  dies for the rest of the session - through spawning, dying and
+                     *  respawning, since nothing clears it. The packet itself would have been
+                     *  harmless on its own, arriving as 0,0 after the writer truncated it.
+                     */
+                    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
 
                     if (!this.lastMouseSent || Math.abs(position.x - this.lastMouseSent.x) > 1 || Math.abs(position.y - this.lastMouseSent.y) > 1) {
                         this.network.sendMouse(position);
@@ -7296,9 +7467,47 @@ function modules(ks) {
                 }
             }
 
+            /**
+             *  The camera one upstream trip from now, clamped to the map the same way the pan
+             *  itself is - predicting past the border would ask for a view the camera can never
+             *  actually reach.
+             */
+            /**
+             *  How far ahead of itself the camera has to aim for the view to be centred by the
+             *  time the player actually sees it.
+             *
+             *  A position sent now arrives at the server one upstream trip from now, is read by
+             *  whichever server tick follows, and the nodes it picks reach the screen one
+             *  downstream trip after that. So whatever is on screen at any instant was chosen
+             *  around a position sent a full round trip ago - a whole ping, not half of one.
+             *  Leading by the upstream leg alone still lands half a trip short, which is the
+             *  part of the lag that stays visible while the camera is moving fast.
+             *
+             *  The half tick on top is the wait for the server to act on it. Sends and ticks are
+             *  both 40ms and unsynchronised, so a position is on average half a tick old by the
+             *  time a tick reads it.
+             */
+            leadMs() {
+                // Number.isFinite, not truthiness: ping is legitimately 0 before the first pong
+                const rtt = Number.isFinite(this.ping) ? this.ping : 0;
+                return rtt + this.network.tickPeriod / 2;
+            }
+
+            leadCamera() {
+                const lead = this.camera.predict(this.leadMs());
+                return {
+                    x: Math.min(Math.max(lead.x, this.border[0]), this.border[1]),
+                    y: Math.min(Math.max(lead.y, this.border[2]), this.border[3]),
+                };
+            }
+
             render(tick) {
                 this.updateTime = performance.now();
                 this.delta = Math.min(1, Math.max(0, tick.deltaTime));
+                // How many 60Hz frames this one was worth, deliberately NOT clamped - the camera
+                // compounds it rather than multiplying by it, so a long frame is caught up with
+                // instead of overshot. See Camera.tick().
+                this.frames = Math.max(0, (tick.deltaMS || MS_PER_DELTA) / MS_PER_DELTA);
 
                 this.nodeCountRoot = Math.sqrt(this.nodes.size); // For mass label zoom threshold
                 this.rememberAppearance();
@@ -7369,6 +7578,20 @@ function modules(ks) {
                         const offset = reach * Math.pow(distance / reach, SPECTATE_CURVE);
 
                         const scale = distance > 0 && zoom > 0 ? offset / distance / zoom : 0;
+
+                        /**
+                         *  The rate the camera is about to travel at, in world units per
+                         *  millisecond, so sendMouse() can lead the server by one trip.
+                         *
+                         *  Now that Camera.tick() closes the same fraction per unit of time
+                         *  rather than per frame, this is just a rate: a 60Hz frame covers
+                         *  1/FREE_SPEC_SPEED of the offset, so a millisecond covers that over
+                         *  MS_PER_DELTA. It needed the measured frame time back when the camera
+                         *  was frame-rate dependent, and no longer does.
+                         */
+                        const perMs = scale / (MS_PER_DELTA * FREE_SPEC_SPEED);
+                        this.camera.driftX = dx * perMs;
+                        this.camera.driftY = dy * perMs;
 
                         const targetX = scale ? this.camera.x + dx * scale : this.camera.x;
                         const targetY = scale ? this.camera.y + dy * scale : this.camera.y;
@@ -7520,6 +7743,9 @@ function modules(ks) {
                 this.hideMenu();
                 this.network.sendSpectate();
                 this.freeSpec = true;
+                // No drift carried in from a previous spectate until the first frame recomputes it
+                this.camera.driftX = 0;
+                this.camera.driftY = 0;
             }
             setBorder(tE, tF, tG, tH) {
                 var tI = [tE, tG, tF, tH];
@@ -7874,8 +8100,12 @@ function modules(ks) {
                         this.camera.changeZoom(-1);
                         break;
                     case this.controls.Split[0]:
+                        // Held keys do not machine-gun splits. The repeat rate is the OS's, so
+                        // leaning on the key used to queue roughly thirty a second and drain
+                        // them one per tick long after it was let go
+                        if (event.repeat) return;
                         this.splitPending = false;
-                        if (!event.repeat && this.settings.settings.bruhMode) {
+                        if (this.settings.settings.bruhMode) {
                             this.bruh.pause();
                             this.bruh.preservesPitch = false;
                             const random = (Math.random() + Math.random()) / 2;
@@ -7947,7 +8177,7 @@ function modules(ks) {
                             this.queueSplits(1);
                             return;
                         }
-                        this.queueSplits(4);
+                        this.queueSplits(4, this.network.mode === "Self Feed");
                         break;
                     }
                 }
@@ -7980,13 +8210,34 @@ function modules(ks) {
              */
             splitsWillCap(count) {
                 const cap = CELL_COUNT_CAPS[this.network.mode];
-                const cells = this.playerCells.size;
+
+                /**
+                 *  Counted rather than taken from playerCells.size, which keeps eaten cells for
+                 *  the length of their fade - about a second. Using the size overstates the
+                 *  count for that second after every trade, so the queue believed it was about
+                 *  to cap when it was not, rushed, and turned one press into two splits well
+                 *  short of the cap.
+                 */
+                let cells = 0;
+                for (const cell of this.playerCells) if (!cell.eaten) cells++;
+
                 if (!cap || !cells) return false;
                 return cells * Math.pow(2, count) >= cap;
             }
 
-            queueSplits(count) {
-                if (this.splitsWillCap(count)) {
+            /**
+             *  `rush` forces the unpaced path for a run whose intent is known up front, rather
+             *  than waiting for the cell count to show it is about to cap - see MAX_SPLIT_MODES.
+             */
+            queueSplits(count, rush = false) {
+                /**
+                 *  count > 1, because the rush exists to get a *run* of splits into consecutive
+                 *  ticks. A single split has no sequencing problem to solve - one packet always
+                 *  lands - so the redundant copies can only do harm: three of them spread over
+                 *  two thirds of a tick, so a tick boundary falls between them most of the time
+                 *  and one press comes out as two splits.
+                 */
+                if (count > 1 && (rush || this.splitsWillCap(count))) {
                     /**
                      *  A capped run is measured in ticks to cover, not packets to send: the
                      *  copies multiply and the interval divides by the same factor, so the run
@@ -8121,7 +8372,7 @@ function modules(ks) {
                         this.showDeath();
                     }
                 }
-                , 2000);
+                , 1000);
                 let u5 = this.settings.getItem('deathCount');
                 if (u5 >= 333) {
                     u5 = 0;

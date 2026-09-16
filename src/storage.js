@@ -76,6 +76,8 @@ const DEFAULT_CONTROLS = {
     toggleSkins: ["KeyB", "B"],
     toggleMass: ["KeyM", "M"],
     toggleFood: ["", ""]
+    // Spectating a party member has no binding here: both its keys live in germs' own
+    // controls, handled in bundle.js - Spectate toggles, Split steps to the next member.
 };
 
 const DEFAULT_SETTINGS = {
@@ -172,6 +174,27 @@ async function getSettings() {
         for (let item in settings) {
             if (storedSettings[item] != null) {
                 settings[item] = storedSettings[item];
+                /**
+                 *  Controls is the one setting whose value is itself a set of settings, so
+                 *  taking the stored object wholesale drops any keybind added since it was
+                 *  written - and anyone who has ever rebound a key has a stored one. Every
+                 *  reader indexes straight into it (settings.controls.x[0] in content.js,
+                 *  [1] in createKeyTester), so a missing key is a TypeError rather than a
+                 *  missing row: it would break the whole keydown handler and the Controls
+                 *  tab with it.
+                 *
+                 *  Rebuilt against the defaults rather than merged over them, so a binding that
+                 *  has since been removed is dropped instead of lingering as a phantom holding
+                 *  a key nothing can rebind - which is what the retired spectateCycle would
+                 *  otherwise be for anyone who already has it stored.
+                 */
+                if (item === "controls") {
+                    const stored = settings.controls;
+                    settings.controls = {};
+                    for (const controlKey in DEFAULT_CONTROLS) {
+                        settings.controls[controlKey] = stored[controlKey] ?? DEFAULT_CONTROLS[controlKey];
+                    }
+                }
                 //console.debug("Stored array has item: " + item + " with value " + storedSettings[item]);
             } else {
                 // Note that this does not store default values to localStorage, we 
@@ -204,10 +227,50 @@ async function setSetting(key, value) {
     window.postMessage({ action: "updateSettings", settings: settings });
 }
 
-// Same as above, except it sets settings.controls[key] since the original settings API design was flat
-async function setControlsSetting(key, value) {
+/**
+ *  Clears every germsfox binding on `code` except `exceptKey`, and returns the ones it cleared.
+ *
+ *  Matched on event.code rather than the printed name: "a" and "A" print differently, and the
+ *  same physical key prints differently again on another layout, while the code is the key
+ *  itself. An empty code is the unbound marker, so it is skipped - matching on it would clear
+ *  every other unbound binding along with it.
+ */
+function unbindDuplicateControls(exceptKey, code) {
+    if (!code) return [];
+
+    const cleared = [];
+    for (const controlKey in settings.controls) {
+        if (controlKey === exceptKey) continue;
+        if (settings.controls[controlKey][0] !== code) continue;
+
+        settings.controls[controlKey] = ["", ""];
+        cleared.push(controlKey);
+    }
+
+    return cleared;
+}
+
+/**
+ *  Same as above, except it sets settings.controls[key] since the original settings API design
+ *  was flat. `keyCode` is not stored - it is only passed on to bundle.js, whose own controls are
+ *  keyed by it rather than by event.code.
+ */
+async function setControlsSetting(key, value, keyCode = null) {
     console.debug(`Setting ${key} from ${settings.controls[key]} to ${value}`);
     settings.controls[key] = value;
+
+    /**
+     *  A key may only be bound to one thing. The two halves of the settings keep their own
+     *  stores - germsfox's by event.code here, germs' own by keyCode in bundle.js - so each
+     *  clears its own and tells the other over the bridge, which is the only way they can
+     *  reach each other across the isolated/main world boundary. Both identifiers are sent
+     *  because each side matches on the one it happens to store.
+     */
+    const cleared = unbindDuplicateControls(key, value[0]);
+    if (value[0] && typeof germsfoxCall === "function") {
+        germsfoxCall("unbindGermsKey", keyCode, value[0]);
+    }
+    if (cleared.length) console.debug(`Unbound ${cleared.join(", ")} - reused by ${key}`);
 
     await chrome.storage.local.set({ controls: settings.controls });
     if (chrome.runtime.lastError) {

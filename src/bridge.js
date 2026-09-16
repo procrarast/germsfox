@@ -38,6 +38,14 @@ window.addEventListener('message', (event) => {
             color: data.color,
             skin: data.skin,
         });
+    } else if (data.type === 'keybind') {
+        // Unsolicited push from bundle.js when one of germs' own keybinds changed, so the
+        // germsfox half can drop any binding of its own on the same key - a key may only be
+        // bound once across both. Re-dispatched as a DOM event for the same reason modeChange
+        // is: bridge.js stays the only postMessage listener.
+        document.dispatchEvent(new CustomEvent('germsfox:keybind', {
+            detail: { code: data.code, keyCode: data.keyCode },
+        }));
     } else if (data.type === 'modeChange') {
         // Unsolicited push from bundle.js's Network.connect(). Re-dispatched as a plain DOM
         // event (rather than every interested script adding its own 'message' listener) so

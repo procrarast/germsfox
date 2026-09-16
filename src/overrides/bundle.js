@@ -3647,27 +3647,78 @@ function modules(ks) {
          */
 
         /**
-         *  DIAGNOSTIC - caches that are not allowed to free their textures.
+         *  Textures waiting to be freed, and the reason a texture may not be freed on the spot.
          *
-         *  Chasing the WebGPU crash "the resource bound as textureSourceN was destroyed while a
-         *  shader still uses it", which fires perhaps once in a couple of hours of loaded play.
-         *  Two clients watching the same part of the map only ever crash one at a time, so it is
-         *  not anything in the streamed data - it is a local race between eviction here and
-         *  something still drawing the texture.
+         *  This is what fixes the WebGPU crash "the resource bound as textureSourceN was
+         *  destroyed while a shader still uses it". The refcounting below was never wrong: a
+         *  texture only ever reaches here with no node referencing it and every sprite that
+         *  drew it already blanked to Texture.EMPTY. PIXI keeps a reference the refcount cannot
+         *  see.
          *
-         *  Naming a cache leaves its bookkeeping completely alone - entries still expire on the
-         *  same schedule and are still rebuilt on demand - and skips only the GPU free. If the
-         *  crash stops, that cache's eviction is the cause. If it does not, that cache is
-         *  exonerated and the fault lies outside it, which is worth just as much.
+         *  Batcher.checkAndUpdateTexture rebuilds a batch only when the sprite's *new* texture
+         *  source is not already in it. Texture.EMPTY is in essentially every batch, so blanking
+         *  a sprite takes the fast path - its texture id is swapped in place and the batch is
+         *  left alone, still holding the old source in the array that becomes textureSource0..15
+         *  in the bind group. Free the source and the next frame throws, and it never stops
+         *  throwing: the uncaught error propagates out of the ticker callback, the next
+         *  requestAnimationFrame is never armed, and the session is over. The crash was rare
+         *  only because it needs the free to land while that particular batch is still standing.
          *
-         *  Only one cache should be listed at a time, or a clean session proves nothing about
-         *  which of them it was. NameCache first: its textures churn with every new player and
-         *  it sweeps ten times as often as skins, so it has by far the most chances to race.
-         *
-         *  This leaks GPU memory for as long as it is set. It is a session tool, not a fix -
-         *  empty the set to restore normal behaviour.
+         *  So frees are queued and drained by drainTextureFrees(), which Game.render() calls
+         *  after a frame that rebuilt the instruction set from scratch - by which point no batch
+         *  holds the source any more. An earlier diagnostic that froze this cache's sweep proved
+         *  nothing, because clear() destroyed textures inline and bypassed it entirely; it now
+         *  goes through the queue like everything else. See BINDGROUP-CRASH.md.
          */
-        const TEXTURE_FREE_DISABLED = new Set(['NameCache']);
+        const pendingTextureFrees = [];
+
+        function queueTextureFree(texture) {
+            if (texture) pendingTextureFrees.push(texture);
+        }
+
+        function drainTextureFrees() {
+            for (const texture of pendingTextureFrees) texture.destroy(true);
+            pendingTextureFrees.length = 0;
+        }
+
+        /**
+         *  Reachable from the console as `__gfDiag.pendingFrees()`.
+         *
+         *  The queue is drained on the first frame after anything is put in it, so this reads 0
+         *  between frames and climbs only while the game is not rendering. A number that stays
+         *  up after a death or a server switch means the rebuild is not firing and textures are
+         *  no longer being freed at all - which is the one way this fix can fail quietly.
+         */
+        GF_DIAG.pendingFrees = () => pendingTextureFrees.length;
+
+        // Parented and orphaned again to force a rebuild through the public API - see below
+        let rebuildSentinel = null;
+
+        /**
+         *  Marks the stage's instruction set for a full rebuild, so the next render discards
+         *  every batch and the stale texture sources they hold with them.
+         *
+         *  The flag is a PIXI internal, so - like growUniformBatch - this does not assume it is
+         *  still there. Attaching a child sets it through the public API and detaching the child
+         *  again does not clear it, so an empty Container in and straight back out buys the same
+         *  rebuild at the cost of one allocation. Falling back rather than no-opping matters
+         *  here: a caller that cannot rebuild can never free what it has queued, which would
+         *  leak worse than the crash this exists to fix.
+         */
+        function forceInstructionRebuild(container) {
+            if (!container) return false;
+
+            const group = container.renderGroup;
+            if (group && 'structureDidChange' in group) {
+                group.structureDidChange = true;
+                return true;
+            }
+
+            if (!rebuildSentinel) rebuildSentinel = new PIXI.Container();
+            container.addChild(rebuildSentinel);
+            container.removeChild(rebuildSentinel);
+            return true;
+        }
 
         class TextureCache {
             constructor(game) {
@@ -3715,11 +3766,7 @@ function modules(ks) {
 
                             // Clear the texture if it's ready
                             if (entry.clearAt < this.game.updateTime) {
-                                if (TEXTURE_FREE_DISABLED.has(this.constructor.name)) {
-                                    this.noteSkippedFree(key);
-                                } else {
-                                    this.destroyTexture(entry);
-                                }
+                                this.destroyTexture(entry);
                                 this.entries.delete(key);
                                 cleared++;
                             }
@@ -3750,23 +3797,9 @@ function modules(ks) {
                 console.warn(`Tried to release nonexistent resource ${key}. This should never happen!`);
             }
 
-            /**
-             *  Counts frees the diagnostic skipped, and says so at 1, 10, 100... - enough to
-             *  confirm the path is actually being exercised without filling the console. A
-             *  session that ends on zero proves nothing: the eviction never ran.
-             */
-            noteSkippedFree(key) {
-                this.skippedFrees = (this.skippedFrees ?? 0) + 1;
-                if (Math.log10(this.skippedFrees) % 1 === 0) {
-                    console.warn(`[Germsfox] ${this.constructor.name}: held ${this.skippedFrees} `
-                        + `texture(s) back from being freed (latest "${key}"). `
-                        + `Diagnostic is active - see TEXTURE_FREE_DISABLED.`);
-                }
-            }
-
-            destroyTexture(entry) { 
+            destroyTexture(entry) {
                 if (entry.texture) {
-                    entry.texture.destroy(true); 
+                    queueTextureFree(entry.texture);
                     return true;
                 }
                 console.warn("Could not find texture for deletion!");
@@ -3774,7 +3807,9 @@ function modules(ks) {
 
 
             clear() {
-                // Delete all textures so they don't leak all over the place
+                // Queued rather than freed here: these textures are still sitting in whatever
+                // batches drew them, and clearNodes() runs mid-frame on every death, reconnect
+                // and server switch - see pendingTextureFrees
                 for (const entry of this.entries.values()) {
                     this.destroyTexture(entry);
                 }
@@ -3900,12 +3935,12 @@ function modules(ks) {
             }
 
 
-            destroyTexture(entry) { 
-                //console.debug("Destroying skin resource");
+            destroyTexture(entry) {
+                // Stays synchronous even though the free itself is deferred: this is what stops
+                // a queued onReady() from handing a dead resource to a renderer
                 entry.resource.pending = null; // Clear queue in case the texture hasn't rendered yet
                 if (entry.resource.texture) {
-                    //console.debug("Destroyed skin texture");
-                    entry.resource.texture.destroy(true); 
+                    queueTextureFree(entry.resource.texture);
                     return true;
                 }
                 console.warn("Could not find texture for deletion!");
@@ -6316,7 +6351,13 @@ function modules(ks) {
                         '16x': [0x54, 'T'],
                         'Freeze': [0x46, 'F'],
                         'Vertical': [0x56, 'V'],
-                        'Hide': [0x48, 'H']
+                        'Hide': [0x48, 'H'],
+                        // This key was already present in stored settings with no row and no
+                        // handler behind it, left over from when the game had a spectate key.
+                        // Both exist again - see ensureSpectateControlRow() and onKeyDown() -
+                        // and the default matches the value those stored settings already
+                        // carry, so a fresh profile and an old one land on the same key.
+                        'Spectate': [0x50, 'P']
                     },
                     'autoZoom': false,
                     'showSkins': 'all',
@@ -7243,6 +7284,8 @@ function modules(ks) {
                 this.freeze = false;
                 this.linesplit = false;
                 this.freeSpec = false;
+                // Party member the spectate camera is following, if any - see spectatePartyMember()
+                this.spectateTarget = null;
                 this.mouse = {
                     'x': 0,
                     'y': 0
@@ -7328,6 +7371,34 @@ function modules(ks) {
                     webgl: {
                         clearBeforeRender: !this.settings.settings.acidMode,
                         preserveDrawingBuffer: this.settings.settings.acidMode,
+                    },
+
+                    /**
+                     *  The format the swap chain is configured with.
+                     *
+                     *  PIXI leaves this at TextureSource.defaultOptions.format, a hard-coded
+                     *  'bgra8unorm', whatever the device actually wants. Where the two disagree
+                     *  Chrome warns "WebGPU canvas configured with a different format than is
+                     *  preferred by this device" and puts a conversion copy of the whole frame
+                     *  in front of every present.
+                     *
+                     *  Asked of the device rather than named, so this is not a swap of one
+                     *  hard-coded format for another: an adapter that prefers bgra8unorm - which
+                     *  most Windows and macOS ones do - gets bgra8unorm back and nothing changes
+                     *  for it. It only ever agrees with whatever is in front of it.
+                     *
+                     *  In this block rather than at the top level so it reaches the renderer
+                     *  only when the WebGPU backend is the one that got picked: autoDetectRenderer
+                     *  merges as {...options, ...options.webgpu} and deletes the sub-objects, so
+                     *  a WebGL fallback never sees the field. Spread conditionally rather than
+                     *  set to undefined, which would override the default instead of leaving it
+                     *  alone - navigator.gpu does not exist at all in some browsers, and
+                     *  getPreferredCanvasFormat is only defined where WebGPU is.
+                     */
+                    webgpu: {
+                        ...(navigator.gpu?.getPreferredCanvasFormat
+                            ? { format: navigator.gpu.getPreferredCanvasFormat() }
+                            : {}),
                     },
 
                     eventFeatures: {
@@ -7746,7 +7817,44 @@ function modules(ks) {
                         );
                     }
                 } else {
-                    if (this.freeSpec && this.mouse) {
+                    /**
+                     *  Following a party member takes the camera off the cursor entirely - see
+                     *  spectatePartyMember().
+                     *
+                     *  handleParty() rebuilds the party every packet, so a member who is dead or
+                     *  momentarily absent simply stops appearing in it. That is a gap to wait
+                     *  out rather than an exit, so the target is never cleared here.
+                     */
+                    const tracking = this.freeSpec && this.spectateTarget !== null;
+                    const tracked = tracking ? (this.party?.[this.spectateTarget] ?? null) : null;
+
+                    if (tracking && !tracked) {
+                        /**
+                         *  The member is not in the party right now - dead, or simply missing
+                         *  between packets. The camera holds where it is rather than handing
+                         *  itself back to the cursor: they are usually about to respawn, and
+                         *  dropping to a free pan would throw the view somewhere else at the
+                         *  exact moment you were watching them.
+                         *
+                         *  Nothing is written to the camera target, so it stays on their last
+                         *  known position, settles there and waits - and the branch below picks
+                         *  them straight back up the moment a packet has them again. Leaving the
+                         *  party for good therefore parks the camera until the mode key is
+                         *  pressed, which is the deliberate trade for not losing a respawn.
+                         */
+                        this.camera.driftX = 0;
+                        this.camera.driftY = 0;
+                    } else if (tracked) {
+                        /**
+                         *  Eased through setPosition() rather than placed, which is the opposite
+                         *  of how the jump into tracking works and for the opposite reason: this
+                         *  runs every frame, so letting camera.tick() close the gap is what makes
+                         *  following somebody look smooth instead of locking rigidly to them.
+                         */
+                        this.camera.driftX = 0;
+                        this.camera.driftY = 0;
+                        this.camera.setPosition(tracked.x, tracked.y);
+                    } else if (this.freeSpec && this.mouse) {
                         /**
                          *  Spectate pans by how far the cursor is from the middle of the screen,
                          *  on a curve rather than in proportion: the target is placed
@@ -7818,7 +7926,21 @@ function modules(ks) {
                 this.stage.scale.x = this.camera.renderZoom;
                 this.stage.scale.y = this.camera.renderZoom;
 
+                /**
+                 *  A texture cannot be freed while a batch still lists its source, and blanking
+                 *  the sprite that drew it does not take it out of one - see pendingTextureFrees.
+                 *  Rebuilding the instruction set does, so frees wait for a frame that rebuilds.
+                 *
+                 *  The drain sits after render() rather than before it so a frame that throws
+                 *  leaves the queue intact to try again, and so nothing is freed until the
+                 *  rebuild it was waiting on has actually happened. Costs one rebuild on the
+                 *  frames that free something, and nothing at all on the frames that do not.
+                 */
+                const freeing = pendingTextureFrees.length > 0 && forceInstructionRebuild(this.stage);
+
                 this.renderer.render(this.stage);
+
+                if (freeing) drainTextureFrees();
             }
 
             changeSetting(key, value) {
@@ -7940,6 +8062,7 @@ function modules(ks) {
                 this.hideMenu();
                 this.network.sendSpectate();
                 this.freeSpec = true;
+                this.spectateTarget = null;
                 // No drift carried in from a previous spectate until the first frame recomputes it
                 this.camera.driftX = 0;
                 this.camera.driftY = 0;
@@ -8296,7 +8419,25 @@ function modules(ks) {
                     case 40:
                         this.camera.changeZoom(-1);
                         break;
+                    case this.controls.Spectate[0]:
+                        // No-ops unless spectating, so it needs no guard of its own here -
+                        // see toggleSpectateMode()
+                        if (event.repeat) return;
+                        this.toggleSpectateMode();
+                        return;
                     case this.controls.Split[0]:
+                        /**
+                         *  While following a party member, Split steps to the next one instead.
+                         *  There is nothing to split while spectating, and it saves the feature
+                         *  a keybind of its own - which is why the cycle has no separate one.
+                         *
+                         *  Only while already following someone: a plain free-pan spectate keeps
+                         *  Split inert exactly as it was before any of this existed.
+                         */
+                        if (this.freeSpec && this.spectateTarget !== null) {
+                            if (!event.repeat) this.cycleSpectateTarget();
+                            return;
+                        }
                         // Held keys do not machine-gun splits. The repeat rate is the OS's, so
                         // leaning on the key used to queue roughly thirty a second and drain
                         // them one per tick long after it was let go
@@ -8832,10 +8973,145 @@ function modules(ks) {
                 return item;
             }
 
+            /** Adds "Spectate" to the game's own user menu, once, matching its existing rows. */
+            ensurePartySpectateItem() {
+                if (this.partySpectateItem) return this.partySpectateItem;
+
+                const list = document.querySelector('#userMenu > ul');
+                if (!list) return null;
+
+                const item = document.createElement('li');
+                item.id = 'userMenuSpectate';
+                item.className = 'userMenuItem';
+                item.innerHTML = '<i class="fas fa-search"></i><p>Spectate</p>';
+
+                // Read at click time rather than captured, so a party packet replacing the
+                // party object between opening the menu and pressing the row cannot strand this
+                // on a PartyMember nothing points at any more - see handleParty()
+                item.addEventListener('click', () => {
+                    $('#userMenu').hide();
+                    this.spectatePartyMember(this.spectateMenuTarget);
+                });
+
+                // Appended rather than prepended, for the reason ensureChatCopyItem() gives
+                list.append(item);
+                this.partySpectateItem = item;
+                return item;
+            }
+
+            /**
+             *  Locks the spectate camera onto a party member and follows them until told not to.
+             *
+             *  The party packet carries every member's position whether or not any of their
+             *  cells are on screen - it is what draws their dots on the minimap - so this works
+             *  at any distance, which is the whole point of it. The following itself happens in
+             *  render(); this only chooses who, and gets the camera there.
+             */
+            spectatePartyMember(id) {
+                if (!this.freeSpec || !this.party?.hasOwnProperty(id)) return;
+
+                this.spectateTarget = id;
+
+                /**
+                 *  Only the target is chosen here. render() aims the camera at whoever it is
+                 *  every frame, so the ordinary camera lerp carries it over - nothing needs to
+                 *  place the camera, and switching members travels the same way any other
+                 *  camera move does rather than cutting.
+                 */
+                this.camera.driftX = 0;
+                this.camera.driftY = 0;
+            }
+
+            /**
+             *  Party member ids that can be tracked, in a stable order.
+             *
+             *  Derived fresh rather than kept, because handleParty() rebuilds the party object
+             *  on every packet. Integer-like keys enumerate in ascending numeric order, so the
+             *  cycle visits everyone in the same order every time round.
+             */
+            spectatableIds() {
+                if (!this.party) return [];
+                return Object.keys(this.party).filter(id => this.myID != id);
+            }
+
+            /**
+             *  The cycle key: move to the next party member, wrapping at the end.
+             *
+             *  Picks up the first member when nothing is being tracked yet, so the key alone is
+             *  enough to start watching someone without going through the menu first.
+             */
+            cycleSpectateTarget(step = 1) {
+                if (!this.freeSpec) return;
+
+                const ids = this.spectatableIds();
+                if (!ids.length) return;
+
+                const current = ids.indexOf(String(this.spectateTarget));
+                const next = current === -1 ? 0 : (current + step + ids.length) % ids.length;
+
+                this.spectatePartyMember(ids[next]);
+            }
+
+            /**
+             *  Clears every germs keybind on this key except `exceptKey`, so a key is never
+             *  bound to two things at once.
+             *
+             *  Matched on keyCode because that is what germs' own controls store - germsfox's
+             *  store event.code instead, which is why both identifiers travel together and each
+             *  side picks the one it can use. Called from the bridge when the germsfox half took
+             *  a key, and directly below when this half did.
+             *
+             *  keyCode 0 is the unbound marker here, and is skipped rather than matched, or
+             *  clearing one binding would clear every other unbound one with it.
+             */
+            unbindGermsKey(keyCode, code, exceptKey = null) {
+                if (!keyCode) return [];
+
+                const cleared = [];
+                for (const key in this.controls) {
+                    if (key === exceptKey) continue;
+                    if (this.controls[key][0] !== keyCode) continue;
+
+                    this.controls[key] = [0, ''];
+                    // germs' own settings pane names these inputs after the control
+                    const input = document.getElementById('key' + key);
+                    if (input) input.value = '';
+                    cleared.push(key);
+                }
+
+                if (cleared.length) this.settings.setItem('controls', this.controls);
+                return cleared;
+            }
+
+            /** The mode key: swap between following a party member and panning with the mouse. */
+            toggleSpectateMode() {
+                if (!this.freeSpec) return;
+
+                if (this.spectateTarget !== null) {
+                    this.spectateTarget = null;
+                    return;
+                }
+
+                this.cycleSpectateTarget();
+            }
+
             openUserMenu(node) {
                 // Only offered when the menu was opened from a chat message
                 const copyItem = this.ensureChatCopyItem();
                 if (copyItem) copyItem.style.display = this.chatCopyText ? '' : 'none';
+
+                /**
+                 *  Spectate is only meaningful while actually spectating, and only for someone
+                 *  the party packet is streaming a position for. Both entry points into this
+                 *  menu - a right-clicked cell and a right-clicked chat message - carry the
+                 *  owning player's id as `parent`, which is what the party is keyed by.
+                 */
+                const spectateItem = this.ensurePartySpectateItem();
+                this.spectateMenuTarget = (this.freeSpec && node && this.myID != node.parent
+                    && this.party?.hasOwnProperty(node.parent)) ? node.parent : null;
+                if (spectateItem) {
+                    spectateItem.style.display = this.spectateMenuTarget !== null ? '' : 'none';
+                }
 
                 if (node && this.myID != node.parent) {
                     this.lastSelectedPlayer = node;
@@ -9430,6 +9706,7 @@ function modules(ks) {
             logout: instance.login.logout.bind(instance.login),
             custom: instance.login.custom.bind(instance.login),
             setLockedPosition: self.germsfoxSetLockedPosition,
+            unbindGermsKey: instance.unbindGermsKey.bind(instance),
         };
 
         function germsfoxGetState() {
@@ -9828,6 +10105,37 @@ function modules(ks) {
                 $('#btnChannel').blur();
             });
 
+            /**
+             *  Gives germs' Controls pane the Spectate row its settings always had data for.
+             *
+             *  The stored controls carry a Spectate binding, but the page ships no input for it
+             *  and nothing ever read it - so it has sat there unbindable. Cloned from the last
+             *  row rather than built from markup, so it picks up whatever classes that pane
+             *  uses without this having to know them.
+             *
+             *  Injected here, immediately before the two handlers below bind: both select
+             *  `#settings-controls input` directly rather than delegating, so a row added after
+             *  them would have no handler on it.
+             */
+            (function ensureSpectateControlRow() {
+                const pane = document.getElementById('settings-controls');
+                if (!pane || document.getElementById('keySpectate')) return;
+
+                const template = document.getElementById('keyHide')?.closest('.row');
+                if (!template) return;
+
+                const row = template.cloneNode(true);
+                const label = row.querySelector('.col-md-6');
+                const input = row.querySelector("input[type='text']");
+                if (!label || !input) return;
+
+                label.textContent = 'Spectate (Party)';
+                input.id = 'keySpectate';
+                input.value = instance.controls.Spectate?.[1] ?? '';
+
+                template.insertAdjacentElement('afterend', row);
+            })();
+
             $("#settings-controls input[type='text']").on('click focus', function() {
                 $(this).select();
             });
@@ -9860,7 +10168,29 @@ function modules(ks) {
                 case 'keyHide':
                     instance.controls.Hide = [vF.which, vG];
                     break;
+                case 'keySpectate':
+                    instance.controls.Spectate = [vF.which, vG];
+                    break;
                 }
+
+                /**
+                 *  A key may only be bound to one thing. This half clears its own bindings and
+                 *  posts the key out for the germsfox half to clear its own - they are in
+                 *  different JS worlds, so the bridge is the only way across. jQuery does not
+                 *  copy `code` onto its event wrapper, so it is read off the native one.
+                 */
+                const boundControl = $(this).attr('id').slice(3);
+                const nativeKeyEvent = vF.originalEvent || vF;
+                if (instance.controls.hasOwnProperty(boundControl)) {
+                    instance.unbindGermsKey(vF.which, nativeKeyEvent.code, boundControl);
+                }
+                window.postMessage({
+                    __germsfox: true,
+                    type: 'keybind',
+                    code: nativeKeyEvent.code || null,
+                    keyCode: vF.which,
+                }, '*');
+
                 instance.settings.setItem('controls', instance.controls);
                 $(this).val(vG);
                 $(this).blur();

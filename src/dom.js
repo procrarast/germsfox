@@ -172,6 +172,28 @@ function renderDailyLeaderboardPanel() {
 }
 
 /**
+ *  Appends text to an element, turning `backtick`-delimited spans into <code>.
+ *
+ *  Assembled from text nodes and elements rather than innerHTML for the same reason the title
+ *  is: nothing the copy says can turn into markup. An odd number of backticks leaves the
+ *  trailing span marked up as code, which is visible enough in the notice itself to be worth
+ *  no handling of its own.
+ */
+function appendUpdateText(parent, text) {
+    text.split("`").forEach((chunk, index) => {
+        if (index % 2 === 0) {
+            if (chunk) parent.append(chunk);
+            return;
+        }
+
+        const code = document.createElement("code");
+        code.className = "germsfoxUpdateCode";
+        code.textContent = chunk;
+        parent.append(code);
+    });
+}
+
+/**
  *  One-time notice after an update, in the game's own card style.
  *
  *  Built from the same pieces the game's settings panel uses - a .card inside a dimmed
@@ -195,6 +217,9 @@ function renderUpdateNotice() {
     const card = document.createElement("div");
     card.className = "card";
     card.id = "germsfoxUpdateCard";
+    // Same scale the game gives its own menu cards in onResize(). Copied once, like
+    // #germsfoxSettingsContainer - it does not follow a later resize
+    card.style.transform = document.getElementById("settingsContainer")?.style.transform ?? "";
 
     const close = document.createElement("i");
     close.className = "fas fa-times";
@@ -215,7 +240,11 @@ function renderUpdateNotice() {
 
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
-    body.textContent = "I feel like merge is mostly fixed. If you have any problems at all, please bother me. I'll be annoyed, but I will fix it. Spectate also no longer lags behind your cursor.";
+    appendUpdateText(body, "I feel like merge is mostly fixed. If you have any problems at all, "
+        + "please bother me. I'll be annoyed, but I will fix it. Spectate also no longer lags "
+        + "behind your cursor.\n\nAlso fixed the crash that froze the game after a death or a "
+        + "server switch. If anything like it happens again, open the console and run "
+        + "`__gfDiag.pendingFrees()` - anything other than 0 is worth telling me about.");
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";
@@ -1456,20 +1485,29 @@ function createKeyTester(key, text) {
         usingInput = false;
     });
 
-    function submitSwitcherKey(event) {
+    async function submitSwitcherKey(event) {
         event.stopPropagation(); // Prevents the event from reaching the document event listener
         event.preventDefault();
         if (event.key === "Escape") {
             // Unset the keybind
             keyTester.value = "";
-            setControlsSetting(key, ["", ""]);
+            keyTester.blur();
+            await setControlsSetting(key, ["", ""]);
         } else {
             let prettyEventKey = event.key.charAt(0).toUpperCase() + event.key.slice(1);
             if (prettyEventKey === " ") prettyEventKey = "Space"; // There may be more edge cases to prettify
             keyTester.value = prettyEventKey;
-            setControlsSetting(key, [event.code, prettyEventKey]);
+            keyTester.blur();
+            // keyCode rides along unstored, for the germs-side half of the duplicate check
+            await setControlsSetting(key, [event.code, prettyEventKey], event.keyCode ?? event.which);
         }
-        keyTester.blur();
+
+        /**
+         *  Rebuilt rather than patched, because taking this key may have unbound some other row
+         *  and there is no telling which from here - see unbindDuplicateControls(). Blurred
+         *  first: this replaces the very input the event is being handled on.
+         */
+        renderControlsTabPane();
     }
 
     keyTesterContainer.appendChild(keyTester);

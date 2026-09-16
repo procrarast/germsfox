@@ -132,6 +132,21 @@ async function init() {
         }
     });
 
+    /**
+     *  germs' own settings took a key, so drop any germsfox binding on it - see
+     *  unbindDuplicateControls(). Saved straight rather than through setControlsSetting(),
+     *  which would bounce the same key back over the bridge and undo the binding that just
+     *  caused this.
+     */
+    document.addEventListener('germsfox:keybind', async (event) => {
+        const cleared = unbindDuplicateControls(null, event.detail?.code);
+        if (!cleared.length) return;
+
+        console.debug(`Unbound ${cleared.join(", ")} - reused by germs' own controls`);
+        await chrome.storage.local.set({ controls: settings.controls });
+        if (document.getElementById("germsfox-settings-controls")) renderControlsTabPane();
+    });
+
     const skinButton = document.getElementById("skin");
     skinButton.addEventListener('click', () => {
         renderCustomColorsMenu();

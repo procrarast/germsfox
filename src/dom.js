@@ -240,11 +240,7 @@ function renderUpdateNotice() {
 
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
-    appendUpdateText(body, "I feel like merge is mostly fixed. If you have any problems at all, "
-        + "please bother me. I'll be annoyed, but I will fix it. Spectate also no longer lags "
-        + "behind your cursor.\n\nAlso fixed the crash that froze the game after a death or a "
-        + "server switch. If anything like it happens again, open the console and run "
-        + "`__gfDiag.pendingFrees()` - anything other than 0 is worth telling me about.");
+    appendUpdateText(body, "You can now enable the original game's split macros in Settings->Controls if you find the new ones unpleasant.\n\nPlus, parties have a couple new features: arrows pointing towards offscreen teammates, and you can spectate party members by pressing Q, and change the spectated player by pressing your split button. Sorry if the new keybinds break your controls, please just re-set them.\n\nLastly, if you've been getting black screens for the past months, I found a root cause and you should no longer be randomly crashing every ~2 hours.\n\nThank you for balling.");
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";

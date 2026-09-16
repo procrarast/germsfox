@@ -6,67 +6,29 @@
 
 console.debug("Running storage.js");
 
-const emotes = [
-    "flafDuh.png",
-    "gsTroll.png",
-    "gsFlooshed.png",
-    "gsPls.png",
-    "gsHollow.png",
-    "Self.png",
-    "DELTA.png",
-    "Tree.png",
-    "Mafu.png",
-    "josemorales.png",
-    "SKUL.png",
-    "trollskull.png",
-    "gsSmil.png",
-    "NAILS.png",
-    "Idio.png",
-    "YIPPEE.png",
-    "sademoji.png",
-    "LOAL.png",
-    "steamhappy.png",
-    "AGONY.png",
-    "HAHA.png",
-    "rice_cat.png",
-    "shup.png",
-    "catAware.png",
-    "catQue.png",
-    "catOMG.png",
-    "catHi.png",
-    "catNod.gif",
-    "catnodwashingmachine.gif",
-    "catYap.gif",
-    "catPaw.gif",
-    "catResort.png",
-    "catOrb.gif",
-    "gg28.png",
-    "katameow.png",
-    "pcStare.png",
-    "widekisser.png",
-    "bkWave.gif",
-    "firTilt.gif",
-    "UIOHADFGIUOHDAVFB.png",
-    "catWhat.png",
-    "myhonesterection.png",
-    "choccy.png",
-    "yapyapyap.gif",
-    "gsPuddle.png",
-];
+/**
+ *  Emote and sticker filenames, from the one file both halves of the extension read.
+ *
+ *  They used to be spelled out here *and* in bundle.js, 53 names in two places kept in step by
+ *  hand, because the two run in different JS worlds and cannot share an array. They can share a
+ *  file though: this side reaches it through chrome.runtime.getURL, bundle.js through
+ *  window.__germsfoxURL. Empty until loadEmoteLists() resolves, which init() awaits before
+ *  anything renders a panel.
+ */
+let emotes = [];
+let stickers = [];
 
-// Same idea as `emotes` above, but rendered larger in chat - see germsfoxStickers in bundle.js
-// (kept in sync manually, same as `emotes`/germsfoxEmotes: bundle.js runs in the page's main
-// world and can't share this array directly with the isolated content-script world)
-const stickers = [
-    "schizo.gif",
-    "FAGTASTIC.gif",
-    "catNekoAtsume.gif",
-    "scanning.gif",
-    "gsGM.png",
-    "MASS.png",
-    "glokk40spazz.gif",
-    "forward.gif",
-];
+async function loadEmoteLists() {
+    try {
+        const response = await fetch(chrome.runtime.getURL("images/emotes.json"));
+        const lists = await response.json();
+        emotes = lists.emotes ?? [];
+        stickers = lists.stickers ?? [];
+    } catch (error) {
+        // Nothing to fall back to - the panel renders empty rather than the extension failing
+        console.warn("Could not load images/emotes.json: " + error);
+    }
+}
 
 // [event.code, 'pretty' key label]
 // An unset keybind is an empty string ""

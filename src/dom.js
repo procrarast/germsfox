@@ -369,20 +369,14 @@ async function renderCellPreviewCard() {
             if (/^https:\/\/i\.imgur\.com\/.*\.png$/.test(inputValue)) {
                 console.debug("Input looks good, value is " + inputValue);
                 setSetting('setSkin', inputValue);
+                // Cleared so the germsfox:alive listener applies the new skin on the next
+                // spawn - see content.js
                 hasSpawned = false;
 
                 // Update preview
                 cellSkin.style.display = "block";
                 cellSkin.src = inputValue;
                 cellSkinButton.style.backgroundImage = `url('${inputValue}')`;
-
-                // Wait til you spawn to update your ingame color
-                const state = await germsfoxGetState();
-                if (state && state.alive) {
-                    initDebugAfterDeath();
-                } else {
-                    initDebug();
-                }
                 skinsListUl.removeEventListener('click', skinsListClicked, true);
                 skinsCard.style.display = "none";
             } else { console.debug("Input is no good, value is " + inputValue); }
@@ -477,13 +471,8 @@ async function renderCellPreviewCard() {
                 }
                 cellSkin.style.display = "block";
             }
+            // As above - the next spawn picks the new skin up
             hasSpawned = false;
-            const state = await germsfoxGetState();
-            if (state && state.alive) {
-                initDebugAfterDeath();
-            } else {
-                initDebug();
-            }
         }
     }
 
@@ -1093,42 +1082,142 @@ function createDropdown(id) {
 }
 
 // Creates a scary red button
-function createDangerousButton(onClick, labelText, buttonText) {
-    const buttonRow = document.createElement("div");
-    buttonRow.classList.add("row");
-    buttonRow.style.marginLeft = "20px";
+/**
+ *  The row every settings control sits in: a label on the left, the control on the right.
+ *
+ *  Five helpers built this same scaffolding by hand and drifted apart only in what went
+ *  inside - createButton and createDangerousButton were identical but for one class name.
+ *  `containerStyle` is the one thing they genuinely disagreed on.
+ */
+function createSettingRow(labelText, control, containerStyle = {}) {
+    const row = document.createElement("div");
+    row.classList.add("row");
+    row.style.marginLeft = "20px";
 
-    const buttonLabelColumn = document.createElement("div");
-    buttonLabelColumn.classList.add("col-md-6");
-    buttonLabelColumn.style.fontSize = "20px";
-    buttonLabelColumn.textContent = labelText;
-    buttonLabelColumn.style.textAlign = "left";
-    buttonLabelColumn.style.paddingLeft = "0px";
+    // updateControlsTabPane() relabels rows by taking the first .col-md-6, so the label column
+    // has to stay first
+    const labelColumn = document.createElement("div");
+    labelColumn.classList.add("col-md-6");
+    labelColumn.style.fontSize = "20px";
+    labelColumn.style.textAlign = "left";
+    labelColumn.style.paddingLeft = "0px";
+    labelColumn.textContent = labelText;
 
-    const buttonColumn = document.createElement("div");
-    buttonColumn.classList.add("col-md-6");
-    buttonColumn.style.fontSize = "20px";
+    const controlColumn = document.createElement("div");
+    controlColumn.classList.add("col-md-6");
+    controlColumn.style.fontSize = "20px";
 
-    const buttonContainer = document.createElement("div");
-    buttonContainer.classList.add("input-group", "input-group-sm");
-    buttonContainer.style.marginBottom = "15px";
+    const container = document.createElement("div");
+    container.classList.add("input-group", "input-group-sm");
+    Object.assign(container.style, containerStyle);
+    container.append(...[control].flat());
 
+    controlColumn.appendChild(container);
+    row.append(labelColumn, controlColumn);
+
+    return row;
+}
+
+// The 100x35 button these rows use. `variant` is a second bootstrap class, e.g. "btn-danger".
+function createRowButton(buttonText, variant) {
     const button = document.createElement("input");
-    button.onclick = onClick;
     button.type = "button";
-    button.classList.add("btn", "btn-danger");
+    button.classList.add("btn", ...(variant ? [variant] : []));
     button.value = buttonText;
     button.style.width = "100px";
     button.style.height = "35px";
     button.style.lineHeight = "1";
-
-    // ===== Assemble =====
-    buttonContainer.append(button);
-    buttonColumn.appendChild(buttonContainer);
-    buttonRow.append(buttonLabelColumn, buttonColumn);
-
-    return buttonRow;
+    return button;
 }
+
+const ROW_BUTTON_STYLE = { marginBottom: "15px" };
+
+function createButton(onClick, labelText, buttonText) {
+    const button = createRowButton(buttonText);
+    button.onclick = onClick;
+    return createSettingRow(labelText, button, ROW_BUTTON_STYLE);
+}
+
+function createDangerousButton(onClick, labelText, buttonText) {
+    const button = createRowButton(buttonText, "btn-danger");
+    button.onclick = onClick;
+    return createSettingRow(labelText, button, ROW_BUTTON_STYLE);
+}
+
+function createFileInputButton(onChange, labelText, buttonText) {
+    const fileInput = document.createElement("input");
+    fileInput.id = "skinsInput";
+    fileInput.type = "file";
+    fileInput.accept = "application/json";
+    fileInput.style.display = "none";
+    fileInput.addEventListener("change", (event) => onChange(event.target.files));
+
+    // A label rather than a button, so clicking it opens the hidden file input
+    const button = document.createElement("label");
+    button.htmlFor = "skinsInput";
+    button.classList.add("btn");
+    button.textContent = buttonText;
+
+    return createSettingRow(labelText, [button, fileInput], ROW_BUTTON_STYLE);
+}
+
+function createDownloadButton(labelText, buttonText) {
+    const blob = new Blob([JSON.stringify(settings.customSkins)], { type: 'application/json' });
+
+    const anchor = document.createElement("a");
+    anchor.href = window.URL.createObjectURL(blob);
+    anchor.download = "skins";
+    anchor.append(createRowButton(buttonText));
+
+    return createSettingRow(labelText, anchor, ROW_BUTTON_STYLE);
+}
+
+// Return a div .row with a key (as in "keyboard") tester for settings.key
+function createKeyTester(key, text) {
+    const keyTester = document.createElement("input");
+    keyTester.id = "key" + key.charAt(0).toUpperCase() + key.slice(1);
+    keyTester.classList.add("form-control");
+    keyTester.type = "text";
+    keyTester.value = settings.controls[key][1];
+
+    keyTester.addEventListener('focus', () => {
+        keyTester.addEventListener('keydown', submitSwitcherKey);
+        usingInput = true;
+    });
+
+    keyTester.addEventListener('blur', () => {
+        keyTester.removeEventListener('keydown', submitSwitcherKey);
+        usingInput = false;
+    });
+
+    async function submitSwitcherKey(event) {
+        event.stopPropagation(); // Prevents the event from reaching the document event listener
+        event.preventDefault();
+        if (event.key === "Escape") {
+            // Unset the keybind
+            keyTester.value = "";
+            keyTester.blur();
+            await setControlsSetting(key, ["", ""]);
+        } else {
+            let prettyEventKey = event.key.charAt(0).toUpperCase() + event.key.slice(1);
+            if (prettyEventKey === " ") prettyEventKey = "Space"; // There may be more edge cases to prettify
+            keyTester.value = prettyEventKey;
+            keyTester.blur();
+            // keyCode rides along unstored, for the germs-side half of the duplicate check
+            await setControlsSetting(key, [event.code, prettyEventKey], event.keyCode ?? event.which);
+        }
+
+        /**
+         *  Rebuilt rather than patched, because taking this key may have unbound some other row
+         *  and there is no telling which from here - see unbindDuplicateControls(). Blurred
+         *  first: this replaces the very input the event is being handled on.
+         */
+        renderControlsTabPane();
+    }
+
+    return createSettingRow(text, keyTester, { width: "100px" });
+}
+
 
 function renderGeneralTabPane() {
     const pane = document.getElementById("germsfox-settings-general");
@@ -1324,202 +1413,10 @@ function createColorPicker(key, labelText) {
     return colorPickerRow;
 }
 
-function createFileInputButton(onChange, labelText, buttonText) {
-    // Same as below, but perhaps the input could just be a label for a file input with .json acceptance
-    const buttonRow = document.createElement("div");
-    buttonRow.classList.add("row");
-    buttonRow.style.marginLeft = "20px";
 
-    const buttonLabelColumn = document.createElement("div");
-    buttonLabelColumn.classList.add("col-md-6");
-    buttonLabelColumn.style.fontSize = "20px";
-    buttonLabelColumn.textContent = labelText;
-    buttonLabelColumn.style.textAlign = "left";
-    buttonLabelColumn.style.paddingLeft = "0px";
 
-    const buttonColumn = document.createElement("div");
-    buttonColumn.classList.add("col-md-6");
-    buttonColumn.style.fontSize = "20px";
-
-    const buttonContainer = document.createElement("div");
-    buttonContainer.classList.add("input-group", "input-group-sm");
-    buttonContainer.style.marginBottom = "15px";
-
-    const fileInput = document.createElement("input");
-    fileInput.id = "skinsInput";
-    fileInput.type = "file";
-    fileInput.accept = "application/json";
-    fileInput.style.display = "none";
-
-    fileInput.addEventListener("change", (event) => {
-        //console.debug("Input clicked");
-        onChange(event.target.files);
-    });
-
-    const button = document.createElement("label");
-    button.htmlFor = "skinsInput";
-    button.classList.add("btn");
-    button.textContent = buttonText;
-
-    // ===== Assemble =====
-    buttonContainer.append(button, fileInput);
-    buttonColumn.appendChild(buttonContainer);
-    buttonRow.append(buttonLabelColumn, buttonColumn);
-
-    return buttonRow;
-}
-
-function createDownloadButton(labelText, buttonText) {
-    const stringifiedArray = JSON.stringify(settings.customSkins);
-    const blob = new Blob([stringifiedArray], { type: 'application/json' });
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    const buttonRow = document.createElement("div");
-    buttonRow.classList.add("row");
-    buttonRow.style.marginLeft = "20px";
-
-    const buttonLabelColumn = document.createElement("div");
-    buttonLabelColumn.classList.add("col-md-6");
-    buttonLabelColumn.style.fontSize = "20px";
-    buttonLabelColumn.textContent = labelText;
-    buttonLabelColumn.style.textAlign = "left";
-    buttonLabelColumn.style.paddingLeft = "0px";
-
-    const buttonColumn = document.createElement("div");
-    buttonColumn.classList.add("col-md-6");
-    buttonColumn.style.fontSize = "20px";
-
-    const buttonContainer = document.createElement("div");
-    buttonContainer.classList.add("input-group", "input-group-sm");
-    buttonContainer.style.marginBottom = "15px";
-
-    const button = document.createElement("input");
-    button.type = "button";
-    button.classList.add("btn");
-    button.value = buttonText;
-    button.style.width = "100px";
-    button.style.height = "35px";
-    button.style.lineHeight = "1";
-
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = "skins";
-
-    // ===== Assemble =====
-    a.append(button);
-    buttonContainer.append(a);
-    buttonColumn.appendChild(buttonContainer);
-    buttonRow.append(buttonLabelColumn, buttonColumn);
-
-    return buttonRow;
-}
-
-// Creates a button row
-function createButton(onClick, labelText, buttonText) {
-    const buttonRow = document.createElement("div");
-    buttonRow.classList.add("row");
-    buttonRow.style.marginLeft = "20px";
-
-    const buttonLabelColumn = document.createElement("div");
-    buttonLabelColumn.classList.add("col-md-6");
-    buttonLabelColumn.style.fontSize = "20px";
-    buttonLabelColumn.textContent = labelText;
-    buttonLabelColumn.style.textAlign = "left";
-    buttonLabelColumn.style.paddingLeft = "0px";
-
-    const buttonColumn = document.createElement("div");
-    buttonColumn.classList.add("col-md-6");
-    buttonColumn.style.fontSize = "20px";
-
-    const buttonContainer = document.createElement("div");
-    buttonContainer.classList.add("input-group", "input-group-sm");
-    buttonContainer.style.marginBottom = "15px";
-
-    const button = document.createElement("input");
-    button.onclick = onClick;
-    button.type = "button";
-    button.classList.add("btn");
-    button.value = buttonText;
-    button.style.width = "100px";
-    button.style.height = "35px";
-    button.style.lineHeight = "1";
-
-    // ===== Assemble =====
-    buttonContainer.append(button);
-    buttonColumn.appendChild(buttonContainer);
-    buttonRow.append(buttonLabelColumn, buttonColumn);
-
-    return buttonRow;
-}
 
 // Return a div .row with a key (as in "keyboard") tester for settings.key
-function createKeyTester(key, text) {
-    const keyRow = document.createElement("div");
-    keyRow.classList.add("row");
-    keyRow.style.marginLeft = "20px";
-
-    const keyLabelColumn = document.createElement("div");
-    keyLabelColumn.classList.add("col-md-6");
-    keyLabelColumn.style.fontSize = "20px";
-    keyLabelColumn.style.paddingLeft = "0px";
-    keyLabelColumn.style.textAlign = "left";
-    keyLabelColumn.textContent = text;
-
-    const keyTesterColumn = document.createElement("div");
-    keyTesterColumn.classList.add("col-md-6");
-    keyTesterColumn.style.fontSize = "20px";
-
-    const keyTesterContainer = document.createElement("div");
-    keyTesterContainer.classList.add("input-group", "input-group-sm");
-    keyTesterContainer.style.width = "100px";
-
-    const keyTester = document.createElement("input");
-    keyTester.id = "key" + key.charAt(0).toUpperCase() + key.slice(1);
-    keyTester.classList.add("form-control");
-    keyTester.type = "text";
-    keyTester.value = settings.controls[key][1];
-
-    keyTester.addEventListener('focus', () => {
-        keyTester.addEventListener('keydown', submitSwitcherKey);
-        usingInput = true;
-    });
-
-    keyTester.addEventListener('blur', () => {
-        keyTester.removeEventListener('keydown', submitSwitcherKey);
-        usingInput = false;
-    });
-
-    async function submitSwitcherKey(event) {
-        event.stopPropagation(); // Prevents the event from reaching the document event listener
-        event.preventDefault();
-        if (event.key === "Escape") {
-            // Unset the keybind
-            keyTester.value = "";
-            keyTester.blur();
-            await setControlsSetting(key, ["", ""]);
-        } else {
-            let prettyEventKey = event.key.charAt(0).toUpperCase() + event.key.slice(1);
-            if (prettyEventKey === " ") prettyEventKey = "Space"; // There may be more edge cases to prettify
-            keyTester.value = prettyEventKey;
-            keyTester.blur();
-            // keyCode rides along unstored, for the germs-side half of the duplicate check
-            await setControlsSetting(key, [event.code, prettyEventKey], event.keyCode ?? event.which);
-        }
-
-        /**
-         *  Rebuilt rather than patched, because taking this key may have unbound some other row
-         *  and there is no telling which from here - see unbindDuplicateControls(). Blurred
-         *  first: this replaces the very input the event is being handled on.
-         */
-        renderControlsTabPane();
-    }
-
-    keyTesterContainer.appendChild(keyTester);
-    keyTesterColumn.appendChild(keyTesterContainer);
-    keyRow.append(keyLabelColumn, keyTesterColumn);
-
-    return keyRow;
-}
 
 // Return a div .clearfix 
 /**

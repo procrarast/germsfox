@@ -13,13 +13,13 @@ let germsSettings = null;
 let usingInput = false;
 let hasSpawned = false;
 let playButtonObserver;
-let debugPollInterval;
 
 init();
 
 async function init() {
     settings = await getSettings();
     germsSettings = await getGermsSettings();
+    await loadEmoteLists();   // renderEmotesPanel() and the chat observer both need it
 
     if (!settings.disablePishi) {
         const icon = chrome.runtime.getURL("/images/icon.png");
@@ -53,41 +53,12 @@ async function init() {
     initConnecting();
     renderCustomSkinsMenu();
     renderCustomColorsMenu();
-    initDebug();
     renderGameMenu();
     renderDailyLeaderboardPanel();
     renderNick();
     renderGermsfoxButton();
     renderPlayerMenu();
     renderUpdateNotice();
-
-    const showNamesSelect = document.getElementById("showNames");
-    const showSkinsSelect = document.getElementById("showSkins");
-    const showMassCheckbox = document.getElementById("showMass");
-    const hideFoodCheckbox = document.getElementById("hideFood");
-
-    // Matches the option values createDropdown() (dom.js) builds for showNames/showSkins.
-    const DISPLAY_PREFERENCE_VALUES = ["all", "party", "self", "none"];
-
-    // Cycles/toggles a display-preference setting (showNames/showSkins) and applies it via
-    // the bridge, using bundle.js's own live value as the source of truth rather than the
-    // <select>'s current value. selectEl is only updated afterwards to keep the settings
-    // menu visually in sync if it's open - the applied change doesn't depend on it.
-    async function cycleDisplayPreference(key, toggleValues, selectEl) {
-        const state = await germsfoxGetState();
-        if (!state) return;
-        const current = state.settings[key];
-
-        let next;
-        if (!settings.toggleSettings) {
-            next = DISPLAY_PREFERENCE_VALUES[(DISPLAY_PREFERENCE_VALUES.indexOf(current) + 1) % DISPLAY_PREFERENCE_VALUES.length];
-        } else {
-            next = current === toggleValues[0] ? toggleValues[1] : toggleValues[0];
-        }
-
-        germsfoxCall('changeSetting', key, next);
-        selectEl.value = next;
-    }
 
     document.addEventListener('keydown', (event) => {
         if (usingInput) return;
@@ -103,33 +74,42 @@ async function init() {
                     chrome.runtime.sendMessage({ action: "switchTabs"});
                 }
                 break;
+            /**
+             *  All four hand straight over to bundle.js, which holds the current value, the
+             *  setting to write and the control to update. Asking it for state first and then
+             *  telling it what to do was two bridge messages to decide something it could have
+             *  decided alone. `toggleSettings` off means walk the whole list instead of flipping
+             *  between the configured pair.
+             */
             case settings.controls.toggleNames[0]:
                 event.preventDefault();
-                cycleDisplayPreference("showNames", settings.toggleNames, showNamesSelect);
+                germsfoxCall('cycleDisplayPreference', 'showNames',
+                    settings.toggleSettings ? settings.toggleNames : null);
                 break;
             case settings.controls.toggleSkins[0]:
                 event.preventDefault();
-                cycleDisplayPreference("showSkins", settings.toggleSkins, showSkinsSelect);
+                germsfoxCall('cycleDisplayPreference', 'showSkins',
+                    settings.toggleSettings ? settings.toggleSkins : null);
                 break;
             case settings.controls.toggleMass[0]:
                 event.preventDefault();
-                germsfoxGetState().then(state => {
-                    if (!state) return;
-                    const next = !state.settings.showMass;
-                    germsfoxCall('changeSetting', 'showMass', next);
-                    showMassCheckbox.checked = next;
-                });
+                germsfoxCall('toggleSetting', 'showMass');
                 break;
             case settings.controls.toggleFood[0]:
                 event.preventDefault();
-                germsfoxGetState().then(state => {
-                    if (!state) return;
-                    const next = !state.settings.hideFood;
-                    germsfoxCall('changeSetting', 'hideFood', next);
-                    hideFoodCheckbox.checked = next;
-                });
+                germsfoxCall('toggleSetting', 'hideFood');
                 break;
         }
+    });
+
+    /**
+     *  You spawned or died - pushed by bundle.js rather than polled for. Applying the configured
+     *  colour on every spawn is what the old two-interval dance amounted to: arm a watcher, wait
+     *  for the first spawn, apply, then re-arm after the next death.
+     */
+    document.addEventListener('germsfox:alive', (event) => {
+        hasSpawned = event.detail.alive;
+        if (hasSpawned && settings.setColor !== "None") setSkin(settings.setColor);
     });
 
     /**
@@ -149,7 +129,21 @@ async function init() {
         let touched = false;
         for (const key in changes) {
             if (!(key in settings) || SETTINGS_NOT_SYNCED.has(key)) continue;
-            settings[key] = changes[key].newValue ?? DEFAULT_SETTINGS[key];
+
+            /**
+             *  Skip what this tab already has. chrome.storage fires this in the tab that wrote
+             *  as well as the others, and setSetting() updates `settings` before it writes - so
+             *  a change of our own arrives here already applied.
+             *
+             *  Worth the compare rather than re-rendering anyway: rebuilding a pane replaces
+             *  every row in it, and a toggle that is destroyed and recreated in its new state
+             *  never runs the CSS transition on its slider. Flipping one's own switch stopped
+             *  animating the moment this listener existed.
+             */
+            const incoming = changes[key].newValue ?? DEFAULT_SETTINGS[key];
+            if (JSON.stringify(settings[key]) === JSON.stringify(incoming)) continue;
+
+            settings[key] = incoming;
             touched = true;
         }
         if (!touched) return;
@@ -213,44 +207,6 @@ function getChatNames(amount) {
         }
     }
     return chatNamesList;
-}
-
-function initDebug() { // We need to poll live game state to detect spawns
-    //console.debug("Initializing spawn poll");
-    if (debugPollInterval) clearInterval(debugPollInterval);
-
-    debugPollInterval = setInterval(checkForSpawn, 500); // Matches bundle.js's own debug HUD update interval
-
-    async function checkForSpawn() {
-        //console.debug("Checking for life...");
-        const state = await germsfoxGetState();
-        if (!state) return;
-        if (!hasSpawned && state.alive) {
-            console.log("First spawn");
-            hasSpawned = true;
-            if (settings.setColor !== "None") setSkin(settings.setColor);
-            //console.debug("Stopping spawn poll");
-            clearInterval(debugPollInterval);
-        }
-    }
-}
-
-function initDebugAfterDeath() {
-    //console.debug("Initializing death poll");
-    if (debugPollInterval) clearInterval(debugPollInterval);
-    debugPollInterval = setInterval(checkForDeath, 500);
-
-    async function checkForDeath() {
-        //console.debug("Checking for death...");
-        const state = await germsfoxGetState();
-        if (!state) return;
-        if (!state.alive) {
-            console.log("You died");
-            hasSpawned = false;
-            clearInterval(debugPollInterval);
-            initDebug();
-        }
-    }
 }
 
 function initChat() {
@@ -354,13 +310,6 @@ function initConnecting() {
         } else {
             setSkin(settings.setSkin);
         }
-        // Your mass might still be >0 if you changed servers while you were alive
-        // Need to wait until it resets to 0 before treating you as dead
-        if (state && state.alive) {
-            initDebugAfterDeath();
-            return;
-        }
-        initDebug();
     }
 }
 

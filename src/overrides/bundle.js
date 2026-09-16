@@ -60,2334 +60,6 @@ var moduleRegistry = {
         moreBadwordsArray.exports = ["ahole","anus","ash0le","ash0les","asholes","ass","Ass Monkey","Assface","assh0le","assh0lez","asshole","assholes","assholz","asswipe","azzhole","bassterds","bastard","bastards","bastardz","basterds","basterdz","Biatch","bitch","bitches","Blow Job","boffing","butthole","buttwipe","c0ck","c0cks","c0k","Carpet Muncher","cawk","cawks","Clit","cnts","cntz","cock","cockhead","cock-head","cocks","CockSucker","cock-sucker","crap","cum","cunt","cunts","cuntz","dick","dild0","dild0s","dildo","dildos","dilld0","dilld0s","dominatricks","dominatrics","dominatrix","dyke","enema","f u c k","f u c k e r","fag","fag1t","faget","fagg1t","faggit","faggot","fagg0t","fagit","fags","fagz","faig","faigs","fart","flipping the bird","fuck","fucker","fuckin","fucking","fucks","Fudge Packer","fuk","Fukah","Fuken","fuker","Fukin","Fukk","Fukkah","Fukken","Fukker","Fukkin","g00k","God-damned","h00r","h0ar","h0re","hells","hoar","hoor","hoore","jackoff","jap","japs","jerk-off","jisim","jiss","jizm","jizz","knob","knobs","knobz","kunt","kunts","kuntz","Lezzian","Lipshits","Lipshitz","masochist","masokist","massterbait","masstrbait","masstrbate","masterbaiter","masterbate","masterbates","Motha Fucker","Motha Fuker","Motha Fukkah","Motha Fukker","Mother Fucker","Mother Fukah","Mother Fuker","Mother Fukkah","Mother Fukker","mother-fucker","Mutha Fucker","Mutha Fukah","Mutha Fuker","Mutha Fukkah","Mutha Fukker","n1gr","nastt","nigger;","nigur;","niiger;","niigr;","orafis","orgasim;","orgasm","orgasum","oriface","orifice","orifiss","packi","packie","packy","paki","pakie","paky","pecker","peeenus","peeenusss","peenus","peinus","pen1s","penas","penis","penis-breath","penus","penuus","Phuc","Phuck","Phuk","Phuker","Phukker","polac","polack","polak","Poonani","pr1c","pr1ck","pr1k","pusse","pussee","pussy","puuke","puuker","qweir","recktum","rectum","retard","sadist","scank","schlong","screwing","semen","sex","sexy","Sh!t","sh1t","sh1ter","sh1ts","sh1tter","sh1tz","shit","shits","shitter","Shitty","Shity","shitz","Shyt","Shyte","Shytty","Shyty","skanck","skank","skankee","skankey","skanks","Skanky","slag","slut","sluts","Slutty","slutz","son-of-a-bitch","tit","turd","va1jina","vag1na","vagiina","vagina","vaj1na","vajina","vullva","vulva","w0p","wh00r","wh0re","whore","xrated","xxx","b!+ch","bitch","blowjob","clit","arschloch","fuck","shit","ass","asshole","b!tch","b17ch","b1tch","bastard","bi+ch","boiolas","buceta","c0ck","cawk","chink","cipa","clits","cock","cum","cunt","dildo","dirsa","ejakulate","fatass","fcuk","fuk","fux0r","hoer","hore","jism","kawk","l3itch","l3i+ch","masturbate","masterbat*","masterbat3","motherfucker","s.o.b.","mofo","nazi","nigga","nigger","nutsack","phuck","pimpis","pusse","pussy","scrotum","sh!t","shemale","shi+","sh!+","slut","smut","teets","tits","boobs","b00bs","teez","testical","testicle","titt","w00se","jackoff","wank","whoar","whore","*damn","*dyke","*fuck*","*shit*","@$$","amcik","andskota","arse*","assrammer","ayir","bi7ch","bitch*","bollock*","breasts","butt-pirate","cabron","cazzo","chraa","chuj","Cock*","cunt*","d4mn","daygo","dego","dick*","dike*","dupa","dziwka","ejackulate","Ekrem*","Ekto","enculer","faen","fag*","fanculo","fanny","feces","feg","Felcher","ficken","fitt*","Flikker","foreskin","Fotze","Fu(*","fuk*","futkretzn","gook","guiena","h0r","h4x0r","hell","helvete","hoer*","honkey","Huevon","hui","injun","jizz","kanker*","kike","klootzak","kraut","knulle","kuk","kuksuger","Kurac","kurwa","kusi*","kyrpa*","lesbo","mamhoon","masturbat*","merd*","mibun","monkleigh","mouliewop","muie","mulkku","muschi","nazis","nepesaurio","nigger*","orospu","paska*","perse","picka","pierdol*","pillu*","pimmel","piss*","pizda","poontsee","poop","porn","p0rn","pr0n","preteen","pula","pule","puta","puto","qahbeh","queef*","rautenberg","schaffer","scheiss*","schlampe","schmuck","screw","sh!t*","sharmuta","sharmute","shipal","shiz","skribz","skurwysyn","sphencter","spic","spierdalaj","splooge","suka","b00b*","testicle*","titt*","twat","vittu","wank*","wetback*","wichser","wop*","yed","zabourah"];
     }
     ,
-    base64: (ai, exports) => { // https://github.com/beatgammit/base64-js
-        'use strict'
-
-        exports.byteLength = byteLength;
-        exports.toByteArray = toByteArray;
-        exports.fromByteArray = fromByteArray;
-
-        var lookup = [];
-        var revLookup = [];
-        var Arr = typeof Uint8Array !== 'undefined' ? Uint8Array : Array;
-
-        var code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-        for (var i = 0, len = code.length; i < len; ++i) {
-            lookup[i] = code[i];
-            revLookup[code.charCodeAt(i)] = i;
-        }
-
-        // Support decoding URL-safe base64 strings, as Node.js does.
-        // See: https://en.wikipedia.org/wiki/Base64#URL_applications
-        revLookup['-'.charCodeAt(0)] = 62;
-        revLookup['_'.charCodeAt(0)] = 63;
-
-        function getLens(b64) {
-            var len = b64.length;
-
-            if (len % 4 > 0) {
-                throw new Error('Invalid string. Length must be a multiple of 4');
-            }
-
-            // Trim off extra bytes after placeholder bytes are found
-            // See: https://github.com/beatgammit/base64-js/issues/42
-            var validLen = b64.indexOf('=');
-            if (validLen === -1)
-                validLen = len;
-
-            var placeHoldersLen = validLen === len ? 0 : 4 - (validLen % 4);
-
-            return [validLen, placeHoldersLen];
-        }
-
-        // base64 is 4/3 + up to two characters of the original data
-        function byteLength(b64) {
-            var lens = getLens(b64);
-            var validLen = lens[0];
-            var placeHoldersLen = lens[1];
-            return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen;
-        }
-
-        function _byteLength(b64, validLen, placeHoldersLen) {
-            return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen;
-        }
-
-        function toByteArray(b64) {
-            var tmp;
-            var lens = getLens(b64);
-            var validLen = lens[0];
-            var placeHoldersLen = lens[1];
-
-            var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen));
-
-            var curByte = 0;
-
-            // if there are placeholders, only get up to the last complete 4 chars
-            var len = placeHoldersLen > 0 ? validLen - 4 : validLen;
-
-            var i;
-            for (i = 0; i < len; i += 4) {
-                tmp = (revLookup[b64.charCodeAt(i)] << 18) | (revLookup[b64.charCodeAt(i + 1)] << 12) | (revLookup[b64.charCodeAt(i + 2)] << 6) | revLookup[b64.charCodeAt(i + 3)];
-                arr[curByte++] = (tmp >> 16) & 0xFF;
-                arr[curByte++] = (tmp >> 8) & 0xFF;
-                arr[curByte++] = tmp & 0xFF;
-            }
-
-            if (placeHoldersLen === 2) {
-                tmp = (revLookup[b64.charCodeAt(i)] << 2) | (revLookup[b64.charCodeAt(i + 1)] >> 4);
-                arr[curByte++] = tmp & 0xFF;
-            }
-
-            if (placeHoldersLen === 1) {
-                tmp = (revLookup[b64.charCodeAt(i)] << 10) | (revLookup[b64.charCodeAt(i + 1)] << 4) | (revLookup[b64.charCodeAt(i + 2)] >> 2);
-                arr[curByte++] = (tmp >> 8) & 0xFF;
-                arr[curByte++] = tmp & 0xFF;
-            }
-
-            return arr;
-        }
-
-        function tripletToBase64(num) {
-            return lookup[num >> 18 & 0x3F] + lookup[num >> 12 & 0x3F] + lookup[num >> 6 & 0x3F] + lookup[num & 0x3F];
-        }
-
-        function encodeChunk(uint8, start, end) {
-            var tmp;
-            var output = [];
-            for (var i = start; i < end; i += 3) {
-                tmp = ((uint8[i] << 16) & 0xFF0000) + ((uint8[i + 1] << 8) & 0xFF00) + (uint8[i + 2] & 0xFF);
-                output.push(tripletToBase64(tmp));
-            }
-            return output.join('');
-        }
-
-        function fromByteArray(uint8) {
-            var tmp;
-            var len = uint8.length;
-            var extraBytes = len % 3;
-            // if we have 1 byte left, pad 2 bytes
-            var parts = [];
-            var maxChunkLength = 16383;
-            // must be multiple of 3
-
-            // go through the array every three bytes, we'll deal with trailing stuff later
-            for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
-                parts.push(encodeChunk(uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)));
-            }
-
-            // pad the end with zeros, but make sure to not forget the extra bytes
-            if (extraBytes === 1) {
-                tmp = uint8[len - 1]
-                parts.push(lookup[tmp >> 2] + lookup[(tmp << 4) & 0x3F] + '==');
-            } else if (extraBytes === 2) {
-                tmp = (uint8[len - 2] << 8) + uint8[len - 1]
-                parts.push(lookup[tmp >> 10] + lookup[(tmp >> 4) & 0x3F] + lookup[(tmp << 2) & 0x3F] + '=');
-            }
-
-            return parts.join('');
-        }
-    }
-    ,
-    buffer: (b6, exports, require) => {
-        /*!
-         * The buffer module from node.js, for the browser.
-         *
-         * @author   Feross Aboukhadijeh <https://feross.org>
-         * @license  MIT
-         */
-        /* eslint-disable no-proto */
-
-        'use strict'
-
-        const base64 = require('base64')
-        const ieee754 = require('ieee754')
-        const customInspectSymbol = (typeof Symbol === 'function' && typeof Symbol.for === 'function')// eslint-disable-line dot-notation
-        ? Symbol.for('nodejs.util.inspect.custom')// eslint-disable-line dot-notation
-        : null
-
-        exports.Buffer = Buffer
-        exports.SlowBuffer = SlowBuffer
-        exports.INSPECT_MAX_BYTES = 50
-
-        const K_MAX_LENGTH = 0x7fffffff
-        exports.kMaxLength = K_MAX_LENGTH
-
-        /**
-         * Not used internally, but exported to maintain api compatability
-         * Uses 32-bit implementation value from Node defined in String:kMaxLength
-         *
-         * @see https://github.com/nodejs/node/blob/main/deps/v8/include/v8-primitive.h#L126
-         * @see https://github.com/nodejs/node/blob/main/src/node_buffer.cc#L1298
-         * @see https://github.com/nodejs/node/blob/main/lib/buffer.js#L142
-         */
-        const K_STRING_MAX_LENGTH = (1 << 28) - 16
-        exports.kStringMaxLength = K_STRING_MAX_LENGTH
-
-        exports.constants = {
-            MAX_LENGTH: K_MAX_LENGTH,
-            MAX_STRING_LENGTH: K_STRING_MAX_LENGTH
-        }
-
-        exports.Blob = typeof Blob !== 'undefined' ? Blob : undefined
-        exports.File = typeof File !== 'undefined' ? File : undefined
-        exports.atob = typeof atob !== 'undefined' ? atob : undefined
-        exports.btoa = typeof btoa !== 'undefined' ? btoa : undefined
-
-        /**
-         * If `Buffer.TYPED_ARRAY_SUPPORT`:
-         *   === true    Use Uint8Array implementation (fastest)
-         *   === false   Print warning and recommend using `buffer` v4.x which has an Object
-         *               implementation (most compatible, even IE6)
-         *
-         * Browsers that support typed arrays are IE 10+, Firefox 4+, Chrome 7+, Safari 5.1+,
-         * Opera 11.6+, iOS 4.2+.
-         *
-         * We report that the browser does not support typed arrays if the are not subclassable
-         * using __proto__. Firefox 4-29 lacks support for adding new properties to `Uint8Array`
-         * (See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438). IE 10 lacks support
-         * for __proto__ and has a buggy typed array implementation.
-         */
-        Buffer.TYPED_ARRAY_SUPPORT = typedArraySupport()
-
-        if (!Buffer.TYPED_ARRAY_SUPPORT && typeof console !== 'undefined' && typeof console.error === 'function') {
-            console.error('This browser lacks typed array (Uint8Array) support which is required by ' + '`buffer` v5.x. Use `buffer` v4.x if you require old browser support.')
-        }
-
-        function typedArraySupport() {
-            // Can typed array instances be augmented?
-            try {
-                const arr = new Uint8Array(1)
-                const proto = {
-                    foo: function() {
-                        return 42
-                    }
-                }
-                Object.setPrototypeOf(proto, Uint8Array.prototype)
-                Object.setPrototypeOf(arr, proto)
-                return arr.foo() === 42
-            } catch (e) {
-                return false
-            }
-        }
-
-        Object.defineProperty(Buffer.prototype, 'parent', {
-            enumerable: true,
-            get: function() {
-                if (!Buffer.isBuffer(this))
-                    return undefined
-                return this.buffer
-            }
-        })
-
-        Object.defineProperty(Buffer.prototype, 'offset', {
-            enumerable: true,
-            get: function() {
-                if (!Buffer.isBuffer(this))
-                    return undefined
-                return this.byteOffset
-            }
-        })
-
-        function createBuffer(length) {
-            if (length > K_MAX_LENGTH) {
-                throw new RangeError('The value "' + length + '" is invalid for option "size"')
-            }
-            // Return an augmented `Uint8Array` instance
-            const buf = new Uint8Array(length)
-            Object.setPrototypeOf(buf, Buffer.prototype)
-            return buf
-        }
-
-        /**
-         * The Buffer constructor returns instances of `Uint8Array` that have their
-         * prototype changed to `Buffer.prototype`. Furthermore, `Buffer` is a subclass of
-         * `Uint8Array`, so the returned instances will have all the node `Buffer` methods
-         * and the `Uint8Array` methods. Square bracket notation works as expected -- it
-         * returns a single octet.
-         *
-         * The `Uint8Array` prototype remains unmodified.
-         */
-
-        function Buffer(arg, encodingOrOffset, length) {
-            // Common case.
-            if (typeof arg === 'number') {
-                if (typeof encodingOrOffset === 'string') {
-                    throw new TypeError('The "string" argument must be of type string. Received type number')
-                }
-                return allocUnsafe(arg)
-            }
-            return from(arg, encodingOrOffset, length)
-        }
-
-        Buffer.poolSize = 8192
-        // not used by this implementation
-
-        function from(value, encodingOrOffset, length) {
-            if (typeof value === 'string') {
-                return fromString(value, encodingOrOffset)
-            }
-
-            if (ArrayBuffer.isView(value)) {
-                return fromArrayView(value)
-            }
-
-            if (value == null) {
-                throw new TypeError('The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' + 'or Array-like Object. Received type ' + (typeof value))
-            }
-
-            if (isInstance(value, ArrayBuffer) || (value && isInstance(value.buffer, ArrayBuffer))) {
-                return fromArrayBuffer(value, encodingOrOffset, length)
-            }
-
-            if (typeof SharedArrayBuffer !== 'undefined' && (isInstance(value, SharedArrayBuffer) || (value && isInstance(value.buffer, SharedArrayBuffer)))) {
-                return fromArrayBuffer(value, encodingOrOffset, length)
-            }
-
-            if (typeof value === 'number') {
-                throw new TypeError('The "value" argument must not be of type number. Received type number')
-            }
-
-            const valueOf = value.valueOf && value.valueOf()
-            if (valueOf != null && valueOf !== value) {
-                return Buffer.from(valueOf, encodingOrOffset, length)
-            }
-
-            const b = fromObject(value)
-            if (b)
-                return b
-
-            if (typeof Symbol !== 'undefined' && Symbol.toPrimitive != null && typeof value[Symbol.toPrimitive] === 'function') {
-                return Buffer.from(value[Symbol.toPrimitive]('string'), encodingOrOffset, length)
-            }
-
-            throw new TypeError('The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' + 'or Array-like Object. Received type ' + (typeof value))
-        }
-
-        /**
-         * Functionally equivalent to Buffer(arg, encoding) but throws a TypeError
-         * if value is a number.
-         * Buffer.from(str[, encoding])
-         * Buffer.from(array)
-         * Buffer.from(buffer)
-         * Buffer.from(arrayBuffer[, byteOffset[, length]])
-         **/
-        Buffer.from = function(value, encodingOrOffset, length) {
-            return from(value, encodingOrOffset, length)
-        }
-
-        // Note: Change prototype *after* Buffer.from is defined to workaround Chrome bug:
-        // https://github.com/feross/buffer/pull/148
-        Object.setPrototypeOf(Buffer.prototype, Uint8Array.prototype)
-        Object.setPrototypeOf(Buffer, Uint8Array)
-
-        function assertSize(size) {
-            if (typeof size !== 'number') {
-                throw new TypeError('"size" argument must be of type number')
-            } else if (size < 0) {
-                throw new RangeError('The value "' + size + '" is invalid for option "size"')
-            }
-        }
-
-        function alloc(size, fill, encoding) {
-            assertSize(size)
-            if (size <= 0) {
-                return createBuffer(size)
-            }
-            if (fill !== undefined) {
-                // Only pay attention to encoding if it's a string. This
-                // prevents accidentally sending in a number that would
-                // be interpreted as a start offset.
-                return typeof encoding === 'string' ? createBuffer(size).fill(fill, encoding) : createBuffer(size).fill(fill)
-            }
-            return createBuffer(size)
-        }
-
-        /**
-         * Creates a new filled Buffer instance.
-         * alloc(size[, fill[, encoding]])
-         **/
-        Buffer.alloc = function(size, fill, encoding) {
-            return alloc(size, fill, encoding)
-        }
-
-        function allocUnsafe(size) {
-            assertSize(size)
-            return createBuffer(size < 0 ? 0 : checked(size) | 0)
-        }
-
-        /**
-         * Equivalent to Buffer(num), by default creates a non-zero-filled Buffer instance.
-         * */
-        Buffer.allocUnsafe = function(size) {
-            return allocUnsafe(size)
-        }
-        /**
-         * Equivalent to SlowBuffer(num), by default creates a non-zero-filled Buffer instance.
-         */
-        Buffer.allocUnsafeSlow = function(size) {
-            return allocUnsafe(size)
-        }
-
-        function fromString(string, encoding) {
-            if (typeof encoding !== 'string' || encoding === '') {
-                encoding = 'utf8'
-            }
-
-            if (!Buffer.isEncoding(encoding)) {
-                throw new TypeError('Unknown encoding: ' + encoding)
-            }
-
-            const length = byteLength(string, encoding) | 0
-            let buf = createBuffer(length)
-
-            const actual = buf.write(string, encoding)
-
-            if (actual !== length) {
-                // Writing a hex string, for example, that contains invalid characters will
-                // cause everything after the first invalid character to be ignored. (e.g.
-                // 'abxxcd' will be treated as 'ab')
-                buf = buf.slice(0, actual)
-            }
-
-            return buf
-        }
-
-        function fromArrayLike(array) {
-            const length = array.length < 0 ? 0 : checked(array.length) | 0
-            const buf = createBuffer(length)
-            for (let i = 0; i < length; i += 1) {
-                buf[i] = array[i] & 255
-            }
-            return buf
-        }
-
-        function fromArrayView(arrayView) {
-            if (isInstance(arrayView, Uint8Array)) {
-                const copy = new Uint8Array(arrayView)
-                return fromArrayBuffer(copy.buffer, copy.byteOffset, copy.byteLength)
-            }
-            return fromArrayLike(arrayView)
-        }
-
-        function fromArrayBuffer(array, byteOffset, length) {
-            if (byteOffset < 0 || array.byteLength < byteOffset) {
-                throw new RangeError('"offset" is outside of buffer bounds')
-            }
-
-            if (array.byteLength < byteOffset + (length || 0)) {
-                throw new RangeError('"length" is outside of buffer bounds')
-            }
-
-            let buf
-            if (byteOffset === undefined && length === undefined) {
-                buf = new Uint8Array(array)
-            } else if (length === undefined) {
-                buf = new Uint8Array(array,byteOffset)
-            } else {
-                buf = new Uint8Array(array,byteOffset,length)
-            }
-
-            // Return an augmented `Uint8Array` instance
-            Object.setPrototypeOf(buf, Buffer.prototype)
-
-            return buf
-        }
-
-        function fromObject(obj) {
-            if (Buffer.isBuffer(obj)) {
-                // Note: Probably not necessary anymore.
-                const len = checked(obj.length) | 0
-                const buf = createBuffer(len)
-
-                if (buf.length === 0) {
-                    return buf
-                }
-
-                obj.copy(buf, 0, 0, len)
-                return buf
-            }
-
-            if (obj.length !== undefined) {
-                if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
-                    return createBuffer(0)
-                }
-                return fromArrayLike(obj)
-            }
-
-            if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
-                return fromArrayLike(obj.data)
-            }
-        }
-
-        function checked(length) {
-            // Note: cannot use `length < K_MAX_LENGTH` here because that fails when
-            // length is NaN (which is otherwise coerced to zero.)
-            if (length >= K_MAX_LENGTH) {
-                throw new RangeError('Attempt to allocate Buffer larger than maximum ' + 'size: 0x' + K_MAX_LENGTH.toString(16) + ' bytes')
-            }
-            return length | 0
-        }
-
-        function SlowBuffer(length) {
-            if (+length != length) {
-                // eslint-disable-line eqeqeq
-                length = 0
-            }
-            return Buffer.alloc(+length)
-        }
-
-        Buffer.isBuffer = function isBuffer(b) {
-            return b != null && b._isBuffer === true && b !== Buffer.prototype
-            // so Buffer.isBuffer(Buffer.prototype) will be false
-        }
-
-        Buffer.compare = function compare(a, b) {
-            if (!isInstance(a, Uint8Array) || !isInstance(b, Uint8Array)) {
-                throw new TypeError('The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array')
-            }
-
-            if (a === b)
-                return 0
-
-            let x = a.length
-            let y = b.length
-
-            for (let i = 0, len = Math.min(x, y); i < len; ++i) {
-                if (a[i] !== b[i]) {
-                    x = a[i]
-                    y = b[i]
-                    break
-                }
-            }
-
-            if (x < y)
-                return -1
-            if (y < x)
-                return 1
-            return 0
-        }
-
-        Buffer.isEncoding = function isEncoding(encoding) {
-            switch (String(encoding).toLowerCase()) {
-            case 'hex':
-            case 'utf8':
-            case 'utf-8':
-            case 'ascii':
-            case 'latin1':
-            case 'binary':
-            case 'base64':
-            case 'ucs2':
-            case 'ucs-2':
-            case 'utf16le':
-            case 'utf-16le':
-                return true
-            default:
-                return false
-            }
-        }
-
-        Buffer.concat = function concat(list, length) {
-            if (!Array.isArray(list)) {
-                throw new TypeError('"list" argument must be an Array of Buffers')
-            }
-
-            if (list.length === 0) {
-                return Buffer.alloc(0)
-            }
-
-            let i
-            if (length === undefined) {
-                length = 0
-                for (i = 0; i < list.length; ++i) {
-                    length += list[i].length
-                }
-            }
-
-            const buffer = Buffer.allocUnsafe(length)
-            let pos = 0
-            for (i = 0; i < list.length; ++i) {
-                const buf = list[i]
-                if (!isInstance(buf, Uint8Array)) {
-                    throw new TypeError('"list" argument must be an Array of Buffers')
-                }
-                if (pos + buf.length > buffer.length) {
-                    buffer.set(buf.subarray(0, buffer.length - pos), pos)
-                    break
-                }
-                buffer.set(buf, pos)
-                pos += buf.length
-            }
-            return buffer
-        }
-
-        function byteLength(string, encoding) {
-            if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer)) {
-                return string.byteLength
-            }
-            if (typeof SharedArrayBuffer !== 'undefined' && isInstance(string, SharedArrayBuffer)) {
-                return string.byteLength
-            }
-            if (typeof string !== 'string') {
-                throw new TypeError('The "string" argument must be one of type string, Buffer, or ArrayBuffer. ' + 'Received type ' + typeof string)
-            }
-
-            const len = string.length
-            const mustMatch = (arguments.length > 2 && arguments[2] === true)
-            if (!mustMatch && len === 0)
-                return 0
-
-            // Use a for loop to avoid recursion
-            let loweredCase = false
-            for (; ; ) {
-                switch (encoding) {
-                case 'ascii':
-                case 'latin1':
-                case 'binary':
-                    return len
-                case 'utf8':
-                case 'utf-8':
-                    return utf8ToBytes(string).length
-                case 'ucs2':
-                case 'ucs-2':
-                case 'utf16le':
-                case 'utf-16le':
-                    return len * 2
-                case 'hex':
-                    return len >>> 1
-                case 'base64':
-                    return base64ToBytes(string).length
-                default:
-                    if (loweredCase) {
-                        return mustMatch ? -1 : utf8ToBytes(string).length
-                        // assume utf8
-                    }
-                    encoding = ('' + encoding).toLowerCase()
-                    loweredCase = true
-                }
-            }
-        }
-        Buffer.byteLength = byteLength
-
-        function slowToString(encoding, start, end) {
-            let loweredCase = false
-
-            // No need to verify that "this.length <= MAX_UINT32" since it's a read-only
-            // property of a typed array.
-
-            // This behaves neither like String nor Uint8Array in that we set start/end
-            // to their upper/lower bounds if the value passed is out of range.
-            // undefined is handled specially as per ECMA-262 6th Edition,
-            // Section 13.3.3.7 Runtime Semantics: KeyedBindingInitialization.
-            if (start === undefined || start < 0) {
-                start = 0
-            }
-            // Return early if start > this.length. Done here to prevent potential uint32
-            // coercion fail below.
-            if (start > this.length) {
-                return ''
-            }
-
-            if (end === undefined || end > this.length) {
-                end = this.length
-            }
-
-            if (end <= 0) {
-                return ''
-            }
-
-            // Force coercion to uint32. This will also coerce falsey/NaN values to 0.
-            end >>>= 0
-            start >>>= 0
-
-            if (end <= start) {
-                return ''
-            }
-
-            if (!encoding)
-                encoding = 'utf8'
-
-            while (true) {
-                switch (encoding) {
-                case 'hex':
-                    return hexSlice(this, start, end)
-
-                case 'utf8':
-                case 'utf-8':
-                    return utf8Slice(this, start, end)
-
-                case 'ascii':
-                    return asciiSlice(this, start, end)
-
-                case 'latin1':
-                case 'binary':
-                    return latin1Slice(this, start, end)
-
-                case 'base64':
-                    return base64Slice(this, start, end)
-
-                case 'ucs2':
-                case 'ucs-2':
-                case 'utf16le':
-                case 'utf-16le':
-                    return utf16leSlice(this, start, end)
-
-                default:
-                    if (loweredCase)
-                        throw new TypeError('Unknown encoding: ' + encoding)
-                    encoding = (encoding + '').toLowerCase()
-                    loweredCase = true
-                }
-            }
-        }
-
-        // This property is used by `Buffer.isBuffer` (and the `is-buffer` npm package)
-        // to detect a Buffer instance. It's not possible to use `instanceof Buffer`
-        // reliably in a browserify context because there could be multiple different
-        // copies of the 'buffer' package in use. This method works even for Buffer
-        // instances that were created from another copy of the `buffer` package.
-        // See: https://github.com/feross/buffer/issues/154
-        Buffer.prototype._isBuffer = true
-
-        function swap(b, n, m) {
-            const i = b[n]
-            b[n] = b[m]
-            b[m] = i
-        }
-
-        Buffer.prototype.swap16 = function swap16() {
-            const len = this.length
-            if (len % 2 !== 0) {
-                throw new RangeError('Buffer size must be a multiple of 16-bits')
-            }
-            for (let i = 0; i < len; i += 2) {
-                swap(this, i, i + 1)
-            }
-            return this
-        }
-
-        Buffer.prototype.swap32 = function swap32() {
-            const len = this.length
-            if (len % 4 !== 0) {
-                throw new RangeError('Buffer size must be a multiple of 32-bits')
-            }
-            for (let i = 0; i < len; i += 4) {
-                swap(this, i, i + 3)
-                swap(this, i + 1, i + 2)
-            }
-            return this
-        }
-
-        Buffer.prototype.swap64 = function swap64() {
-            const len = this.length
-            if (len % 8 !== 0) {
-                throw new RangeError('Buffer size must be a multiple of 64-bits')
-            }
-            for (let i = 0; i < len; i += 8) {
-                swap(this, i, i + 7)
-                swap(this, i + 1, i + 6)
-                swap(this, i + 2, i + 5)
-                swap(this, i + 3, i + 4)
-            }
-            return this
-        }
-
-        Buffer.prototype.toString = function toString() {
-            const length = this.length
-            if (length === 0)
-                return ''
-            if (arguments.length === 0)
-                return utf8Slice(this, 0, length)
-            return slowToString.apply(this, arguments)
-        }
-
-        Buffer.prototype.toLocaleString = Buffer.prototype.toString
-
-        Buffer.prototype.equals = function equals(b) {
-            if (this === b)
-                return true
-            return Buffer.compare(this, b) === 0
-        }
-
-        Buffer.prototype.inspect = function inspect() {
-            let str = ''
-            const max = exports.INSPECT_MAX_BYTES
-            str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
-            if (this.length > max)
-                str += ' ... '
-            return '<Buffer ' + str + '>'
-        }
-        if (customInspectSymbol) {
-            Buffer.prototype[customInspectSymbol] = Buffer.prototype.inspect
-        }
-
-        Buffer.prototype.compare = function compare(target, start, end, thisStart, thisEnd) {
-            if (!isInstance(target, Uint8Array)) {
-                throw new TypeError('The "target" argument must be one of type Buffer or Uint8Array. ' + 'Received type ' + (typeof target))
-            }
-
-            if (start === undefined) {
-                start = 0
-            }
-            if (end === undefined) {
-                end = target ? target.length : 0
-            }
-            if (thisStart === undefined) {
-                thisStart = 0
-            }
-            if (thisEnd === undefined) {
-                thisEnd = this.length
-            }
-
-            if (start < 0 || end > target.length || thisStart < 0 || thisEnd > this.length) {
-                throw new RangeError('out of range index')
-            }
-
-            if (thisStart >= thisEnd && start >= end) {
-                return 0
-            }
-            if (thisStart >= thisEnd) {
-                return -1
-            }
-            if (start >= end) {
-                return 1
-            }
-
-            start >>>= 0
-            end >>>= 0
-            thisStart >>>= 0
-            thisEnd >>>= 0
-
-            if (this === target)
-                return 0
-
-            let x = thisEnd - thisStart
-            let y = end - start
-            const len = Math.min(x, y)
-
-            for (let i = 0; i < len; ++i) {
-                if (this[thisStart + i] !== target[start + i]) {
-                    x = this[thisStart + i]
-                    y = target[start + i]
-                    break
-                }
-            }
-
-            if (x < y)
-                return -1
-            if (y < x)
-                return 1
-            return 0
-        }
-
-        // Finds either the first index of `val` in `buffer` at offset >= `byteOffset`,
-        // OR the last index of `val` in `buffer` at offset <= `byteOffset`.
-        //
-        // Arguments:
-        // - buffer - a Buffer to search
-        // - val - a string, Buffer, or number
-        // - byteOffset - an index into `buffer`; will be clamped to an int32
-        // - encoding - an optional encoding, relevant is val is a string
-        // - dir - true for indexOf, false for lastIndexOf
-        function bidirectionalIndexOf(buffer, val, byteOffset, encoding, dir) {
-            // Empty buffer means no match
-            if (buffer.length === 0)
-                return -1
-
-            // Normalize byteOffset
-            if (typeof byteOffset === 'string') {
-                encoding = byteOffset
-                byteOffset = 0
-            } else if (byteOffset > 0x7fffffff) {
-                byteOffset = 0x7fffffff
-            } else if (byteOffset < -0x80000000) {
-                byteOffset = -0x80000000
-            }
-            byteOffset = +byteOffset
-            // Coerce to Number.
-            if (numberIsNaN(byteOffset)) {
-                // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
-                byteOffset = dir ? 0 : (buffer.length - 1)
-            }
-
-            // Normalize byteOffset: negative offsets start from the end of the buffer
-            if (byteOffset < 0)
-                byteOffset = buffer.length + byteOffset
-            if (byteOffset >= buffer.length) {
-                if (dir)
-                    return -1
-                else
-                    byteOffset = buffer.length - 1
-            } else if (byteOffset < 0) {
-                if (dir)
-                    byteOffset = 0
-                else
-                    return -1
-            }
-
-            // Normalize val
-            if (typeof val === 'string') {
-                val = Buffer.from(val, encoding)
-            }
-
-            // Finally, search either indexOf (if dir is true) or lastIndexOf
-            if (Buffer.isBuffer(val)) {
-                // Special case: looking for empty string/buffer always fails
-                if (val.length === 0) {
-                    return -1
-                }
-                return arrayIndexOf(buffer, val, byteOffset, encoding, dir)
-            } else if (typeof val === 'number') {
-                val = val & 0xFF
-                // Search for a byte value [0-255]
-                if (typeof Uint8Array.prototype.indexOf === 'function') {
-                    if (dir) {
-                        return Uint8Array.prototype.indexOf.call(buffer, val, byteOffset)
-                    } else {
-                        return Uint8Array.prototype.lastIndexOf.call(buffer, val, byteOffset)
-                    }
-                }
-                return arrayIndexOf(buffer, [val], byteOffset, encoding, dir)
-            }
-
-            throw new TypeError('val must be string, number or Buffer')
-        }
-
-        function arrayIndexOf(arr, val, byteOffset, encoding, dir) {
-            let indexSize = 1
-            let arrLength = arr.length
-            let valLength = val.length
-
-            if (encoding !== undefined) {
-                encoding = String(encoding).toLowerCase()
-                if (encoding === 'ucs2' || encoding === 'ucs-2' || encoding === 'utf16le' || encoding === 'utf-16le') {
-                    if (arr.length < 2 || val.length < 2) {
-                        return -1
-                    }
-                    indexSize = 2
-                    arrLength /= 2
-                    valLength /= 2
-                    byteOffset /= 2
-                }
-            }
-
-            function read(buf, i) {
-                if (indexSize === 1) {
-                    return buf[i]
-                } else {
-                    return buf.readUInt16BE(i * indexSize)
-                }
-            }
-
-            let i
-            if (dir) {
-                let foundIndex = -1
-                for (i = byteOffset; i < arrLength; i++) {
-                    if (read(arr, i) === read(val, foundIndex === -1 ? 0 : i - foundIndex)) {
-                        if (foundIndex === -1)
-                            foundIndex = i
-                        if (i - foundIndex + 1 === valLength)
-                            return foundIndex * indexSize
-                    } else {
-                        if (foundIndex !== -1)
-                            i -= i - foundIndex
-                        foundIndex = -1
-                    }
-                }
-            } else {
-                if (byteOffset + valLength > arrLength)
-                    byteOffset = arrLength - valLength
-                for (i = byteOffset; i >= 0; i--) {
-                    let found = true
-                    for (let j = 0; j < valLength; j++) {
-                        if (read(arr, i + j) !== read(val, j)) {
-                            found = false
-                            break
-                        }
-                    }
-                    if (found)
-                        return i
-                }
-            }
-
-            return -1
-        }
-
-        Buffer.prototype.includes = function includes(val, byteOffset, encoding) {
-            return this.indexOf(val, byteOffset, encoding) !== -1
-        }
-
-        Buffer.prototype.indexOf = function indexOf(val, byteOffset, encoding) {
-            return bidirectionalIndexOf(this, val, byteOffset, encoding, true)
-        }
-
-        Buffer.prototype.lastIndexOf = function lastIndexOf(val, byteOffset, encoding) {
-            return bidirectionalIndexOf(this, val, byteOffset, encoding, false)
-        }
-
-        function hexWrite(buf, string, offset, length) {
-            offset = Number(offset) || 0
-            const remaining = buf.length - offset
-            if (!length) {
-                length = remaining
-            } else {
-                length = Number(length)
-                if (length > remaining) {
-                    length = remaining
-                }
-            }
-
-            const strLen = string.length
-
-            if (length > (strLen >>> 1)) {
-                length = strLen >>> 1
-            }
-
-            for (let i = 0; i < length; ++i) {
-                const a = string.charCodeAt(i * 2 + 0)
-                const b = string.charCodeAt(i * 2 + 1)
-                const hi = hexCharValueTable[a & 0x7f]
-                const lo = hexCharValueTable[b & 0x7f]
-
-                if ((a | b | hi | lo) & ~0x7f) {
-                    return i
-                }
-
-                buf[offset + i] = (hi << 4) | lo
-            }
-
-            return length
-        }
-
-        function utf8Write(buf, string, offset, length) {
-            return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length)
-        }
-
-        function asciiWrite(buf, string, offset, length) {
-            return blitBuffer(asciiToBytes(string), buf, offset, length)
-        }
-
-        function base64Write(buf, string, offset, length) {
-            return blitBuffer(base64ToBytes(string), buf, offset, length)
-        }
-
-        function ucs2Write(buf, string, offset, length) {
-            return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length)
-        }
-
-        Buffer.prototype.write = function write(string, offset, length, encoding) {
-            // Buffer#write(string)
-            if (offset === undefined) {
-                encoding = 'utf8'
-                length = this.length
-                offset = 0
-                // Buffer#write(string, encoding)
-            } else if (length === undefined && typeof offset === 'string') {
-                encoding = offset
-                length = this.length
-                offset = 0
-                // Buffer#write(string, offset[, length][, encoding])
-            } else if (isFinite(offset)) {
-                offset = offset >>> 0
-                if (isFinite(length)) {
-                    length = length >>> 0
-                    if (encoding === undefined)
-                        encoding = 'utf8'
-                } else {
-                    encoding = length
-                    length = undefined
-                }
-            } else {
-                throw new Error('Buffer.write(string, encoding, offset[, length]) is no longer supported')
-            }
-
-            const remaining = this.length - offset
-            if (length === undefined || length > remaining)
-                length = remaining
-
-            if ((string.length > 0 && (length < 0 || offset < 0)) || offset > this.length) {
-                throw new RangeError('Attempt to write outside buffer bounds')
-            }
-
-            if (!encoding)
-                encoding = 'utf8'
-
-            let loweredCase = false
-            for (; ; ) {
-                switch (encoding) {
-                case 'hex':
-                    return hexWrite(this, string, offset, length)
-
-                case 'utf8':
-                case 'utf-8':
-                    return utf8Write(this, string, offset, length)
-
-                case 'ascii':
-                case 'latin1':
-                case 'binary':
-                    return asciiWrite(this, string, offset, length)
-
-                case 'base64':
-                    // Warning: maxLength not taken into account in base64Write
-                    return base64Write(this, string, offset, length)
-
-                case 'ucs2':
-                case 'ucs-2':
-                case 'utf16le':
-                case 'utf-16le':
-                    return ucs2Write(this, string, offset, length)
-
-                default:
-                    if (loweredCase)
-                        throw new TypeError('Unknown encoding: ' + encoding)
-                    encoding = ('' + encoding).toLowerCase()
-                    loweredCase = true
-                }
-            }
-        }
-
-        Buffer.prototype.toJSON = function toJSON() {
-            return {
-                type: 'Buffer',
-                data: Array.prototype.slice.call(this, 0)
-            }
-        }
-
-        function base64Slice(buf, start, end) {
-            if (start === 0 && end === buf.length) {
-                return base64.fromByteArray(buf)
-            } else {
-                return base64.fromByteArray(buf.slice(start, end))
-            }
-        }
-
-        function utf8Slice(buf, start, end) {
-            end = Math.min(buf.length, end)
-            const res = []
-
-            let i = start
-            while (i < end) {
-                const firstByte = buf[i]
-                let codePoint = null
-                let bytesPerSequence = (firstByte > 0xEF) ? 4 : (firstByte > 0xDF) ? 3 : (firstByte > 0xBF) ? 2 : 1
-
-                if (i + bytesPerSequence <= end) {
-                    let secondByte, thirdByte, fourthByte, tempCodePoint
-
-                    switch (bytesPerSequence) {
-                    case 1:
-                        if (firstByte < 128) {
-                            codePoint = firstByte
-                        }
-                        break
-                    case 2:
-                        secondByte = buf[i + 1]
-                        if ((secondByte & 0xC0) === 128) {
-                            tempCodePoint = (firstByte & 0x1F) << 0x6 | (secondByte & 0x3F)
-                            if (tempCodePoint > 0x7F) {
-                                codePoint = tempCodePoint
-                            }
-                        }
-                        break
-                    case 3:
-                        secondByte = buf[i + 1]
-                        thirdByte = buf[i + 2]
-                        if ((secondByte & 0xC0) === 128 && (thirdByte & 0xC0) === 128) {
-                            tempCodePoint = (firstByte & 0xF) << 0xC | (secondByte & 0x3F) << 0x6 | (thirdByte & 0x3F)
-                            if (tempCodePoint > 0x7FF && (tempCodePoint < 0xD800 || tempCodePoint > 0xDFFF)) {
-                                codePoint = tempCodePoint
-                            }
-                        }
-                        break
-                    case 4:
-                        secondByte = buf[i + 1]
-                        thirdByte = buf[i + 2]
-                        fourthByte = buf[i + 3]
-                        if ((secondByte & 0xC0) === 128 && (thirdByte & 0xC0) === 128 && (fourthByte & 0xC0) === 128) {
-                            tempCodePoint = (firstByte & 0xF) << 0x12 | (secondByte & 0x3F) << 0xC | (thirdByte & 0x3F) << 0x6 | (fourthByte & 0x3F)
-                            if (tempCodePoint > 0xFFFF && tempCodePoint < 0x110000) {
-                                codePoint = tempCodePoint
-                            }
-                        }
-                    }
-                }
-
-                if (codePoint === null) {
-                    // we did not generate a valid codePoint so insert a
-                    // replacement char (U+FFFD) and advance only 1 byte
-                    codePoint = 0xFFFD
-                    bytesPerSequence = 1
-                } else if (codePoint > 0xFFFF) {
-                    // encode to utf16 (surrogate pair dance)
-                    codePoint -= 0x10000
-                    res.push(codePoint >>> 10 & 0x3FF | 0xD800)
-                    codePoint = 0xDC00 | codePoint & 0x3FF
-                }
-
-                res.push(codePoint)
-                i += bytesPerSequence
-            }
-
-            return decodeCodePointsArray(res)
-        }
-
-        // Based on http://stackoverflow.com/a/22747272/680742, the browser with
-        // the lowest limit is Chrome, with 0x10000 args.
-        // We go 1 magnitude less, for safety
-        const MAX_ARGUMENTS_LENGTH = 0x1000
-
-        function decodeCodePointsArray(codePoints) {
-            const len = codePoints.length
-            if (len <= MAX_ARGUMENTS_LENGTH) {
-                return String.fromCharCode.apply(String, codePoints)
-                // avoid extra slice()
-            }
-
-            // Decode in chunks to avoid "call stack size exceeded".
-            let res = ''
-            let i = 0
-            while (i < len) {
-                res += String.fromCharCode.apply(String, codePoints.slice(i, i += MAX_ARGUMENTS_LENGTH))
-            }
-            return res
-        }
-
-        function asciiSlice(buf, start, end) {
-            let ret = ''
-            end = Math.min(buf.length, end)
-
-            for (let i = start; i < end; ++i) {
-                ret += String.fromCharCode(buf[i] & 0x7F)
-            }
-            return ret
-        }
-
-        function latin1Slice(buf, start, end) {
-            let ret = ''
-            end = Math.min(buf.length, end)
-
-            for (let i = start; i < end; ++i) {
-                ret += String.fromCharCode(buf[i])
-            }
-            return ret
-        }
-
-        function hexSlice(buf, start, end) {
-            const len = buf.length
-
-            if (!start || start < 0)
-                start = 0
-            if (!end || end < 0 || end > len)
-                end = len
-
-            let out = ''
-            for (let i = start; i < end; ++i) {
-                out += hexSliceLookupTable[buf[i]]
-            }
-            return out
-        }
-
-        function utf16leSlice(buf, start, end) {
-            const bytes = buf.slice(start, end)
-            let res = ''
-            // If bytes.length is odd, the last 8 bits must be ignored (same as node.js)
-            for (let i = 0; i < bytes.length - 1; i += 2) {
-                res += String.fromCharCode(bytes[i] + (bytes[i + 1] * 256))
-            }
-            return res
-        }
-
-        Buffer.prototype.slice = function slice(start, end) {
-            const len = this.length
-            start = ~~start
-            end = end === undefined ? len : ~~end
-
-            if (start < 0) {
-                start += len
-                if (start < 0)
-                    start = 0
-            } else if (start > len) {
-                start = len
-            }
-
-            if (end < 0) {
-                end += len
-                if (end < 0)
-                    end = 0
-            } else if (end > len) {
-                end = len
-            }
-
-            if (end < start)
-                end = start
-
-            const newBuf = this.subarray(start, end)
-            // Return an augmented `Uint8Array` instance
-            Object.setPrototypeOf(newBuf, Buffer.prototype)
-
-            return newBuf
-        }
-
-        /*
-         * Need to make sure that buffer isn't trying to write out of bounds.
-         */
-        function checkOffset(offset, ext, length) {
-            if ((offset % 1) !== 0 || offset < 0)
-                throw new RangeError('offset is not uint')
-            if (offset + ext > length)
-                throw new RangeError('Trying to access beyond buffer length')
-        }
-
-        Buffer.prototype.readUintLE = Buffer.prototype.readUIntLE = function readUIntLE(offset, byteLength, noAssert) {
-            offset = offset >>> 0
-            byteLength = byteLength >>> 0
-            if (!noAssert)
-                checkOffset(offset, byteLength, this.length)
-
-            let val = this[offset]
-            let mul = 1
-            let i = 0
-            while (++i < byteLength && (mul *= 256)) {
-                val += this[offset + i] * mul
-            }
-
-            return val
-        }
-
-        Buffer.prototype.readUintBE = Buffer.prototype.readUIntBE = function readUIntBE(offset, byteLength, noAssert) {
-            offset = offset >>> 0
-            byteLength = byteLength >>> 0
-            if (!noAssert) {
-                checkOffset(offset, byteLength, this.length)
-            }
-
-            let val = this[offset + --byteLength]
-            let mul = 1
-            while (byteLength > 0 && (mul *= 256)) {
-                val += this[offset + --byteLength] * mul
-            }
-
-            return val
-        }
-
-        Buffer.prototype.readUint8 = Buffer.prototype.readUInt8 = function readUInt8(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 1, this.length)
-            return this[offset]
-        }
-
-        Buffer.prototype.readUint16LE = Buffer.prototype.readUInt16LE = function readUInt16LE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 2, this.length)
-            return this[offset] | (this[offset + 1] << 8)
-        }
-
-        Buffer.prototype.readUint16BE = Buffer.prototype.readUInt16BE = function readUInt16BE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 2, this.length)
-            return (this[offset] << 8) | this[offset + 1]
-        }
-
-        Buffer.prototype.readUint32LE = Buffer.prototype.readUInt32LE = function readUInt32LE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 4, this.length)
-
-            return ((this[offset]) | (this[offset + 1] << 8) | (this[offset + 2] << 16)) + (this[offset + 3] * 0x1000000)
-        }
-
-        Buffer.prototype.readUint32BE = Buffer.prototype.readUInt32BE = function readUInt32BE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 4, this.length)
-
-            return (this[offset] * 0x1000000) + ((this[offset + 1] << 16) | (this[offset + 2] << 8) | this[offset + 3])
-        }
-
-        Buffer.prototype.readBigUInt64LE = defineBigIntMethod(function readBigUInt64LE(offset) {
-            offset = offset >>> 0
-            validateNumber(offset, 'offset')
-            const first = this[offset]
-            const last = this[offset + 7]
-            if (first === undefined || last === undefined) {
-                boundsError(offset, this.length - 8)
-            }
-
-            const lo = first + this[++offset] * 2 ** 8 + this[++offset] * 2 ** 16 + this[++offset] * 2 ** 24
-
-            const hi = this[++offset] + this[++offset] * 2 ** 8 + this[++offset] * 2 ** 16 + last * 2 ** 24
-
-            return BigInt(lo) + (BigInt(hi) << BigInt(32))
-        })
-
-        Buffer.prototype.readBigUInt64BE = defineBigIntMethod(function readBigUInt64BE(offset) {
-            offset = offset >>> 0
-            validateNumber(offset, 'offset')
-            const first = this[offset]
-            const last = this[offset + 7]
-            if (first === undefined || last === undefined) {
-                boundsError(offset, this.length - 8)
-            }
-
-            const hi = first * 2 ** 24 + this[++offset] * 2 ** 16 + this[++offset] * 2 ** 8 + this[++offset]
-
-            const lo = this[++offset] * 2 ** 24 + this[++offset] * 2 ** 16 + this[++offset] * 2 ** 8 + last
-
-            return (BigInt(hi) << BigInt(32)) + BigInt(lo)
-        })
-
-        Buffer.prototype.readIntLE = function readIntLE(offset, byteLength, noAssert) {
-            offset = offset >>> 0
-            byteLength = byteLength >>> 0
-            if (!noAssert)
-                checkOffset(offset, byteLength, this.length)
-
-            let val = this[offset]
-            let mul = 1
-            let i = 0
-            while (++i < byteLength && (mul *= 256)) {
-                val += this[offset + i] * mul
-            }
-            mul *= 128
-
-            if (val >= mul)
-                val -= Math.pow(2, 8 * byteLength)
-
-            return val
-        }
-
-        Buffer.prototype.readIntBE = function readIntBE(offset, byteLength, noAssert) {
-            offset = offset >>> 0
-            byteLength = byteLength >>> 0
-            if (!noAssert)
-                checkOffset(offset, byteLength, this.length)
-
-            let i = byteLength
-            let mul = 1
-            let val = this[offset + --i]
-            while (i > 0 && (mul *= 256)) {
-                val += this[offset + --i] * mul
-            }
-            mul *= 128
-
-            if (val >= mul)
-                val -= Math.pow(2, 8 * byteLength)
-
-            return val
-        }
-
-        Buffer.prototype.readInt8 = function readInt8(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 1, this.length)
-            if (!(this[offset] & 128))
-                return (this[offset])
-            return ((0xff - this[offset] + 1) * -1)
-        }
-
-        Buffer.prototype.readInt16LE = function readInt16LE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 2, this.length)
-            const val = this[offset] | (this[offset + 1] << 8)
-            return (val & 0x8000) ? val | 0xFFFF0000 : val
-        }
-
-        Buffer.prototype.readInt16BE = function readInt16BE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 2, this.length)
-            const val = this[offset + 1] | (this[offset] << 8)
-            return (val & 0x8000) ? val | 0xFFFF0000 : val
-        }
-
-        Buffer.prototype.readInt32LE = function readInt32LE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 4, this.length)
-
-            return (this[offset]) | (this[offset + 1] << 8) | (this[offset + 2] << 16) | (this[offset + 3] << 24)
-        }
-
-        Buffer.prototype.readInt32BE = function readInt32BE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 4, this.length)
-
-            return (this[offset] << 24) | (this[offset + 1] << 16) | (this[offset + 2] << 8) | (this[offset + 3])
-        }
-
-        Buffer.prototype.readBigInt64LE = defineBigIntMethod(function readBigInt64LE(offset) {
-            offset = offset >>> 0
-            validateNumber(offset, 'offset')
-            const first = this[offset]
-            const last = this[offset + 7]
-            if (first === undefined || last === undefined) {
-                boundsError(offset, this.length - 8)
-            }
-
-            const val = this[offset + 4] + this[offset + 5] * 2 ** 8 + this[offset + 6] * 2 ** 16 + (last << 24)
-            // Overflow
-
-            return (BigInt(val) << BigInt(32)) + BigInt(first + this[++offset] * 2 ** 8 + this[++offset] * 2 ** 16 + this[++offset] * 2 ** 24)
-        })
-
-        Buffer.prototype.readBigInt64BE = defineBigIntMethod(function readBigInt64BE(offset) {
-            offset = offset >>> 0
-            validateNumber(offset, 'offset')
-            const first = this[offset]
-            const last = this[offset + 7]
-            if (first === undefined || last === undefined) {
-                boundsError(offset, this.length - 8)
-            }
-
-            const val = (first << 24) + // Overflow
-            this[++offset] * 2 ** 16 + this[++offset] * 2 ** 8 + this[++offset]
-
-            return (BigInt(val) << BigInt(32)) + BigInt(this[++offset] * 2 ** 24 + this[++offset] * 2 ** 16 + this[++offset] * 2 ** 8 + last)
-        })
-
-        Buffer.prototype.readFloatLE = function readFloatLE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 4, this.length)
-            return ieee754.read(this, offset, true, 23, 4)
-        }
-
-        Buffer.prototype.readFloatBE = function readFloatBE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 4, this.length)
-            return ieee754.read(this, offset, false, 23, 4)
-        }
-
-        Buffer.prototype.readDoubleLE = function readDoubleLE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 8, this.length)
-            return ieee754.read(this, offset, true, 52, 8)
-        }
-
-        Buffer.prototype.readDoubleBE = function readDoubleBE(offset, noAssert) {
-            offset = offset >>> 0
-            if (!noAssert)
-                checkOffset(offset, 8, this.length)
-            return ieee754.read(this, offset, false, 52, 8)
-        }
-
-        function checkInt(buf, value, offset, ext, max, min) {
-            if (!Buffer.isBuffer(buf))
-                throw new TypeError('"buffer" argument must be a Buffer instance')
-            if (value > max || value < min)
-                throw new RangeError('"value" argument is out of bounds')
-            if (offset + ext > buf.length)
-                throw new RangeError('Index out of range')
-        }
-
-        Buffer.prototype.writeUintLE = Buffer.prototype.writeUIntLE = function writeUIntLE(value, offset, byteLength, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            byteLength = byteLength >>> 0
-            if (!noAssert) {
-                const maxBytes = Math.pow(2, 8 * byteLength) - 1
-                checkInt(this, value, offset, byteLength, maxBytes, 0)
-            }
-
-            let mul = 1
-            let i = 0
-            this[offset] = value & 0xFF
-            while (++i < byteLength && (mul *= 256)) {
-                this[offset + i] = (value / mul) & 0xFF
-            }
-
-            return offset + byteLength
-        }
-
-        Buffer.prototype.writeUintBE = Buffer.prototype.writeUIntBE = function writeUIntBE(value, offset, byteLength, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            byteLength = byteLength >>> 0
-            if (!noAssert) {
-                const maxBytes = Math.pow(2, 8 * byteLength) - 1
-                checkInt(this, value, offset, byteLength, maxBytes, 0)
-            }
-
-            let i = byteLength - 1
-            let mul = 1
-            this[offset + i] = value & 0xFF
-            while (--i >= 0 && (mul *= 256)) {
-                this[offset + i] = (value / mul) & 0xFF
-            }
-
-            return offset + byteLength
-        }
-
-        Buffer.prototype.writeUint8 = Buffer.prototype.writeUInt8 = function writeUInt8(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 1, 0xff, 0)
-            this[offset] = (value & 0xff)
-            return offset + 1
-        }
-
-        Buffer.prototype.writeUint16LE = Buffer.prototype.writeUInt16LE = function writeUInt16LE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 2, 0xffff, 0)
-            this[offset] = (value & 0xff)
-            this[offset + 1] = (value >>> 8)
-            return offset + 2
-        }
-
-        Buffer.prototype.writeUint16BE = Buffer.prototype.writeUInt16BE = function writeUInt16BE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 2, 0xffff, 0)
-            this[offset] = (value >>> 8)
-            this[offset + 1] = (value & 0xff)
-            return offset + 2
-        }
-
-        Buffer.prototype.writeUint32LE = Buffer.prototype.writeUInt32LE = function writeUInt32LE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 4, 0xffffffff, 0)
-            this[offset + 3] = (value >>> 24)
-            this[offset + 2] = (value >>> 16)
-            this[offset + 1] = (value >>> 8)
-            this[offset] = (value & 0xff)
-            return offset + 4
-        }
-
-        Buffer.prototype.writeUint32BE = Buffer.prototype.writeUInt32BE = function writeUInt32BE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 4, 0xffffffff, 0)
-            this[offset] = (value >>> 24)
-            this[offset + 1] = (value >>> 16)
-            this[offset + 2] = (value >>> 8)
-            this[offset + 3] = (value & 0xff)
-            return offset + 4
-        }
-
-        function wrtBigUInt64LE(buf, value, offset, min, max) {
-            checkIntBI(value, min, max, buf, offset, 7)
-
-            let lo = Number(value & BigInt(0xffffffff))
-            buf[offset++] = lo
-            lo = lo >> 8
-            buf[offset++] = lo
-            lo = lo >> 8
-            buf[offset++] = lo
-            lo = lo >> 8
-            buf[offset++] = lo
-            let hi = Number(value >> BigInt(32) & BigInt(0xffffffff))
-            buf[offset++] = hi
-            hi = hi >> 8
-            buf[offset++] = hi
-            hi = hi >> 8
-            buf[offset++] = hi
-            hi = hi >> 8
-            buf[offset++] = hi
-            return offset
-        }
-
-        function wrtBigUInt64BE(buf, value, offset, min, max) {
-            checkIntBI(value, min, max, buf, offset, 7)
-
-            let lo = Number(value & BigInt(0xffffffff))
-            buf[offset + 7] = lo
-            lo = lo >> 8
-            buf[offset + 6] = lo
-            lo = lo >> 8
-            buf[offset + 5] = lo
-            lo = lo >> 8
-            buf[offset + 4] = lo
-            let hi = Number(value >> BigInt(32) & BigInt(0xffffffff))
-            buf[offset + 3] = hi
-            hi = hi >> 8
-            buf[offset + 2] = hi
-            hi = hi >> 8
-            buf[offset + 1] = hi
-            hi = hi >> 8
-            buf[offset] = hi
-            return offset + 8
-        }
-
-        Buffer.prototype.writeBigUInt64LE = defineBigIntMethod(function writeBigUInt64LE(value, offset=0) {
-            return wrtBigUInt64LE(this, value, offset, BigInt(0), BigInt('0xffffffffffffffff'))
-        })
-
-        Buffer.prototype.writeBigUInt64BE = defineBigIntMethod(function writeBigUInt64BE(value, offset=0) {
-            return wrtBigUInt64BE(this, value, offset, BigInt(0), BigInt('0xffffffffffffffff'))
-        })
-
-        Buffer.prototype.writeIntLE = function writeIntLE(value, offset, byteLength, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert) {
-                const limit = Math.pow(2, (8 * byteLength) - 1)
-
-                checkInt(this, value, offset, byteLength, limit - 1, -limit)
-            }
-
-            let i = 0
-            let mul = 1
-            let sub = 0
-            this[offset] = value & 0xFF
-            while (++i < byteLength && (mul *= 256)) {
-                if (value < 0 && sub === 0 && this[offset + i - 1] !== 0) {
-                    sub = 1
-                }
-                this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
-            }
-
-            return offset + byteLength
-        }
-
-        Buffer.prototype.writeIntBE = function writeIntBE(value, offset, byteLength, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert) {
-                const limit = Math.pow(2, (8 * byteLength) - 1)
-
-                checkInt(this, value, offset, byteLength, limit - 1, -limit)
-            }
-
-            let i = byteLength - 1
-            let mul = 1
-            let sub = 0
-            this[offset + i] = value & 0xFF
-            while (--i >= 0 && (mul *= 256)) {
-                if (value < 0 && sub === 0 && this[offset + i + 1] !== 0) {
-                    sub = 1
-                }
-                this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
-            }
-
-            return offset + byteLength
-        }
-
-        Buffer.prototype.writeInt8 = function writeInt8(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 1, 0x7f, -128)
-            if (value < 0)
-                value = 0xff + value + 1
-            this[offset] = (value & 0xff)
-            return offset + 1
-        }
-
-        Buffer.prototype.writeInt16LE = function writeInt16LE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 2, 0x7fff, -0x8000)
-            this[offset] = (value & 0xff)
-            this[offset + 1] = (value >>> 8)
-            return offset + 2
-        }
-
-        Buffer.prototype.writeInt16BE = function writeInt16BE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 2, 0x7fff, -0x8000)
-            this[offset] = (value >>> 8)
-            this[offset + 1] = (value & 0xff)
-            return offset + 2
-        }
-
-        Buffer.prototype.writeInt32LE = function writeInt32LE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
-            this[offset] = (value & 0xff)
-            this[offset + 1] = (value >>> 8)
-            this[offset + 2] = (value >>> 16)
-            this[offset + 3] = (value >>> 24)
-            return offset + 4
-        }
-
-        Buffer.prototype.writeInt32BE = function writeInt32BE(value, offset, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert)
-                checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
-            if (value < 0)
-                value = 0xffffffff + value + 1
-            this[offset] = (value >>> 24)
-            this[offset + 1] = (value >>> 16)
-            this[offset + 2] = (value >>> 8)
-            this[offset + 3] = (value & 0xff)
-            return offset + 4
-        }
-
-        Buffer.prototype.writeBigInt64LE = defineBigIntMethod(function writeBigInt64LE(value, offset=0) {
-            return wrtBigUInt64LE(this, value, offset, -BigInt('0x8000000000000000'), BigInt('0x7fffffffffffffff'))
-        })
-
-        Buffer.prototype.writeBigInt64BE = defineBigIntMethod(function writeBigInt64BE(value, offset=0) {
-            return wrtBigUInt64BE(this, value, offset, -BigInt('0x8000000000000000'), BigInt('0x7fffffffffffffff'))
-        })
-
-        function checkIEEE754(buf, value, offset, ext, max, min) {
-            if (offset + ext > buf.length)
-                throw new RangeError('Index out of range')
-            if (offset < 0)
-                throw new RangeError('Index out of range')
-        }
-
-        function writeFloat(buf, value, offset, littleEndian, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert) {
-                checkIEEE754(buf, value, offset, 4, 3.4028234663852886e+38, -3.4028234663852886e+38)
-            }
-            ieee754.write(buf, value, offset, littleEndian, 23, 4)
-            return offset + 4
-        }
-
-        Buffer.prototype.writeFloatLE = function writeFloatLE(value, offset, noAssert) {
-            return writeFloat(this, value, offset, true, noAssert)
-        }
-
-        Buffer.prototype.writeFloatBE = function writeFloatBE(value, offset, noAssert) {
-            return writeFloat(this, value, offset, false, noAssert)
-        }
-
-        function writeDouble(buf, value, offset, littleEndian, noAssert) {
-            value = +value
-            offset = offset >>> 0
-            if (!noAssert) {
-                checkIEEE754(buf, value, offset, 8, 1.7976931348623157E+308, -1.7976931348623157E+308)
-            }
-            ieee754.write(buf, value, offset, littleEndian, 52, 8)
-            return offset + 8
-        }
-
-        Buffer.prototype.writeDoubleLE = function writeDoubleLE(value, offset, noAssert) {
-            return writeDouble(this, value, offset, true, noAssert)
-        }
-
-        Buffer.prototype.writeDoubleBE = function writeDoubleBE(value, offset, noAssert) {
-            return writeDouble(this, value, offset, false, noAssert)
-        }
-
-        // copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
-        Buffer.prototype.copy = function copy(target, targetStart, start, end) {
-            if (!isInstance(target, Uint8Array))
-                throw new TypeError('argument should be a Buffer')
-            if (!start)
-                start = 0
-            if (!end && end !== 0)
-                end = this.length
-            if (targetStart >= target.length)
-                targetStart = target.length
-            if (!targetStart)
-                targetStart = 0
-            if (end > 0 && end < start)
-                end = start
-
-            // Copy 0 bytes; we're done
-            if (end === start)
-                return 0
-            if (target.length === 0 || this.length === 0)
-                return 0
-
-            // Fatal error conditions
-            if (targetStart < 0) {
-                throw new RangeError('targetStart out of bounds')
-            }
-            if (start < 0 || start >= this.length)
-                throw new RangeError('Index out of range')
-            if (end < 0)
-                throw new RangeError('sourceEnd out of bounds')
-
-            // Are we oob?
-            if (end > this.length)
-                end = this.length
-            if (target.length - targetStart < end - start) {
-                end = target.length - targetStart + start
-            }
-
-            const len = end - start
-
-            if (this === target && typeof Uint8Array.prototype.copyWithin === 'function') {
-                // Use built-in when available, missing from IE11
-                this.copyWithin(targetStart, start, end)
-            } else {
-                Uint8Array.prototype.set.call(target, this.subarray(start, end), targetStart)
-            }
-
-            return len
-        }
-
-        // Usage:
-        //    buffer.fill(number[, offset[, end]])
-        //    buffer.fill(buffer[, offset[, end]])
-        //    buffer.fill(string[, offset[, end]][, encoding])
-        Buffer.prototype.fill = function fill(val, start, end, encoding) {
-            // Handle string cases:
-            if (typeof val === 'string') {
-                if (typeof start === 'string') {
-                    encoding = start
-                    start = 0
-                    end = this.length
-                } else if (typeof end === 'string') {
-                    encoding = end
-                    end = this.length
-                }
-                if (encoding !== undefined && typeof encoding !== 'string') {
-                    throw new TypeError('encoding must be a string')
-                }
-                if (typeof encoding === 'string' && !Buffer.isEncoding(encoding)) {
-                    throw new TypeError('Unknown encoding: ' + encoding)
-                }
-                if (val.length === 1) {
-                    const code = val.charCodeAt(0)
-                    if ((encoding === 'utf8' && code < 128) || encoding === 'latin1') {
-                        // Fast path: If `val` fits into a single byte, use that numeric value.
-                        val = code
-                    }
-                }
-            } else if (typeof val === 'number') {
-                val = val & 255
-            } else if (typeof val === 'boolean') {
-                val = Number(val)
-            }
-
-            // Invalid ranges are not set to a default, so can range check early.
-            if (start < 0 || this.length < start || this.length < end) {
-                throw new RangeError('Out of range index')
-            }
-
-            if (end <= start) {
-                return this
-            }
-
-            start = start >>> 0
-            end = end === undefined ? this.length : end >>> 0
-
-            if (!val)
-                val = 0
-
-            let i
-            if (typeof val === 'number') {
-                for (i = start; i < end; ++i) {
-                    this[i] = val
-                }
-            } else {
-                const bytes = isInstance(val, Uint8Array) ? val : Buffer.from(val, encoding)
-                const len = bytes.length
-                if (len === 0) {
-                    throw new TypeError('The value "' + val + '" is invalid for argument "value"')
-                }
-                for (i = 0; i < end - start; ++i) {
-                    this[i + start] = bytes[i % len]
-                }
-            }
-
-            return this
-        }
-
-        // CUSTOM ERRORS
-        // =============
-
-        // Simplified versions from Node, changed for Buffer-only usage
-        const errors = {}
-        function E(sym, getMessage, Base) {
-            function NodeError() {
-                const err = new Base(getMessage.apply(null, arguments))
-
-                Object.setPrototypeOf(err, NodeError.prototype)
-
-                // Node.js `err.code` properties are own/enumerable properties.
-                err.code = sym
-                // Add the error code to the name to include it in the stack trace.
-                err.name = `${err.name} [${sym}]`
-                // Remove NodeError from the stack trace.
-                if (Error.captureStackTrace) {
-                    Error.captureStackTrace(err, NodeError)
-                }
-                // Access the stack to generate the error message including the error code
-                // from the name.
-                err.stack
-                // eslint-disable-line no-unused-expressions
-                // Reset the name to the actual name.
-                delete err.name
-
-                return err
-            }
-
-            Object.setPrototypeOf(NodeError.prototype, Base.prototype)
-            Object.setPrototypeOf(NodeError, Base)
-
-            NodeError.prototype.toString = function toString() {
-                return `${this.name} [${sym}]: ${this.message}`
-            }
-
-            errors[sym] = NodeError
-        }
-
-        E('ERR_BUFFER_OUT_OF_BOUNDS', function(name) {
-            if (name) {
-                return `${name} is outside of buffer bounds`
-            }
-
-            return 'Attempt to access memory outside buffer bounds'
-        }, RangeError)
-        E('ERR_INVALID_ARG_TYPE', function(name, actual) {
-            return `The "${name}" argument must be of type number. Received type ${typeof actual}`
-        }, TypeError)
-        E('ERR_OUT_OF_RANGE', function(str, range, input) {
-            let msg = `The value of "${str}" is out of range.`
-            let received = input
-            if (Number.isInteger(input) && Math.abs(input) > 2 ** 32) {
-                received = addNumericalSeparator(String(input))
-            } else if (typeof input === 'bigint') {
-                received = String(input)
-                if (input > BigInt(2) ** BigInt(32) || input < -(BigInt(2) ** BigInt(32))) {
-                    received = addNumericalSeparator(received)
-                }
-                received += 'n'
-            }
-            msg += ` It must be ${range}. Received ${received}`
-            return msg
-        }, RangeError)
-
-        function addNumericalSeparator(val) {
-            let res = ''
-            let i = val.length
-            const start = val[0] === '-' ? 1 : 0
-            for (; i >= start + 4; i -= 3) {
-                res = `_${val.slice(i - 3, i)}${res}`
-            }
-            return `${val.slice(0, i)}${res}`
-        }
-
-        // CHECK FUNCTIONS
-        // ===============
-
-        function checkBounds(buf, offset, byteLength) {
-            validateNumber(offset, 'offset')
-            if (buf[offset] === undefined || buf[offset + byteLength] === undefined) {
-                boundsError(offset, buf.length - (byteLength + 1))
-            }
-        }
-
-        function checkIntBI(value, min, max, buf, offset, byteLength) {
-            if (value > max || value < min) {
-                const n = typeof min === 'bigint' ? 'n' : ''
-                let range
-                if (byteLength > 3) {
-                    if (min === 0 || min === BigInt(0)) {
-                        range = `>= 0${n} and < 2${n} ** ${(byteLength + 1) * 8}${n}`
-                    } else {
-                        range = `>= -(2${n} ** ${(byteLength + 1) * 8 - 1}${n}) and < 2 ** ` + `${(byteLength + 1) * 8 - 1}${n}`
-                    }
-                } else {
-                    range = `>= ${min}${n} and <= ${max}${n}`
-                }
-                throw new errors.ERR_OUT_OF_RANGE('value',range,value)
-            }
-            checkBounds(buf, offset, byteLength)
-        }
-
-        function validateNumber(value, name) {
-            if (typeof value !== 'number') {
-                throw new errors.ERR_INVALID_ARG_TYPE(name,'number',value)
-            }
-        }
-
-        function boundsError(value, length, type) {
-            if (Math.floor(value) !== value) {
-                validateNumber(value, type)
-                throw new errors.ERR_OUT_OF_RANGE(type || 'offset','an integer',value)
-            }
-
-            if (length < 0) {
-                throw new errors.ERR_BUFFER_OUT_OF_BOUNDS()
-            }
-
-            throw new errors.ERR_OUT_OF_RANGE(type || 'offset',`>= ${type ? 1 : 0} and <= ${length}`,value)
-        }
-
-        // HELPER FUNCTIONS
-        // ================
-
-        const INVALID_BASE64_RE = /[^+/0-9A-Za-z-_]/g
-
-        function base64clean(str) {
-            // Node takes equal signs as end of the Base64 encoding
-            str = str.split('=')[0]
-            // Node strips out invalid characters like \n and \t from the string, base64-js does not
-            str = str.trim().replace(INVALID_BASE64_RE, '')
-            // Node converts strings with length < 2 to ''
-            if (str.length < 2)
-                return ''
-            // Node allows for non-padded base64 strings (missing trailing ===), base64-js does not
-            while (str.length % 4 !== 0) {
-                str = str + '='
-            }
-            return str
-        }
-
-        function utf8ToBytes(string, units) {
-            units = units || Infinity
-            let codePoint
-            const length = string.length
-            let leadSurrogate = null
-            const bytes = []
-
-            for (let i = 0; i < length; ++i) {
-                codePoint = string.charCodeAt(i)
-
-                // is surrogate component
-                if (codePoint > 0xD7FF && codePoint < 0xE000) {
-                    // last char was a lead
-                    if (!leadSurrogate) {
-                        // no lead yet
-                        if (codePoint > 0xDBFF) {
-                            // unexpected trail
-                            if ((units -= 3) > -1)
-                                bytes.push(0xEF, 0xBF, 0xBD)
-                            continue
-                        } else if (i + 1 === length) {
-                            // unpaired lead
-                            if ((units -= 3) > -1)
-                                bytes.push(0xEF, 0xBF, 0xBD)
-                            continue
-                        }
-
-                        // valid lead
-                        leadSurrogate = codePoint
-
-                        continue
-                    }
-
-                    // 2 leads in a row
-                    if (codePoint < 0xDC00) {
-                        if ((units -= 3) > -1)
-                            bytes.push(0xEF, 0xBF, 0xBD)
-                        leadSurrogate = codePoint
-                        continue
-                    }
-
-                    // valid surrogate pair
-                    codePoint = (leadSurrogate - 0xD800 << 10 | codePoint - 0xDC00) + 0x10000
-                } else if (leadSurrogate) {
-                    // valid bmp char, but last char was a lead
-                    if ((units -= 3) > -1)
-                        bytes.push(0xEF, 0xBF, 0xBD)
-                }
-
-                leadSurrogate = null
-
-                // encode utf8
-                if (codePoint < 128) {
-                    if ((units -= 1) < 0)
-                        break
-                    bytes.push(codePoint)
-                } else if (codePoint < 0x800) {
-                    if ((units -= 2) < 0)
-                        break
-                    bytes.push(codePoint >> 0x6 | 0xC0, codePoint & 0x3F | 128)
-                } else if (codePoint < 0x10000) {
-                    if ((units -= 3) < 0)
-                        break
-                    bytes.push(codePoint >> 0xC | 0xE0, codePoint >> 0x6 & 0x3F | 128, codePoint & 0x3F | 128)
-                } else if (codePoint < 0x110000) {
-                    if ((units -= 4) < 0)
-                        break
-                    bytes.push(codePoint >> 0x12 | 0xF0, codePoint >> 0xC & 0x3F | 128, codePoint >> 0x6 & 0x3F | 128, codePoint & 0x3F | 128)
-                } else {
-                    throw new Error('Invalid code point')
-                }
-            }
-
-            return bytes
-        }
-
-        function asciiToBytes(str) {
-            const byteArray = []
-            for (let i = 0; i < str.length; ++i) {
-                // Node's code seems to be doing this and not & 0x7F..
-                byteArray.push(str.charCodeAt(i) & 0xFF)
-            }
-            return byteArray
-        }
-
-        function utf16leToBytes(str, units) {
-            let c, hi, lo
-            const byteArray = []
-            for (let i = 0; i < str.length; ++i) {
-                if ((units -= 2) < 0)
-                    break
-
-                c = str.charCodeAt(i)
-                hi = c >> 8
-                lo = c % 256
-                byteArray.push(lo)
-                byteArray.push(hi)
-            }
-
-            return byteArray
-        }
-
-        function base64ToBytes(str) {
-            return base64.toByteArray(base64clean(str))
-        }
-
-        function blitBuffer(src, dst, offset, length) {
-            let i
-            for (i = 0; i < length; ++i) {
-                if ((i + offset >= dst.length) || (i >= src.length))
-                    break
-                dst[i + offset] = src[i]
-            }
-            return i
-        }
-
-        // ArrayBuffer or Uint8Array objects from other contexts (i.e. iframes) do not pass
-        // the `instanceof` check but they should be treated as of that type.
-        // See: https://github.com/feross/buffer/issues/166
-        function isInstance(obj, type) {
-            return obj instanceof type || (obj != null && obj.constructor != null && obj.constructor.name != null && obj.constructor.name === type.name) || (type === Uint8Array && Buffer.isBuffer(obj))
-        }
-        function numberIsNaN(obj) {
-            // For IE11 support
-            return obj !== obj
-            // eslint-disable-line no-self-compare
-        }
-
-        // Create lookup table for `toString('hex')`
-        // See: https://github.com/feross/buffer/issues/219
-        const hexSliceLookupTable = (function() {
-            const alphabet = '0123456789abcdef'
-            const table = new Array(256)
-            for (let i = 0; i < 16; ++i) {
-                const i16 = i * 16
-                for (let j = 0; j < 16; ++j) {
-                    table[i16 + j] = alphabet[i] + alphabet[j]
-                }
-            }
-            return table
-        }
-        )()
-
-        // hex lookup table for Buffer.from(x, 'hex')
-        /* eslint-disable no-multi-spaces, indent */
-        const hexCharValueTable = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -1, -1, -1, -1, -1, -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
-        /* eslint-enable no-multi-spaces, indent */
-
-        // Return not function with Error if BigInt not supported
-        function defineBigIntMethod(fn) {
-            return typeof BigInt === 'undefined' ? BufferBigIntNotDefined : fn
-        }
-
-        function BufferBigIntNotDefined() {
-            throw new Error('BigInt not supported')
-        }
-    }
-    ,
-    ieee754: (jO, jP) => {
-        jP.read = function(jQ, jR, jS, jT, jU) {
-            var jV, jW;
-            var jX = jU * 8 - jT - 1;
-            var jY = (1 << jX) - 1;
-            var jZ = jY >> 1;
-            var k0 = -7;
-            var k1 = jS ? jU - 1 : 0;
-            var k2 = jS ? -1 : 1;
-            var k3 = jQ[jR + k1];
-            k1 += k2;
-            jV = k3 & (1 << -k0) - 1;
-            k3 >>= -k0;
-            k0 += jX;
-            for (; k0 > 0; jV = jV * 256 + jQ[jR + k1],
-            k1 += k2,
-            k0 -= 8) {}
-            jW = jV & (1 << -k0) - 1;
-            jV >>= -k0;
-            k0 += jT;
-            for (; k0 > 0; jW = jW * 256 + jQ[jR + k1],
-            k1 += k2,
-            k0 -= 8) {}
-            if (jV === 0) {
-                jV = 1 - jZ;
-            } else if (jV === jY) {
-                return jW ? NaN : (k3 ? -1 : 1) * Infinity;
-            } else {
-                jW = jW + Math.pow(2, jT);
-                jV = jV - jZ;
-            }
-            return (k3 ? -1 : 1) * jW * Math.pow(2, jV - jT);
-        }
-        ;
-        jP.write = function(k4, k5, k6, k7, k8, k9) {
-            var ka, kb, h;
-            var kd = k9 * 8 - k8 - 1;
-            var ke = (1 << kd) - 1;
-            var kf = ke >> 1;
-            var kg = k8 === 0x17 ? Math.pow(0x2, -0x18) - Math.pow(0x2, -0x4d) : 0;
-            var kh = k7 ? 0 : k9 - 1;
-            var ki = k7 ? 0x1 : -0x1;
-            var kj = k5 < 0 || k5 === 0 && 1 / k5 < 0 ? 1 : 0;
-            k5 = Math.abs(k5);
-            if (isNaN(k5) || k5 === Infinity) {
-                kb = isNaN(k5) ? 0x1 : 0;
-                ka = ke;
-            } else {
-                ka = Math.floor(Math.log(k5) / Math['LN2']);
-                if (k5 * (h = Math.pow(2, -ka)) < 0x1) {
-                    ka--;
-                    h *= 2;
-                }
-                if (ka + kf >= 1) {
-                    k5 += kg / h;
-                } else {
-                    k5 += kg * Math.pow(2, 1 - kf);
-                }
-                if (k5 * h >= 2) {
-                    ka++;
-                    h /= 2;
-                }
-                if (ka + kf >= ke) {
-                    kb = 0;
-                    ka = ke;
-                } else if (ka + kf >= 1) {
-                    kb = (k5 * h - 1) * Math.pow(2, k8);
-                    ka = ka + kf;
-                } else {
-                    kb = k5 * Math.pow(2, kf - 1) * Math.pow(2, k8);
-                    ka = 0;
-                }
-            }
-            for (; k8 >= 8; k4[k6 + kh] = kb & 0xff,
-            kh += ki,
-            kb /= 256,
-            k8 -= 8) {}
-            ka = ka << k8 | kb;
-            kd += k8;
-            for (; kd > 0; k4[k6 + kh] = ka & 0xff,
-            kh += ki,
-            ka /= 256,
-            kd -= 8) {}
-            k4[k6 + kh - ki] |= kj * 128;
-        }
-        ;
-    }
-    ,
 };
 var kq = {};
 function modules(ks) {
@@ -2433,7 +105,6 @@ function modules(ks) {
     )();
     ( () => {
         'use strict';
-        var bufferModule = modules('buffer');
         ;/*
          * Simple BinaryReader is a minimal tool to read binary stream.
          * Useful for binary deserialization.
@@ -2452,88 +123,123 @@ function modules(ks) {
          * See the License for the specific language governing permissions and
          * limitations under the License.
          */
+
+        /**
+         *  Reads the binary protocol off an incoming packet.
+         *
+         *  On DataView and TextDecoder rather than a vendored copy of node's Buffer, which was
+         *  2,330 lines of base64-js, ieee754 and feross/buffer carried to provide thirteen
+         *  methods the platform already has. Nothing here is new behaviour - the two string
+         *  readers in particular are ported literally, odd-byte arithmetic and all, because
+         *  that arithmetic is the wire format rather than sloppiness: the server can send
+         *  unaligned UTF-16, and both of them advance the offset by a different amount than
+         *  they decode.
+         */
+        const UTF8_DECODER = new TextDecoder('utf-8');
+        const UTF8_ENCODER = new TextEncoder();
+
         class BinaryReader {
             constructor(buffer) {
+                this._bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+                this._view = new DataView(this._bytes.buffer, this._bytes.byteOffset, this._bytes.byteLength);
                 this._offset = 0;
-                this._buffer = new bufferModule.Buffer(buffer);
             }
+
+            get length() { return this._bytes.length; }
+
             readUInt8() {
-                var value = this._buffer.readUInt8(this._offset);
-                this._offset += 1;
-                return value;
-            }
-            readInt8() {
-                var value = this._buffer.readInt8(this._offset);
+                const value = this._view.getUint8(this._offset);
                 this._offset += 1;
                 return value;
             }
             readUInt16() {
-                var value = this._buffer.readUInt16LE(this._offset);
+                const value = this._view.getUint16(this._offset, true);
                 this._offset += 2;
                 return value;
             }
             readUInt32() {
-                var value = this._buffer.readUInt32LE(this._offset);
+                const value = this._view.getUint32(this._offset, true);
                 this._offset += 4;
                 return value;
             }
             readInt32() {
-                var value = this._buffer.readInt32LE(this._offset);
+                const value = this._view.getInt32(this._offset, true);
                 this._offset += 4;
                 return value;
             }
             readDouble() {
-                var value = this._buffer.readDoubleLE(this._offset);
+                const value = this._view.getFloat64(this._offset, true);
                 this._offset += 8;
                 return value;
             }
+
             readStringUtf8(length) {
-                if (length == null)
-                    length = this._buffer.length - this._offset;
+                if (length == null) length = this._bytes.length - this._offset;
                 length = Math.max(0, length);
-                var value = this._buffer.toString('utf8', this._offset, this._offset + length);
+
+                const value = UTF8_DECODER.decode(this._bytes.subarray(this._offset, this._offset + length));
                 this._offset += length;
                 return value;
             }
+
+            /**
+             *  Built a code unit at a time rather than through TextDecoder('utf-16le').
+             *
+             *  They disagree on exactly one thing, and it matters: a lone surrogate. The decoder
+             *  is spec-bound to replace one with U+FFFD, while Buffer's 'ucs2' - what this
+             *  replaced - hands the unpaired unit back untouched. Comparing the two over 23,000
+             *  string reads of real traffic, that was the only difference either produced, and
+             *  it is reachable from a crafted name.
+             */
             readStringUnicode(length) {
-                if (length == null)
-                    length = this._buffer.length - this._offset;
+                if (length == null) length = this._bytes.length - this._offset;
                 length = Math.max(0, length);
-                var safeLength = length - (length % 2);
+
+                // Decodes whole code units but advances by the full length - see the note above
+                let safeLength = length - (length % 2);
                 safeLength = Math.max(0, safeLength);
-                var value = this._buffer.toString('ucs2', this._offset, this._offset + safeLength);
+
+                let value = '';
+                for (let i = 0; i < safeLength; i += 2) {
+                    value += String.fromCharCode(this._view.getUint16(this._offset + i, true));
+                }
+
                 this._offset += length;
                 return value;
             }
+
             readStringZeroUtf8() {
-                var length = 0;
-                var terminatorLength = 0;
-                for (var i = this._offset; i < this._buffer.length; i++) {
-                    if (this._buffer.readUInt8(i) == 0) {
+                let length = 0;
+                let terminatorLength = 0;
+                // Byte-wise is correct for UTF-8: no continuation byte is ever zero
+                for (let i = this._offset; i < this._bytes.length; i++) {
+                    if (this._bytes[i] === 0) {
                         terminatorLength = 1;
                         break;
                     }
                     length++;
                 }
-                var value = this.readStringUtf8(length);
+                const value = this.readStringUtf8(length);
                 this._offset += terminatorLength;
                 return value;
             }
+
             readStringZeroUnicode() {
-                var length = 0;
-                var terminatorLength = ((this._buffer.length - this._offset) & 1) != 0 ? 1 : 0;
-                for (var i = this._offset; i + 1 < this._buffer.length; i += 2) {
-                    if (this._buffer.readUInt16LE(i) == 0) {
+                let length = 0;
+                let terminatorLength = ((this._bytes.length - this._offset) & 1) != 0 ? 1 : 0;
+                for (let i = this._offset; i + 1 < this._bytes.length; i += 2) {
+                    if (this._view.getUint16(i, true) === 0) {
                         terminatorLength = 2;
                         break;
                     }
                     length += 2;
                 }
-                var value = this.readStringUnicode(length);
+                const value = this.readStringUnicode(length);
                 this._offset += terminatorLength;
                 return value;
             }
         }
+
         const reader = BinaryReader;
         var badwordsFilterModule = modules('badwordsFilter');
         var l6 = modules.n(badwordsFilterModule); // Module wrapper? Why is it doing this?
@@ -2547,65 +253,14 @@ function modules(ks) {
                     'list': modules('badwords').exports, // badwords array of, well, bad words of course
                 });
                 this.emotes = {};
-                this.germsfoxEmotes = [
-                    "flafDuh.png",
-                    "gsTroll.png",
-                    "gsFlooshed.png",
-                    "gsPls.png",
-                    "gsHollow.png",
-                    "Self.png",
-                    "DELTA.png",
-                    "Tree.png",
-                    "Mafu.png",
-                    "josemorales.png",
-                    "SKUL.png",
-                    "trollskull.png",
-                    "gsSmil.png",
-                    "NAILS.png",
-                    "Idio.png",
-                    "YIPPEE.png",
-                    "sademoji.png",
-                    "LOAL.png",
-                    "steamhappy.png",
-                    "AGONY.png",
-                    "HAHA.png",
-                    "rice_cat.png",
-                    "shup.png",
-                    "catAware.png",
-                    "catQue.png",
-                    "catOMG.png",
-                    "catHi.png",
-                    "catNod.gif",
-                    "catnodwashingmachine.gif",
-                    "catYap.gif",
-                    "catPaw.gif",
-                    "catResort.png",
-                    "catOrb.gif",
-                    "gg28.png",
-                    "katameow.png",
-                    "pcStare.png",
-                    "widekisser.png",
-                    "bkWave.gif",
-                    "firTilt.gif",
-                    "UIOHADFGIUOHDAVFB.png",
-                    "catWhat.png",
-                    "myhonesterection.png",
-                    "choccy.png",
-                    "yapyapyap.gif",
-                    "gsPuddle.png",
-                ];
-                this.fetchEmotes();
-
-                this.germsfoxStickers = [
-                    "schizo.gif",
-                    "FAGTASTIC.gif",
-                    "catNekoAtsume.gif",
-                    "scanning.gif",
-                    "gsGM.png",
-                    "MASS.png",
-                    "glokk40spazz.gif",
-                    "forward.gif"
-                ];
+                /**
+                 *  Filled by loadGermsfoxEmotes() from the extension's images/emotes.json,
+                 *  which storage.js reads too - 53 filenames that used to be spelled out here
+                 *  and there both, kept in step by hand. Empty is safe: the two readers below
+                 *  simply match nothing until start() has awaited the load.
+                 */
+                this.germsfoxEmotes = [];
+                this.germsfoxStickers = [];
 
                 this.blazzerQuotes = [
                     "A tiny  useless dick",
@@ -2837,6 +492,20 @@ function modules(ks) {
 
                 [...document.getElementById('tabs').children].slice(2).forEach(el => el.remove());
                 [...document.getElementById('channels').children].slice(2).forEach(el => el.remove()); 
+            }
+
+            /**
+             *  Reads the shared emote lists off the extension. Failure leaves both empty, which
+             *  costs the germsfox emotes and nothing else - the game's own still work.
+             */
+            async loadGermsfoxEmotes(extensionURL) {
+                try {
+                    const lists = await (await fetch(`${extensionURL}images/emotes.json`)).json();
+                    this.germsfoxEmotes = lists.emotes ?? [];
+                    this.germsfoxStickers = lists.stickers ?? [];
+                } catch (error) {
+                    console.warn('[Germsfox] Could not load images/emotes.json', error);
+                }
             }
 
             setChannel(channel) {
@@ -5257,104 +2926,6 @@ function modules(ks) {
          * 
          * 
          */
-        class BinaryWriter {
-            constructor(size) {
-                if (!size || size <= 0) {
-                    size = bufferModule.Buffer.poolSize / 2;
-                }
-                this._buffer = new bufferModule.Buffer(size);
-                this._length = 0;
-            }
-            writeUInt8(value) {
-                this.checkAlloc(this, 1);
-                this._buffer[this._length++] = value;
-            }
-            ;writeInt8(value) {
-                this.checkAlloc(this, 1);
-                this._buffer[this._length++] = value;
-            }
-            ;writeUInt16(value) {
-                this.checkAlloc(this, 2);
-                this._buffer[this._length++] = value;
-                this._buffer[this._length++] = value >> 8;
-            }
-            ;writeInt16(value) {
-                this.checkAlloc(this, 2);
-                this._buffer[this._length++] = value;
-                this._buffer[this._length++] = value >> 8;
-            }
-            ;writeUInt32(value) {
-                this.checkAlloc(this, 4);
-                this._buffer[this._length++] = value;
-                this._buffer[this._length++] = value >> 8;
-                this._buffer[this._length++] = value >> 16;
-                this._buffer[this._length++] = value >> 24;
-            }
-            ;writeInt32(value) {
-                this.checkAlloc(this, 4);
-                this._buffer[this._length++] = value;
-                this._buffer[this._length++] = value >> 8;
-                this._buffer[this._length++] = value >> 16;
-                this._buffer[this._length++] = value >> 24;
-            }
-            ;writeFloat(value) {
-                this.checkAlloc(this, 4);
-                this._buffer.writeFloatLE(value, this._length, true);
-                this._length += 4;
-            }
-            ;writeDouble(value) {
-                this.checkAlloc(this, 8);
-                this._buffer.writeDoubleLE(value, this._length, true);
-                this._length += 8;
-            }
-            ;writeBytes(data) {
-                this.checkAlloc(this, data.length);
-                data.copy(this._buffer, this._length, 0, data.length);
-                this._length += data.length;
-            }
-            ;writeStringUtf8(value) {
-                var length = bufferModule.Buffer.byteLength(value, 'utf8')
-                this.checkAlloc(this, length);
-                this._buffer.write(value, this._length, 'utf8');
-                this._length += length;
-            }
-            ;writeStringUnicode(value) {
-                var length = bufferModule.Buffer.byteLength(value, 'ucs2')
-                this.checkAlloc(this, length);
-                this._buffer.write(value, this._length, 'ucs2');
-                this._length += length;
-            }
-            ;writeStringZeroUtf8(value) {
-                this.writeStringUtf8(value);
-                this.writeUInt8(0);
-            }
-            ;writeStringZeroUnicode(value) {
-                this.writeStringUnicode(value);
-                this.writeUInt16(0);
-            }
-            ;getLength() {
-                return this._length;
-            }
-            ;reset() {
-                this._length = 0;
-            }
-            ;toBuffer() {
-                return bufferModule.Buffer.concat([this._buffer.slice(0, this._length)]);
-            }
-            ;checkAlloc(writer, size) {
-                var needed = writer._length + size;
-                if (writer._buffer.length >= needed)
-                    return;
-                var chunk = Math.max(bufferModule.Buffer.poolSize / 2, 1024);
-                var chunkCount = (needed / chunk) >>> 0;
-                if ((needed % chunk) > 0) {
-                    chunkCount += 1;
-                }
-                var buffer = new bufferModule.Buffer(chunkCount * chunk);
-                writer._buffer.copy(buffer, 0, 0, writer._length);
-                writer._buffer = buffer;
-            }
-        }
         class PingWriter {
             constructor() {
                 this._writer = new BinaryWriter(1);
@@ -5462,6 +3033,96 @@ function modules(ks) {
                 return this._writer.toBuffer();
             }
         }
+
+        /**
+         *  Builds an outgoing packet.
+         *
+         *  Companion to BinaryReader above, and on the same footing: a growable Uint8Array with
+         *  a DataView over it, rather than node's Buffer. Only the methods something actually
+         *  sends are here - writeInt8, writeInt16, writeUInt32, writeFloat, writeBytes and
+         *  getLength had no caller anywhere in the file and are gone with the vendoring.
+         */
+        const WRITER_CHUNK = 1024;
+
+        class BinaryWriter {
+            constructor(size) {
+                if (!size || size <= 0) size = WRITER_CHUNK;
+                this._bytes = new Uint8Array(size);
+                this._view = new DataView(this._bytes.buffer);
+                this._length = 0;
+            }
+
+            /**
+             *  Grows to fit `size` more bytes, in whole chunks like the Buffer version did, so
+             *  a packet built a byte at a time reallocates a handful of times rather than once
+             *  per write.
+             */
+            checkAlloc(size) {
+                const needed = this._length + size;
+                if (this._bytes.length >= needed) return;
+
+                const grown = new Uint8Array(Math.ceil(needed / WRITER_CHUNK) * WRITER_CHUNK);
+                grown.set(this._bytes.subarray(0, this._length));
+                this._bytes = grown;
+                this._view = new DataView(grown.buffer);
+            }
+
+            writeUInt8(value) {
+                this.checkAlloc(1);
+                this._bytes[this._length++] = value;
+            }
+            writeUInt16(value) {
+                this.checkAlloc(2);
+                this._view.setUint16(this._length, value, true);
+                this._length += 2;
+            }
+            writeInt32(value) {
+                this.checkAlloc(4);
+                this._view.setInt32(this._length, value, true);
+                this._length += 4;
+            }
+            writeDouble(value) {
+                this.checkAlloc(8);
+                this._view.setFloat64(this._length, value, true);
+                this._length += 8;
+            }
+
+            writeStringUtf8(value) {
+                const encoded = UTF8_ENCODER.encode(value);
+                this.checkAlloc(encoded.length);
+                this._bytes.set(encoded, this._length);
+                this._length += encoded.length;
+            }
+
+            /**
+             *  UTF-16LE, which TextEncoder cannot produce - it only speaks UTF-8. Written a code
+             *  unit at a time, which is what Buffer's 'ucs2' did: surrogate pairs go out as the
+             *  two units they already are, and nothing is normalised on the way.
+             */
+            writeStringUnicode(value) {
+                this.checkAlloc(value.length * 2);
+                for (let i = 0; i < value.length; i++) {
+                    this._view.setUint16(this._length, value.charCodeAt(i), true);
+                    this._length += 2;
+                }
+            }
+
+            writeStringZeroUtf8(value) {
+                this.writeStringUtf8(value);
+                this.writeUInt8(0);
+            }
+            writeStringZeroUnicode(value) {
+                this.writeStringUnicode(value);
+                this.writeUInt16(0);
+            }
+
+            reset() { this._length = 0; }
+
+            // Copied rather than subarray'd, so a later write into the growable backing store
+            // cannot change a packet already handed to the socket
+            toBuffer() { return this._bytes.slice(0, this._length); }
+        }
+
         const packet = {
             'Ping': PingWriter,
             'Protocol': ProtocolWriter,
@@ -5976,6 +3637,10 @@ function modules(ks) {
                     return this.game.exitParty();
                 }
                 this.game.inParty = true;
+                this.game.partyCodeJoined = p7;
+                // The server has confirmed this tab is in, so the other tabs can follow it in -
+                // see announcePartyCode()
+                this.game.announcePartyCode(p7);
                 this.game.syncPartyUI();
                 window.location.hash = p7;
                 $('#partyCopyCode').val('germs.io/' + p7);
@@ -6370,6 +4035,31 @@ function modules(ks) {
          *  `zoom` is deliberately not here: it is only ever written while syncZoom is on, so
          *  that toggle is what decides whether the camera follows - see Camera.setZoom().
          */
+        /**
+         *  The values createDropdown() offers for showNames/showSkins in dom.js, in the order
+         *  the cycle steps through them.
+         */
+        const DISPLAY_PREFERENCES = ['all', 'party', 'self', 'none'];
+
+        /**
+         *  Edge arrows pointing at party members who are off screen.
+         *
+         *  The texture is germs' own arrow, 256px and white, so it takes a tint cleanly and
+         *  points along +X at rotation 0 - which is what lets the angle be atan2 of the offset
+         *  with nothing to correct for.
+         */
+        const PARTY_ARROW_SIZE = 52;      // on-screen pixels along the arrow's long axis
+        const PARTY_ARROW_MARGIN = 34;    // how far the tip sits in from the edge
+        const PARTY_ARROW_ALPHA = 0.85;
+
+        /**
+         *  Slack, in screen pixels, before a member counts as off screen.
+         *
+         *  Without it a member hovering exactly on the boundary flickers an arrow on and off
+         *  every frame as they drift back and forth across it.
+         */
+        const PARTY_ARROW_HYSTERESIS = 8;
+
         const SETTINGS_NOT_SYNCED = new Set([
             'nick',
             'skin',
@@ -6446,6 +4136,8 @@ function modules(ks) {
                     // Whether scroll zoom follows across multiboxed tabs, and the zoom it
                     // carries. The value is only written while the toggle is on - see
                     // Camera.setZoom() - so nothing changes for anyone who leaves it off.
+                    'oldSplitMacros': false,
+                    'partyArrows': true,
                     'syncZoom': false,
                     'zoom': null,
                     'acidMode': false,
@@ -6575,6 +4267,9 @@ function modules(ks) {
 
                 this.save();
                 this.applySideEffect(key, value);
+                // Same as a change arriving from another tab - see applyRemote(). Keeps the
+                // settings pane honest when something other than the control itself moved it.
+                this.refreshSettingInput(key, value);
             }
 
             /**
@@ -7452,6 +5147,8 @@ function modules(ks) {
                 this.freeSpec = false;
                 // Party member the spectate camera is following, if any - see spectatePartyMember()
                 this.spectateTarget = null;
+                // Backs the aliveCell accessor, which pushes spawn and death to the extension
+                this._aliveCell = null;
                 this.mouse = {
                     'x': 0,
                     'y': 0
@@ -7501,6 +5198,7 @@ function modules(ks) {
             }
             async start() {
                 const extensionURL = await this.waitForGermsfoxURL();
+                await this.chat.loadGermsfoxEmotes(extensionURL);
 
                 await PIXI.Assets.init({
                     basePath: extensionURL + 'src/overrides/res/assets/',
@@ -7518,6 +5216,11 @@ function modules(ks) {
                             }, {
                                 alias: 'sheet',
                                 src: 'texture.json'
+                            }, {
+                                // germs' own arrow, copied in beside the other textures rather
+                                // than fetched from the site at runtime - see partyArrows()
+                                alias: 'arrow',
+                                src: 'arrow.png'
                             }]
                         }]
                     }
@@ -7595,6 +5298,17 @@ function modules(ks) {
                 this.cellContainer.sortableChildren = true;
                 this.stage.addChild(this.cellContainer);
 
+                /**
+                 *  Screen-space overlay, drawn over the cells.
+                 *
+                 *  A child of the stage like everything else, but positioned and scaled each
+                 *  frame to undo the camera transform the stage carries - see render() - so its
+                 *  own children are placed in plain screen pixels and keep a constant size
+                 *  however far the view is zoomed.
+                 */
+                this.hudContainer = new PIXI.Container();
+                this.stage.addChild(this.hudContainer);
+
                 console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9.3 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
@@ -7607,6 +5321,7 @@ function modules(ks) {
                 this.gridTexture.source.scaleMode = 'nearest';
                 this.gridTexture.source.autoGenerateMipmaps = true;
                 this.hexTexture = PIXI.Assets.get('hex');
+                this.arrowTexture = PIXI.Assets.get('arrow');
                 this.hexTexture.source.autoGenerateMipmaps = true;
 
                 // Cached rather than read through settings on every checkout and every frame of
@@ -7937,6 +5652,7 @@ function modules(ks) {
 
             render(tick) {
                 this.updateTime = performance.now();
+
                 this.delta = Math.min(1, Math.max(0, tick.deltaTime));
                 // How many 60Hz frames this one was worth, deliberately NOT clamped - the camera
                 // compounds it rather than multiplying by it, so a long frame is caught up with
@@ -8093,6 +5809,19 @@ function modules(ks) {
                 this.stage.scale.y = this.camera.renderZoom;
 
                 /**
+                 *  Cancels the transform above, so anything in the HUD is placed in screen
+                 *  pixels from the top-left and drawn at its own size whatever the zoom. Done
+                 *  after the stage is positioned and before the arrows are laid out, since they
+                 *  are placed in exactly those coordinates.
+                 */
+                const inverseZoom = this.camera.renderZoom ? 1 / this.camera.renderZoom : 1;
+                this.hudContainer.x = this.camera.x - this.width / 2 * inverseZoom;
+                this.hudContainer.y = this.camera.y - this.height / 2 * inverseZoom;
+                this.hudContainer.scale.set(inverseZoom);
+
+                this.updatePartyArrows();
+
+                /**
                  *  A texture cannot be freed while a batch still lists its source, and blanking
                  *  the sprite that drew it does not take it out of one - see pendingTextureFrees.
                  *  Rebuilding the instruction set does, so frees wait for a frame that rebuilds.
@@ -8107,6 +5836,143 @@ function modules(ks) {
                 this.renderer.render(this.stage);
 
                 if (freeing) drainTextureFrees();
+            }
+
+            /**
+             *  Points an arrow at every party member who is off screen.
+             *
+             *  Each arrow sits where the line from the middle of the screen out to that member
+             *  crosses the inset edge rectangle, and is turned to face along that same line, so
+             *  it is tangential to the direction they are actually in. Their cell colour is the
+             *  tint, which is what makes several of them readable at once.
+             *
+             *  Sprites are kept per member id and reused - a party is at most a handful of
+             *  people, and rebuilding them every frame would churn the batch for nothing.
+             */
+            updatePartyArrows() {
+                if (!this.arrowTexture) return;
+
+                // Switched off still runs the loop below once, so any arrow already on screen
+                // is retired rather than left frozen where it was
+                const enabled = this.settings.settings.partyArrows;
+
+                const arrows = this.partyArrows ??= new Map();
+                const zoom = this.camera.renderZoom;
+                const halfWidth = this.width / 2;
+                const halfHeight = this.height / 2;
+
+                // The rectangle the tips sit on, and the one a member has to leave before an
+                // arrow appears - the gap between them is the hysteresis
+                const edgeX = Math.max(1, halfWidth - PARTY_ARROW_MARGIN);
+                const edgeY = Math.max(1, halfHeight - PARTY_ARROW_MARGIN);
+
+                /**
+                 *  Retired rather than just hidden: a session that meets a lot of different
+                 *  party members would otherwise keep a sprite for every one of them for as
+                 *  long as it ran. Whoever is still in the party gets theirs shown again below.
+                 */
+                for (const [id, arrow] of arrows) {
+                    if (this.party && id in this.party) {
+                        arrow.visible = false;
+                        continue;
+                    }
+                    arrow.destroy();
+                    arrows.delete(id);
+                }
+
+                if (!enabled || !this.party || !zoom) return;
+
+                for (const id in this.party) {
+                    if (this.myID == id) continue;
+
+                    const member = this.party[id];
+                    // Offset from the middle of the screen, in screen pixels
+                    const dx = (member.x - this.camera.x) * zoom;
+                    const dy = (member.y - this.camera.y) * zoom;
+
+                    const outside = Math.abs(dx) > halfWidth + PARTY_ARROW_HYSTERESIS
+                        || Math.abs(dy) > halfHeight + PARTY_ARROW_HYSTERESIS;
+                    if (!outside) continue;
+                    if (dx === 0 && dy === 0) continue;
+
+                    let arrow = arrows.get(id);
+                    if (!arrow) {
+                        arrow = new PIXI.Sprite(this.arrowTexture);
+                        arrow.anchor.set(0.5);
+                        arrow.alpha = PARTY_ARROW_ALPHA;
+                        // The texture is square, so one scale keeps the arrow in proportion
+                        arrow.scale.set(PARTY_ARROW_SIZE / this.arrowTexture.frame.width);
+                        this.hudContainer.addChild(arrow);
+                        arrows.set(id, arrow);
+                    }
+
+                    /**
+                     *  Where the ray leaves the rectangle: whichever axis runs out of room
+                     *  first decides how far along the direction the tip lands. Guarded against
+                     *  a zero component, which is a member on exactly the same row or column.
+                     */
+                    const scale = Math.min(
+                        dx === 0 ? Infinity : edgeX / Math.abs(dx),
+                        dy === 0 ? Infinity : edgeY / Math.abs(dy)
+                    );
+
+                    arrow.x = halfWidth + dx * scale;
+                    arrow.y = halfHeight + dy * scale;
+                    arrow.rotation = Math.atan2(dy, dx);
+                    arrow.tint = this.colorNumberFrom(member.color);
+                    arrow.visible = true;
+                }
+            }
+
+            /**
+             *  '#rrggbb' as the number PIXI wants for a tint. Party colours arrive as the string
+             *  handleParty() builds; anything unreadable falls back to white, which tints to
+             *  nothing rather than throwing.
+             */
+            colorNumberFrom(color) {
+                const parsed = typeof color === 'string' ? parseInt(color.replace('#', ''), 16) : color;
+                return Number.isFinite(parsed) ? parsed : 0xFFFFFF;
+            }
+
+            /**
+             *  Steps a display preference on, for the keybinds in content.js.
+             *
+             *  The decision lives here rather than in the extension because every input to it
+             *  does: it used to ask over the bridge what the current value was, decide, then
+             *  call back to set it. `toggleValues` is the pair to flip between, or null to walk
+             *  the whole list.
+             */
+            cycleDisplayPreference(key, toggleValues) {
+                const current = this.settings.getItem(key);
+                const next = toggleValues
+                    ? (current === toggleValues[0] ? toggleValues[1] : toggleValues[0])
+                    : DISPLAY_PREFERENCES[(DISPLAY_PREFERENCES.indexOf(current) + 1) % DISPLAY_PREFERENCES.length];
+
+                this.changeSetting(key, next);
+            }
+
+            /** Flips a boolean setting, for the same keybinds. */
+            toggleSetting(key) {
+                this.changeSetting(key, !this.settings.getItem(key));
+            }
+
+            /**
+             *  The cell the camera follows, and the one thing that says whether you are alive.
+             *
+             *  An accessor so that spawning and dying can be pushed to the extension the moment
+             *  they happen. That used to be two germsfoxGetState() polls half a second apart,
+             *  forever; doing it here instead catches all five places that set or clear it, and
+             *  - unlike a per-frame check - still fires in a background tab, where
+             *  requestAnimationFrame is throttled to nothing but packets still arrive.
+             */
+            get aliveCell() { return this._aliveCell; }
+
+            set aliveCell(cell) {
+                const wasAlive = !!this._aliveCell;
+                this._aliveCell = cell;
+
+                if (!!cell === wasAlive) return;
+                window.postMessage({ __germsfox: true, type: 'alive', alive: !!cell }, '*');
             }
 
             changeSetting(key, value) {
@@ -8665,12 +6531,22 @@ function modules(ks) {
                         // macro, which is what these did before and what leaning on the key
                         // should do
                         if (event.repeat) {
-                            this.queueSplits(1);
+                            if (this.settings.settings.oldSplitMacros) {
+                                this.network.send(new packet.Split());
+                            } else {
+                                this.queueSplits(1);
+                            }
                             return;
                         }
                         const count = event.keyCode === this.controls.Double[0] ? 2
                                     : event.keyCode === this.controls.Triple[0] ? 3
                                     : 4;
+
+                        if (this.settings.settings.oldSplitMacros) {
+                            this.legacySplitMacro(count);
+                            break;
+                        }
+
                         // Only the 16x key has an intent known up front - see MAX_SPLIT_MODE
                         this.queueSplits(count, count === 4 && this.network.mode === MAX_SPLIT_MODE);
                         break;
@@ -8719,6 +6595,33 @@ function modules(ks) {
 
                 if (!cap || !cells) return false;
                 return cells * Math.pow(2, count) >= cap;
+            }
+
+            /**
+             *  The split macros as the original client sent them: fire and forget, on fixed
+             *  delays, with nothing measuring the server or spacing the packets against it.
+             *
+             *  Kept because the queue this replaced is not strictly better - it paces splits off
+             *  the measured tick so they land on separate ticks, which is more consistent, but
+             *  it is also slower to get the first few out and some people prefer the old feel.
+             *  Both are one setting apart; see the Old Split Macros toggle.
+             *
+             *  Timings are the originals: 75ms between the splits of a double or triple, and a
+             *  flat 45ms run for the 16x.
+             */
+            legacySplitMacro(count) {
+                if (count === 4) {
+                    for (let i = 0; i < 4; i++) {
+                        setTimeout(() => this.network.send(new packet.Split()), 45 * i);
+                    }
+                    return;
+                }
+
+                this.network.send(new packet.Split());
+                setTimeout(() => {
+                    this.network.send(new packet.Split());
+                    if (count > 2) setTimeout(() => this.network.send(new packet.Split()), 75);
+                }, 75);
             }
 
             /**
@@ -9633,6 +7536,7 @@ function modules(ks) {
             exitParty() {
                 this.party = {};
                 this.inParty = false;
+                this.partyCodeJoined = null;
                 this.network.sendParty(2);
                 this.ui.clearPartyHTML();
                 this.syncPartyUI();
@@ -9643,6 +7547,38 @@ function modules(ks) {
                 $('#partyMenu').hide();
                 $('#partyJoin').hide();
             }
+            /**
+             *  Tells this origin's other tabs which party this one is now in, so they can come
+             *  along - see the channel in start().
+             *
+             *  Sent on the server's confirmation rather than when the button is pressed, so the
+             *  other tabs only ever chase a code that is known to work, and a create and a join
+             *  need no separate handling: both arrive here the same way.
+             *
+             *  A channel rather than the settings blob the rest of the cross-tab work uses:
+             *  which party a tab is in is an event, not a preference. It should not outlive the
+             *  tabs, should not be restored on the next launch, and would be one more key to
+             *  keep out of the sync.
+             */
+            announcePartyCode(code) {
+                if (!code || !this.partyChannel) return;
+                this.partyChannel.postMessage({ code });
+            }
+
+            /**
+             *  Joins the party another tab just created or joined.
+             *
+             *  Guarded on the code this tab already holds, which is what stops the two of them
+             *  handing the same party back and forth: the tab that follows announces its own
+             *  success in turn, and the announcement reaches the tab that started it.
+             */
+            followPartyCode(code) {
+                if (!code || code === this.partyCodeJoined) return;
+                if (!this.network.open) return;
+
+                this.network.sendParty(1, code);
+            }
+
             joinParty() {
                 if (this.network.open == false)
                     return;
@@ -9854,6 +7790,18 @@ function modules(ks) {
         self.prerollComplete = instance.prerollComplete.bind(instance);
 
         /**
+         *  Party membership, shared between this origin's tabs.
+         *
+         *  BroadcastChannel does not deliver to the tab that posted, so a tab never hears its
+         *  own announcement - see Game.announcePartyCode() for why this is a channel and not
+         *  part of the settings sync below.
+         */
+        if (typeof BroadcastChannel === 'function') {
+            instance.partyChannel = new BroadcastChannel('germsfox-party');
+            instance.partyChannel.onmessage = (event) => instance.followPartyCode(event.data?.code);
+        }
+
+        /**
          *  Settings written by another tab of this origin.
          *
          *  The browser fires this in every tab *except* the one that wrote, which is exactly
@@ -9894,6 +7842,8 @@ function modules(ks) {
             custom: instance.login.custom.bind(instance.login),
             setLockedPosition: self.germsfoxSetLockedPosition,
             unbindGermsKey: instance.unbindGermsKey.bind(instance),
+            cycleDisplayPreference: instance.cycleDisplayPreference.bind(instance),
+            toggleSetting: instance.toggleSetting.bind(instance),
         };
 
         function germsfoxGetState() {
@@ -10170,6 +8120,7 @@ function modules(ks) {
                 ["webGPU", "Use WebGPU"],
                 ["dynamicLinesplitAxis", "Dynamic Linesplit Axis"],
                 ["diagonalLinesplits", "Diagonal Linesplits"],
+                ["partyArrows", "Party Arrows"],
                 ["deathFreecam", "Freecam on Death"],
                 ["bruhMode", "Bruh Mode"],
             ]) {
@@ -10194,6 +8145,7 @@ function modules(ks) {
                     "cellOpacity", "showSkins", "highQualitySkins", "showNames",
                     "showMass", "shortenMass", "borderlessCells",
                     "hideFood", "hideEjectedMass", "hideBorder", "hideMapGrid",
+                    "partyArrows",
                 ]],
                 ["Render Options", [
                     "animationDelay", "cameraDelay", "zoomSensitivity",
@@ -10321,6 +8273,42 @@ function modules(ks) {
                 input.value = instance.controls.Spectate?.[1] ?? '';
 
                 template.insertAdjacentElement('afterend', row);
+            })();
+
+            /**
+             *  Puts the Old Split Macros switch in germs' Controls pane, under Reset Controls.
+             *
+             *  Cloned off a keybind row for the same reason the Spectate row is - it picks up
+             *  whatever that pane's rows are made of - with the keybind box swapped for the
+             *  switch markup the General pane uses, so it reads as a toggle while still lining
+             *  up with the bindings above it.
+             */
+            (function ensureOldSplitMacroRow() {
+                const pane = document.getElementById('settings-controls');
+                if (!pane || document.getElementById('oldSplitMacros')) return;
+
+                const template = document.getElementById('keyHide')?.closest('.row');
+                const resetRow = pane.querySelector('.row');
+                if (!template || !resetRow) return;
+
+                const row = template.cloneNode(true);
+                row.querySelector('.col-md-6').textContent = 'Old Split Macros';
+
+                const container = row.querySelector('.input-group');
+                // The keybind rows pin their group to the width of a key box; a switch sizes itself
+                container.style.width = '';
+                container.innerHTML = `
+                    <label class="switch">
+                        <input type="checkbox" id="oldSplitMacros">
+                        <span class="slider round"></span>
+                    </label>
+                `;
+
+                const input = row.querySelector('#oldSplitMacros');
+                input.checked = !!instance.settings.settings.oldSplitMacros;
+                input.addEventListener('change', () => instance.changeSetting('oldSplitMacros', input.checked));
+
+                resetRow.insertAdjacentElement('afterend', row);
             })();
 
             $("#settings-controls input[type='text']").on('click focus', function() {

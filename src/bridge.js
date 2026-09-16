@@ -38,6 +38,10 @@ window.addEventListener('message', (event) => {
             color: data.color,
             skin: data.skin,
         });
+    } else if (data.type === 'alive') {
+        // Unsolicited push from bundle.js's render() the frame you spawn or die. Replaced two
+        // 500ms germsfoxGetState() polls that existed only to notice the same two moments.
+        document.dispatchEvent(new CustomEvent('germsfox:alive', { detail: { alive: data.alive } }));
     } else if (data.type === 'keybind') {
         // Unsolicited push from bundle.js when one of germs' own keybinds changed, so the
         // germsfox half can drop any binding of its own on the same key - a key may only be

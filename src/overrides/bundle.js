@@ -3,7 +3,7 @@
  * Germsfox
  *
  * @author      pc31754 <https://github.com/procrarast>
- * @version     1.3.9.3
+ * @version     1.3.10
  * @description Deobfuscated client code created with explicit permission by pc31754.
  *              Please be respectful of the original license and make changes in good faith.
  *              Do your part in upholding the social contract!
@@ -5309,7 +5309,7 @@ function modules(ks) {
                 this.hudContainer = new PIXI.Container();
                 this.stage.addChild(this.hudContainer);
 
-                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.9.3 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
+                console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.10 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
                 $(window).trigger('resize');
 

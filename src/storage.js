@@ -105,6 +105,15 @@ const DEFAULT_SETTINGS = {
     showDailyLeaderboard: true,
 };
 
+/**
+ *  Germsfox settings a tab keeps to itself when the rest are synced across tabs.
+ *
+ *  Same line as SETTINGS_NOT_SYNCED in bundle.js draws for germs' own: these two say what this
+ *  instance spawns as rather than how the client behaves, so a multiboxer running a different
+ *  skin or colour per tab keeps them instead of the last tab touched winning.
+ */
+const SETTINGS_NOT_SYNCED = new Set(["setSkin", "setColor"]);
+
 const DEFAULT_GERMS_SETTINGS = {
     disableProfanityFilter: false,
     nick: '',

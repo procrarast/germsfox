@@ -1146,6 +1146,9 @@ function renderGeneralTabPane() {
 
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
     const multiboxWindowedCheckbox = createCheckbox("switcherWindowed", "Windowed Multibox");
+    // One of germs' settings rather than ours, so bundle.js can read it on every scroll tick
+    // and it rides the same cross-tab sync as the rest - see Camera.setZoom()
+    const syncZoomCheckbox = createCheckbox("syncZoom", "Sync Camera Zoom", "game");
 
     const leaderboardPill = createPill("Community Leaderboard");
     const leaderboardLabel = document.createElement('p');
@@ -1182,6 +1185,7 @@ function renderGeneralTabPane() {
         generalInvitesCheckbox,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
+        syncZoomCheckbox,
 
         leaderboardPill,
         leaderboardLabel,
@@ -1518,7 +1522,23 @@ function createKeyTester(key, text) {
 }
 
 // Return a div .clearfix 
-function createCheckbox(key, text) {
+/**
+ *  One value out of germs' own settings blob.
+ *
+ *  Parsed on each read rather than cached: bundle.js rewrites the whole blob whenever anything
+ *  changes, including from another tab, so a cached copy here would go stale the moment the
+ *  game or a sibling tab touched it.
+ */
+function getGameSetting(key) {
+    try {
+        return JSON.parse(localStorage.getItem("settings") || "{}")[key];
+    } catch (error) {
+        console.warn("Could not read germs.io settings: " + error);
+        return undefined;
+    }
+}
+
+function createCheckbox(key, text, store = "germsfox") {
     const row = document.createElement("div");
     row.classList.add("clearfix");
 
@@ -1532,9 +1552,24 @@ function createCheckbox(key, text) {
     const checkbox = document.createElement("input");
     checkbox.id = key;
     checkbox.type = "checkbox";
-    checkbox.checked = settings[key];
-    checkbox.onchange = function () {
-        setSetting(key, this.checked);
+
+    /**
+     *  `store` picks which settings this row belongs to. "germsfox" is chrome.storage, read
+     *  from our own `settings` object. "game" is germs' own blob in the page's localStorage,
+     *  which bundle.js owns - read straight out of there (a content script shares the page's
+     *  localStorage) and written through the bridge, so setItem() runs whatever side effect
+     *  the setting has and saves it in the one place that syncs between tabs.
+     */
+    if (store === "game") {
+        checkbox.checked = !!getGameSetting(key);
+        checkbox.onchange = function () {
+            germsfoxCall("changeSetting", key, this.checked);
+        };
+    } else {
+        checkbox.checked = settings[key];
+        checkbox.onchange = function () {
+            setSetting(key, this.checked);
+        };
     }
 
     const slider = document.createElement("span");

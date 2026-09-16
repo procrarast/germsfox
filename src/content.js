@@ -133,6 +133,50 @@ async function init() {
     });
 
     /**
+     *  Germsfox settings written by another tab.
+     *
+     *  chrome.storage fires this in every extension context, so like the `storage` event
+     *  bundle.js uses for germs' own blob, the sync needs no transport - only somewhere to
+     *  land. The two halves stay separate because their stores are: this one covers what
+     *  lives in chrome.storage, Settings.applyRemote() covers the localStorage blob.
+     *
+     *  Deliberately never calls setSetting(), which would write the value straight back and
+     *  have every tab re-broadcasting every change for as long as they are open.
+     */
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "local") return;
+
+        let touched = false;
+        for (const key in changes) {
+            if (!(key in settings) || SETTINGS_NOT_SYNCED.has(key)) continue;
+            settings[key] = changes[key].newValue ?? DEFAULT_SETTINGS[key];
+            touched = true;
+        }
+        if (!touched) return;
+
+        // The panes read `settings` as they build, so rebuilding is what makes a synced change
+        // visible - and only worth doing for one that is actually on screen
+        if (document.getElementById("germsfoxSettings")?.style.display !== "none") {
+            renderGeneralTabPane();
+            renderControlsTabPane();
+            renderBlocklistTabPane();
+        }
+
+        // The two settings with an effect outside their own pane
+        if ("disablePishi" in changes) {
+            document.getElementById("menuLogo").src = settings.disablePishi
+                ? "res/logo.png?v=2" : chrome.runtime.getURL("/images/icon.png");
+        }
+        if ("showDailyLeaderboard" in changes) {
+            const panel = document.getElementById("germsfoxDailyLeaderboard");
+            if (panel) {
+                const hasEntries = panel.querySelector("ul").children.length > 0;
+                panel.style.display = settings.showDailyLeaderboard && hasEntries ? "block" : "none";
+            }
+        }
+    });
+
+    /**
      *  germs' own settings took a key, so drop any germsfox binding on it - see
      *  unbindDuplicateControls(). Saved straight rather than through setControlsSetting(),
      *  which would bounce the same key back over the bridge and undo the binding that just

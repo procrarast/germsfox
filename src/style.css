@@ -13,6 +13,13 @@
 #chat_input {
     font-size: 13px !important;
 }
+/* 20px taller than germs' 180px. Both tabs are anchored bottom:30px inside #chat, just above
+ * the input, so the extra height grows upward and nothing below them moves. #chat is scaled by
+ * the UI ratio, so this is pre-scale like every other length here - it lands around 35px on a
+ * 1410px-tall window and stays proportional on any other. */
+#worldTab, #partyTab {
+    height: 200px !important;
+}
 .tag {
     margin-top: -2px !important;
     height: 14px !important;

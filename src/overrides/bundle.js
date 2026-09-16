@@ -3507,6 +3507,13 @@ function modules(ks) {
         // PIXI normalises tick.deltaTime against 60Hz, so this is what one unit of delta buys
         const MS_PER_DELTA = 1000 / 60;
 
+        /**
+         *  How long the zoom has to settle before it is written to the synced settings blob.
+         *  Long enough that one flick of the wheel is a single write, short enough that the
+         *  other tabs feel like they followed rather than caught up.
+         */
+        const ZOOM_SYNC_DEBOUNCE = 150;
+
         const ZOOM_MIN = 0.01;
         const ZOOM_MAX = 5;
 
@@ -3593,7 +3600,29 @@ function modules(ks) {
             // Routed through setZoom so the clamp lives in exactly one place
             changeZoom(amount) { this.setZoom(this.userZoom * Math.pow(ZOOM_STEP, amount * this._zoomStep)); }
 
-            setZoom(value) { this.userZoom = Math.min(Math.max(value, ZOOM_MIN), ZOOM_MAX); }
+            setZoom(value, fromSync = false) {
+                this.userZoom = Math.min(Math.max(value, ZOOM_MIN), ZOOM_MAX);
+
+                /**
+                 *  Zoom rides along in the settings blob so it syncs the same way everything
+                 *  else does, rather than earning a transport of its own.
+                 *
+                 *  Debounced because a scroll arrives as a burst and the blob is rewritten
+                 *  whole: saving per tick would serialise every setting the game has dozens of
+                 *  times per flick of the wheel. A wheel is not a cursor - landing a fraction
+                 *  of a second after it stops is indistinguishable from following it.
+                 *
+                 *  `fromSync` is the echo guard: a zoom that arrived from another tab must not
+                 *  be written back out, or two tabs would trade the same value forever.
+                 */
+                if (fromSync || !this.game.settings.getItem('syncZoom')) return;
+
+                clearTimeout(this._zoomSaveTimer);
+                this._zoomSaveTimer = setTimeout(
+                    () => this.game.settings.setItem('zoom', this.userZoom),
+                    ZOOM_SYNC_DEBOUNCE
+                );
+            }
 
             /**
              *  Recomputed once per frame so isVisible() stays a plain compare per node.
@@ -6323,6 +6352,33 @@ function modules(ks) {
                 );
             }
         }
+        /**
+         *  Settings a tab keeps to itself when the rest are synced across tabs.
+         *
+         *  Everything here describes *this* instance rather than how the client behaves, which
+         *  is the line the sync draws: a preference belongs to the person and should follow them
+         *  to every tab, while these belong to the cell in front of them and would clobber each
+         *  other the moment two tabs were doing anything different.
+         *
+         *    nick, skin                      what this instance plays as
+         *    lockedColor, lockedPosition     its locked name, sent at login - see sendLocked()
+         *    deathCount                      a counter this tab accumulated on its own
+         *    lastMode                        rewritten on every connect, and read only by the
+         *                                    next one, so syncing it would have tabs on
+         *                                    different modes overwriting each other for nothing
+         *
+         *  `zoom` is deliberately not here: it is only ever written while syncZoom is on, so
+         *  that toggle is what decides whether the camera follows - see Camera.setZoom().
+         */
+        const SETTINGS_NOT_SYNCED = new Set([
+            'nick',
+            'skin',
+            'lockedColor',
+            'lockedPosition',
+            'deathCount',
+            'lastMode',
+        ]);
+
         class Settings {
             constructor(game) {
                 this.game = game;
@@ -6387,6 +6443,11 @@ function modules(ks) {
                     'diagonalLinesplits': true,
                     'webGPU': false,
                     'deathFreecam': true,
+                    // Whether scroll zoom follows across multiboxed tabs, and the zoom it
+                    // carries. The value is only written while the toggle is on - see
+                    // Camera.setZoom() - so nothing changes for anyone who leaves it off.
+                    'syncZoom': false,
+                    'zoom': null,
                     'acidMode': false,
                     'bruhMode': false,
                     'display': 'performance',
@@ -6455,22 +6516,56 @@ function modules(ks) {
                     document.getElementById(id).checked = this.getItem(id);
                 });
 
-                const controls = {
-                    keyFeed: 'Feed',
-                    keySplit: 'Split',
-                    keyDouble: 'Double',
-                    keyTriple: 'Triple',
-                    key16x: '16x',
-                    keyFreeze: 'Freeze',
-                    keyVertical: 'Vertical',
-                    keyHide: 'Hide'
-                };
-
-                for (const [id, key] of Object.entries(controls)) {
-                    document.getElementById(id).value = this.settings.controls[key][1];
-                }
+                this.refreshControlInputs();
 
                 this.game.renderTheme();
+            }
+
+            /**
+             *  Puts one synced value back into whatever control shows it.
+             *
+             *  Every settings row the game has - and every row germsfox injects beside them,
+             *  see addToggle()/addSlider() - names its input after the setting, so the id is
+             *  the only thing this needs to know. Without it a change made in another tab
+             *  would take effect here but leave this tab's settings pane showing the old
+             *  value, which reads as the sync having failed.
+             *
+             *  Only inputs are touched: a key with no row simply has nothing to update, and a
+             *  key that happens to collide with some other element's id must not be written to.
+             */
+            refreshSettingInput(key, value) {
+                const input = document.getElementById(key);
+                if (!(input instanceof HTMLInputElement || input instanceof HTMLSelectElement)) return;
+
+                if (input.type === 'checkbox') {
+                    input.checked = !!value;
+                    return;
+                }
+
+                input.value = value;
+
+                // Sliders carry their current value in a tooltip built by addSlider()
+                const tooltip = document.getElementById(`${key}Tooltip`);
+                if (tooltip) tooltip.textContent = value;
+            }
+
+            /**
+             *  Puts the stored keybinds back into germs' own Controls pane.
+             *
+             *  Split out of ready() so a rebind arriving from another tab can refresh the boxes
+             *  without the rest of it: ready() also re-applies the skin and theme, which write
+             *  settings of their own, and a sync that saved on receipt would bounce the change
+             *  back at the tab that sent it.
+             *
+             *  Derived from the controls themselves rather than a fixed list, so a binding added
+             *  later - Spectate, which has no row in the page's own markup - is covered without
+             *  this having to be kept in step. See ensureSpectateControlRow().
+             */
+            refreshControlInputs() {
+                for (const key in this.settings.controls) {
+                    const input = document.getElementById('key' + key);
+                    if (input) input.value = this.settings.controls[key][1] ?? '';
+                }
             }
             getItem(key) {
                 return this.settings[key];
@@ -6479,7 +6574,17 @@ function modules(ks) {
                 this.settings[key] = value;
 
                 this.save();
+                this.applySideEffect(key, value);
+            }
 
+            /**
+             *  Everything a settings change has to do besides being stored.
+             *
+             *  Split out of setItem() so a change arriving from another tab can run it without
+             *  writing the blob straight back out again - see applyRemote(). Anything in here
+             *  has to tolerate being called for a value that is already in this.settings.
+             */
+            applySideEffect(key, value) {
                 switch (key) {
                     case 'acidMode':
                         if (!this.game.settings.settings.webGPU) {
@@ -6493,6 +6598,11 @@ function modules(ks) {
                         break;
                     case 'cameraDelay':
                         this.game.camera.cameraDelay = value;
+                        break;
+                    case 'zoom':
+                        // fromSync, or applying what another tab sent would schedule a write of
+                        // the same value straight back at it
+                        if (value != null) this.game.camera.setZoom(value, true);
                         break;
                     case 'zoomSensitivity':
                         this.game.camera.zoomSensitivity = value;
@@ -6593,6 +6703,62 @@ function modules(ks) {
                         break;
                 }
             }
+
+            /**
+             *  Applies a settings blob written by another tab.
+             *
+             *  germs' settings live in one localStorage key, and the browser fires a `storage`
+             *  event in every *other* tab of the origin whenever it is rewritten - so the sync
+             *  needs no transport of its own, only somewhere to land. See the listener in
+             *  start().
+             *
+             *  Deliberately never calls save(). Writing here would fire the same event straight
+             *  back at the tab that sent it, and while a diff would find nothing to do, every
+             *  tab would still pay a parse per change forever - and the one side effect that is
+             *  not idempotent would flicker.
+             */
+            applyRemote(incoming) {
+                let controlsChanged = false;
+
+                for (const key in incoming) {
+                    const value = incoming[key];
+                    if (SETTINGS_NOT_SYNCED.has(key)) continue;
+
+                    /**
+                     *  blockedSkins is held as a Set and saved as an array, so it arrives as the
+                     *  wrong type to compare or store - rebuilt rather than assigned, or every
+                     *  single change would look like this one changed too.
+                     */
+                    if (key === 'blockedSkins') {
+                        const current = [...(this.settings.blockedSkins ?? [])];
+                        const next = value ?? [];
+                        if (current.length === next.length && next.every(skin => current.includes(skin))) continue;
+
+                        this.settings.blockedSkins = new Set(next);
+                        this.game.updateBlockedSkins();
+                        continue;
+                    }
+
+                    // Cheap and order-insensitive enough for settings, and the only thing that
+                    // has to be right is "did this change", not how
+                    if (JSON.stringify(this.settings[key]) === JSON.stringify(value)) continue;
+
+                    this.settings[key] = value;
+
+                    if (key === 'controls') {
+                        this.game.controls = value;
+                        controlsChanged = true;
+                        continue;
+                    }
+
+                    this.applySideEffect(key, value);
+                    this.refreshSettingInput(key, value);
+                }
+
+                // Only the keybind boxes, not the whole of ready() - see refreshControlInputs()
+                if (controlsChanged) this.refreshControlInputs();
+            }
+
             resetControls() {
                 this.settings.controls = this.default.controls;
                 this.game.controls = this.settings.controls;
@@ -9686,6 +9852,27 @@ function modules(ks) {
         self.redeemCode = instance.login.redeemCode.bind(instance.login);
         self.buyBucks = instance.login.buyBucks.bind(instance.login);
         self.prerollComplete = instance.prerollComplete.bind(instance);
+
+        /**
+         *  Settings written by another tab of this origin.
+         *
+         *  The browser fires this in every tab *except* the one that wrote, which is exactly
+         *  the shape a sync wants - no transport, no echo, and it costs nothing while nobody
+         *  is multiboxing. Everything germs and germsfox both store lives in this one blob, so
+         *  one listener covers all of it; see Settings.applyRemote().
+         */
+        window.addEventListener('storage', (event) => {
+            if (event.key !== 'settings' || !event.newValue) return;
+
+            let incoming;
+            try {
+                incoming = JSON.parse(event.newValue);
+            } catch (error) {
+                return console.warn('[Germsfox] Ignored an unreadable settings blob from another tab', error);
+            }
+
+            instance.settings.applyRemote(incoming);
+        });
 
         // ===== Germsfox bridge =====
         // The extension's content scripts run in an isolated JS world and can't read

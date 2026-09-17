@@ -1636,6 +1636,7 @@ function renderPlayerMenu() {
     menuScreenshot.remove();
 
     const playerSkinElement = document.getElementById("userMenuPlayerSkin");
+    const playerNameElement = document.getElementById("userMenuPlayerName");
 
     copySkinItem.addEventListener('click', async function () {
         try {
@@ -1654,20 +1655,17 @@ function renderPlayerMenu() {
     });
 
     muteButton.addEventListener('click', function () {
-        //console.debug("Mute button clicked");
-        const playerNameElement = document.getElementById("userMenuPlayerName");
-        const mutedTextElement = document.getElementById("userMenuBlockText");
+        // Read from the blocklist, not the row's label: the label only gets rewritten on a
+        // style change, so reopening an already-open menu left it stale and the click inert
         const playerName = playerNameElement.textContent;
-        const mutedText = mutedTextElement.textContent;
 
-        if (mutedText === "Mute" && !settings.playerBlocklist.includes(playerName)) {
+        if (settings.playerBlocklist.includes(playerName)) {
+            unblockPlayerName(playerName);
+        } else {
             blockPlayerName(playerName);
         }
 
-        else if (mutedText === "Unmute") {
-            unblockPlayerName(playerName);
-        }
-        setSetting("playerBlocklist", settings.playerBlocklist);
+        updateUserMenuBlockLabel();
     });
 
     let userMenuObserver = new MutationObserver((mutations) => {
@@ -1680,22 +1678,18 @@ function renderPlayerMenu() {
                 } else {
                     copySkinItem.style.display = "none";
                 }
-                // Update user menu block button
-                const blockText = document.getElementById("userMenuBlockText");
-                const blockIcon = blockText.previousElementSibling;
-                const blockName = document.getElementById("userMenuPlayerName");
-
-                if (settings.playerBlocklist.includes(blockName.innerText)) {
-                    blockIcon.className = "fas fa-volume-up";
-                    blockText.innerText = "Unmute";
-                } else {
-                    blockIcon.className = "fas fa-volume-mute";
-                    blockText.innerText = "Mute";
-                }
+                updateUserMenuBlockLabel();
             }
         });
     });
     userMenuObserver.observe(userMenu, { attributes: true, attributeFilter: ["style"] });
+
+    // Also relabel on a name change: reopening the menu for another player rewrites the name
+    // but not the style, so the observer above never fired
+    if (playerNameElement) {
+        new MutationObserver(() => updateUserMenuBlockLabel())
+            .observe(playerNameElement, { childList: true, characterData: true, subtree: true });
+    }
 
     return playerMenu;
 }
@@ -1945,24 +1939,44 @@ function createSkinLi(url) {
     return skinLi;
 }
 
+/**
+ *  Applies the blocklist to messages already on screen, in every tab. Block and unblock each
+ *  had their own copy of this, and neither ran when the list arrived from another tab.
+ */
+function applyBlocklistToChat() {
+    for (const chatTab of document.querySelectorAll(".chatTab")) {
+        for (const chatMessage of chatTab.children) {
+            // No name means a console or admin line, which belongs to nobody and is left alone
+            const messageName = chatMessage.querySelector("b");
+            if (!messageName) continue;
+
+            chatMessage.style.display =
+                settings.playerBlocklist.includes(messageName.textContent) ? "none" : "block";
+        }
+        chatTab.scrollTop = chatTab.scrollHeight;
+    }
+}
+
 function unblockPlayerName(playerName) {
     if (settings.playerBlocklist.includes(playerName)) 
         settings.playerBlocklist.splice(settings.playerBlocklist.indexOf(playerName), 1);
 
-    const chatBox = document.getElementById("worldTab");
+    applyBlocklistToChat();
 
-    // restore chat of sin
-    for (const chatMessage of chatBox.children) {
-        const messageName = chatMessage.querySelector("b");
-        if (!messageName) continue;
+    // A copy: setSetting() skips a write when the value is the same reference, and
+    // these two mutate the array in place - so passing it back saved nothing
+    setSetting("playerBlocklist", [...settings.playerBlocklist]);
+}
 
-        const chatterName = messageName.textContent;
-        if (settings.playerBlocklist.includes(chatterName)) continue;
+/** Puts the user menu's mute row in step with the blocklist. */
+function updateUserMenuBlockLabel() {
+    const blockText = document.getElementById("userMenuBlockText");
+    const blockName = document.getElementById("userMenuPlayerName");
+    if (!blockText || !blockName) return;
 
-        chatMessage.style.display = 'block';
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-    setSetting("playerBlocklist", settings.playerBlocklist);
+    const blocked = settings.playerBlocklist.includes(blockName.textContent);
+    blockText.previousElementSibling.className = blocked ? "fas fa-volume-up" : "fas fa-volume-mute";
+    blockText.innerText = blocked ? "Unmute" : "Mute";
 }
 
 function blockPlayerName(playerName) {
@@ -1972,18 +1986,10 @@ function blockPlayerName(playerName) {
         settings.playerBlocklist.push(playerName);
     }
 
-    const chatBox = document.getElementById("worldTab");
-    // cleanse chat of sin
-    for (const chatMessage of chatBox.children) {
-        const messageName = chatMessage.querySelector("b");
-        if (!messageName) continue;
+    applyBlocklistToChat();
 
-        const chatterName = messageName.textContent;
-        if (!settings.playerBlocklist.includes(chatterName)) continue;
-
-        chatMessage.style.display = 'none';
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-    setSetting("playerBlocklist", settings.playerBlocklist);
+    // A copy: setSetting() skips a write when the value is the same reference, and
+    // these two mutate the array in place - so passing it back saved nothing
+    setSetting("playerBlocklist", [...settings.playerBlocklist]);
 }
 

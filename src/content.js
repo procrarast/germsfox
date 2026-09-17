@@ -156,6 +156,10 @@ async function init() {
             renderBlocklistTabPane();
         }
 
+        // A blocklist from another tab has to reach messages already on screen; new ones were
+        // always handled, since the chat observer reads `settings` as they arrive
+        if ("playerBlocklist" in changes) applyBlocklistToChat();
+
         // The two settings with an effect outside their own pane
         if ("disablePishi" in changes) {
             document.getElementById("menuLogo").src = settings.disablePishi
@@ -274,7 +278,9 @@ function initChat() {
             }
 
             if (settings.ignoreInvites && inviteButton && (inviteButton.id === "acceptInvite" || inviteButton.id === "declineInvite")) {
-                inviteButton.parentElement.remove();
+                // The whole row, not the button's <p> - taking only the paragraph left the
+                // message div behind as a blank line in the chat for every invite ignored
+                lastMessage.remove();
                 //console.debug("Removed invite");
             }
         });

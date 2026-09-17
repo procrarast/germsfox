@@ -247,6 +247,8 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
                 this.channel = -1;
+                // Cooldown bookkeeping - see send()
+                this.lastSentAt = -Infinity;
                 // chat channel (party, world)
                 this.filter = new (l6())({
                     'regex': /[^a-zA-z0-9:alnum:|\$|\@]|^/gi,
@@ -261,6 +263,10 @@ function modules(ks) {
                  */
                 this.germsfoxEmotes = [];
                 this.germsfoxStickers = [];
+
+                // germs' own emote map, and the list they populate in the emote panel. Nothing
+                // above replaces it - these are the extension's emotes, those are the game's.
+                this.fetchEmotes();
 
                 this.blazzerQuotes = [
                     "A tiny  useless dick",
@@ -350,7 +356,15 @@ function modules(ks) {
                 $('#chat_input').val(lf);
                 $('#chat_input').focus();
             }
+            /**
+             *  Sends, or refuses if one went out under CHAT_COOLDOWN ago. Returns whether it
+             *  sent: the Enter handler only clears the box on success. Nothing is queued.
+             */
             send(lg) {
+                const now = performance.now();
+                if (now - this.lastSentAt < CHAT_COOLDOWN) return false;
+                this.lastSentAt = now;
+
                 // /wahbas sends a random line from wahbasQuotes instead of the literal command
                 if (lg.trim() === '/blazzer') {
                     lg = this.blazzerQuotes[Math.floor(Math.random() * this.blazzerQuotes.length)];
@@ -359,6 +373,7 @@ function modules(ks) {
                     lg = this.wahbasQuotes[Math.floor(Math.random() * this.wahbasQuotes.length)];
                 }
                 this.game.network.sendChat(lg, this.channel);
+                return true;
             }
 
             // On incoming chat message
@@ -376,6 +391,15 @@ function modules(ks) {
                         $(lq).appendTo(chatTab).hide().fadeIn(500);
                     });
                 } else {
+                    /**
+                     *  Invites arrive on the party channel, whose tab is hidden while you are
+                     *  not in a party - so they landed where nobody could see them. Moved to the
+                     *  open channel rather than copied: the buttons carry ids.
+                     */
+                    if (channel !== this.channel && message.includes('acceptInvite')) {
+                        channel = this.channel;
+                    }
+
                     const tab = document.querySelector("#tabs [value='" + channel + "']");
                     if (tab) {
                         let notDefault = false;
@@ -541,6 +565,59 @@ function modules(ks) {
         // Per-mode cell-split cap, keyed by network.mode's exact display name. Not provided by
         // the server anywhere we can read (modes[mode].max is server player-slot capacity, a
         // different thing entirely), so these just mirror the game's own known limits.
+        // Mass a cell splits itself at. Only these three modes autosplit; elsewhere there is
+        // no threshold to warn about.
+        // How long before Enter will send again. The box stays live throughout - this holds
+        // sending, never typing.
+        // Only the `disabled` property disables a <button>; the `disabled` class does
+        // nothing on one, so any left over is cleared. `icon` swaps the button's <i>.
+        function setButtonDisabled(id, disabled, icon) {
+            const button = document.getElementById(id);
+            if (!button) return;
+
+            button.disabled = disabled;
+            button.classList.remove('disabled');
+
+            const glyph = icon && button.querySelector('i');
+            if (glyph) glyph.className = icon;
+        }
+
+        const CHAT_COOLDOWN = 1500;
+
+        // Ejects per server tick. The server takes one a tick; two keeps one always waiting,
+        // which covers the measured jitter without wasting packets.
+        const FEED_COPIES = 2;
+
+        // Floor on the eject gap, so a bad tick measurement cannot become a packet flood.
+        const FEED_PERIOD_MIN = 10;
+
+        const AUTOSPLIT_MASS_CAPS = {
+            'FFA': 50000,
+            'Virus Feed': 40000,
+            'Bots': 250000,
+        };
+
+        // Where the label starts changing colour: white -> yellow -> red across the last
+        // fifth. Ramping rather than jumping stops a cell on the threshold flickering.
+        const AUTOSPLIT_WARN_FROM = 0.8;
+
+        /**
+         *  Tint for a mass against the cap it splits at; white below the band. Red is held at
+         *  full so the ramp reads as heat, and the black outline survives the multiply.
+         */
+        function autosplitTint(mass, cap) {
+            if (!cap) return 0xFFFFFF;
+
+            const progress = (mass / cap - AUTOSPLIT_WARN_FROM) / (1 - AUTOSPLIT_WARN_FROM);
+            if (progress <= 0) return 0xFFFFFF;
+
+            const t = Math.min(1, progress);
+            const blue = t <= 0.5 ? Math.round(255 * (1 - t * 2)) : 0;
+            const green = t <= 0.5 ? 255 : Math.round(255 * (1 - (t - 0.5) * 2));
+
+            return (255 << 16) | (green << 8) | blue;
+        }
+
         const CELL_COUNT_CAPS = {
             'FFA': 32,
             'Dream': 64,
@@ -1023,19 +1100,6 @@ function modules(ks) {
          */
         const SPLIT_RUSH_COPIES = 3;
 
-        /**
-         *  Modes where the 16x key is only ever pressed to reach the cell cap.
-         *
-         *  Everywhere else the queue waits for splitsWillCap() to prove overshoot is free
-         *  before it stops pacing. In a feed mode that proof arrives too late to be useful: it
-         *  reads playerCells, which trails the server by a round trip, so the first press of a
-         *  max split still looks like it starts from one cell and gets paced - and at any real
-         *  ping the second press often does too. Both then run at one split per splitSpacing
-         *  rather than one per tick, which is the whole of the "max split is slow" complaint.
-         *
-         *  Here the intent is not in doubt, so the key skips the check.
-         */
-        const MAX_SPLIT_MODE = 'Self Feed';
         const SPLIT_SPACING_MIN = 45;
         const SPLIT_SPACING_MAX = 90;
 
@@ -1260,8 +1324,7 @@ function modules(ks) {
             }
 
             setPosition(x, y) {
-                if (!this.menuEl) this.menuEl = document.getElementById("menu");
-                if ((this.game.freeze || this.menuEl.style.display !== "none") && this.game.freeSpec) return;
+                if ((this.game.freeze || !this.game.inGame) && this.game.freeSpec) return;
                 this.targetX = x;
                 this.targetY = y;
             }
@@ -1388,6 +1451,96 @@ function modules(ks) {
          *  no longer being freed at all - which is the one way this fix can fail quietly.
          */
         GF_DIAG.pendingFrees = () => pendingTextureFrees.length;
+
+        /**
+         *  DIAGNOSTIC - records who destroyed each texture source, since the bind group error
+         *  names neither. One stack per destroy, last few hundred kept. `__gfDiag.freeLog()`.
+         */
+        const textureFreeLog = [];
+
+        function installTextureFreeProbe() {
+            const proto = PIXI.TextureSource?.prototype;
+            if (!proto || proto.__gfFreeProbe) return;
+
+            const realDestroy = proto.destroy;
+            proto.destroy = function (...args) {
+                textureFreeLog.push({
+                    uid: this.uid,
+                    size: `${this.pixelWidth}x${this.pixelHeight}`,
+                    label: this.label,
+                    at: Math.round(performance.now()),
+                    queued: pendingTextureFrees.some(texture => texture.source === this),
+                    stack: new Error().stack,
+                });
+                if (textureFreeLog.length > 300) textureFreeLog.shift();
+                return realDestroy.apply(this, args);
+            };
+            proto.__gfFreeProbe = true;
+        }
+
+        GF_DIAG.freeLog = () => textureFreeLog;
+
+        /**
+         *  DIAGNOSTIC - PIXI raises `!m || m.destroyed` and prints the same sentence for both,
+         *  so a missing resource reads as a freed one. Records which, for which slot. Wraps the
+         *  builder because the next render rebuilds the batch and erases the evidence.
+         */
+        let lastBindGroupFailure = null;
+
+        function installBindGroupProbe(renderer) {
+            const system = renderer?.bindGroup;
+            const proto = system && Object.getPrototypeOf(system);
+            if (!proto || typeof proto._createBindGroup !== 'function' || proto.__gfBindProbe) return;
+
+            const realCreate = proto._createBindGroup;
+            proto._createBindGroup = function (key, bindGroup, program, groupIndex) {
+                try {
+                    return realCreate.call(this, key, bindGroup, program, groupIndex);
+                } catch (error) {
+                    const layout = program?.layout?.[groupIndex] ?? {};
+                    const resources = bindGroup?.resources ?? {};
+                    const slots = {};
+
+                    for (const name in layout) {
+                        const resource = resources[name] ?? resources[layout[name]];
+                        slots[name] = resource === undefined ? 'MISSING'
+                            : resource === null ? 'NULL'
+                            : resource.destroyed ? `DESTROYED uid=${resource.uid}`
+                            : `ok uid=${resource.uid ?? '?'}`;
+                    }
+
+                    lastBindGroupFailure = {
+                        at: Math.round(performance.now()),
+                        message: error.message,
+                        slots,
+                        missing: Object.entries(slots).filter(([, v]) => v === 'MISSING' || v === 'NULL').map(([k]) => k),
+                        destroyed: Object.entries(slots).filter(([, v]) => v.startsWith('DESTROYED'))
+                            .map(([k, v]) => `${k} (${v})`),
+                    };
+                    throw error;
+                }
+            };
+            proto.__gfBindProbe = true;
+        }
+
+        GF_DIAG.bindGroupFailure = () => lastBindGroupFailure;
+
+        /**
+         *  DIAGNOSTIC - PIXI surfaces nothing when the GPU device is lost; the renderer just
+         *  stops, which looks like the ticker dying. Tells the two apart.
+         */
+        function installDeviceLostProbe(renderer) {
+            const device = renderer?.gpu?.device;
+            if (!device?.lost || device.__gfLostProbe) return;
+
+            device.__gfLostProbe = true;
+            device.lost.then((info) => {
+                console.error(`[Germsfox] The WebGPU device was lost (${info?.reason ?? 'unknown'}): `
+                    + `${info?.message ?? 'no message'}. Rendering has stopped - this is the driver `
+                    + `or the compositor, not the game. Switching off the WebGPU setting falls back `
+                    + `to WebGL, which does not use this path.`);
+            });
+        }
 
         // Parented and orphaned again to force a rebuild through the public API - see below
         let rebuildSentinel = null;
@@ -2296,6 +2449,12 @@ function modules(ks) {
                     this.massSprite.zIndex = 1;
                     this.uiRoot.addChild(this.massSprite);
                 }
+
+                // Every cell, not just your own: the cap belongs to the cell, so an opponent
+                // about to pop is worth the same notice
+                this.massSprite.tint = this.game.settings.settings.autosplitWarning
+                    ? autosplitTint(mass, AUTOSPLIT_MASS_CAPS[this.game.network.mode])
+                    : 0xFFFFFF;
             }
 
             /**
@@ -3200,7 +3359,9 @@ function modules(ks) {
                     } catch (ov) {}
                     this.ws = null;
                 }
-                this.game.showMenu();
+                // Renders the current screen; a reconnect comes through here and used to
+                // force the menu up
+                this.game.refreshScreen();
                 var ow = this.findMode(mode);
                 if (!ow) {
                     mode = 'FFA';
@@ -3359,7 +3520,7 @@ function modules(ks) {
                 }
             }
             sendMouse(oO) {
-                if (!this.game.freeze && document.getElementById("menu").style.display == "none")
+                if (!this.game.freeze && this.game.inGame)
                     this.send(new packet.Mouse(oO.x,oO.y));
             }
             sendChat(oP, oQ) {
@@ -3428,13 +3589,7 @@ function modules(ks) {
                     }
 
                     this.verifying = true;
-
-                    // disable play button
-                    const playButton = document.getElementById("play");
-                    const playButtonIcon = playButton.querySelector("i");
-                    playButton.disabled = true;
-                    playButtonIcon.classList = "fas fa-spinner fa-spin";
-                    playButton.classList.add("disabled");
+                    this.game.refreshMenuButtons();
 
                     this.turnstileId = turnstile.render('.turnstile', {
                         'sitekey': '0x4AAAAAAADbCnxCCnFv3yIA',
@@ -3442,18 +3597,12 @@ function modules(ks) {
                         'appearance': 'interaction-only',
                         'callback': token => {
                             this.verifying = false;
+                            this.game.refreshMenuButtons();
                             this.cfToken = token;
                             this.sendVerification();
                             $('.turnstile-container').hide();
                             turnstile.remove(this.turnstileId);
                             this.turnstileId = null;
-                            
-                            // enable play button
-                            const playButton = document.getElementById("play");
-                            const playButtonIcon = playButton.querySelector("i");
-                            playButton.disabled = false;
-                            playButtonIcon.classList = "fas fa-play";
-                            playButton.classList.remove("disabled");
                         }
                         ,
                         'error-callback': () => {
@@ -3517,6 +3666,15 @@ function modules(ks) {
                 this.game.clearNodes();
                 this.open = true;
                 this.send(new packet.Login(this.game.login.uuid ? this.game.login.uuid : ''));
+
+                // Still spectating - re-assert it, keeping whoever was being followed.
+                // spectate() clears that, which is right for a button press but not a reset.
+                if (this.game.screen === 'spectating') {
+                    const { spectateTarget, spectateTargetName } = this.game;
+                    this.game.spectate();
+                    Object.assign(this.game, { spectateTarget, spectateTargetName });
+                }
+
                 // A spectate clicked before this connection existed is still waiting
                 this.flushSpectate();
                 if (this.pingInterval)
@@ -3591,10 +3749,13 @@ function modules(ks) {
             onClose(p0) {
                 $('#resetCenter').hide();
                 this.game.log('Connection Closed! ' + (p0.reason ? p0.reason : ''));
+
+                // Spectating survives the socket: the player never asked to stop, so the
+                // screen is left alone and onOpen re-asserts it.
                 if (this.game.playerCells.size > 0) {
                     this.game.refreshAds();
                     this.game.deathTimeout = setTimeout(this.game.onDeath.bind(this.game), 100);
-                } else {
+                } else if (this.game.screen !== 'spectating') {
                     this.game.showMenu();
                 }
                 this.game.clearNodes();
@@ -3945,7 +4106,7 @@ function modules(ks) {
             }
 
             refresh() {
-                if (this.open && $('#menu').is(':visible')) {
+                if (this.open && !this.game.inGame) {
                     $.getJSON('php/Servers.php?region=' + this.region, qq => {
                         this.domain = qq.ip;
                         this.region = qq.region;
@@ -4137,6 +4298,7 @@ function modules(ks) {
                     // carries. The value is only written while the toggle is on - see
                     // Camera.setZoom() - so nothing changes for anyone who leaves it off.
                     'oldSplitMacros': false,
+                    'autosplitWarning': true,
                     'partyArrows': true,
                     'syncZoom': false,
                     'zoom': null,
@@ -5039,7 +5201,7 @@ function modules(ks) {
             }
             refresh() {
                 var sw = Date.now() / 1000;
-                if ($('#menu').is(':visible')) {
+                if (!this.game.inGame) {
                     var sx = 3600 * 24;
                     if (sw - this.lastReward >= sx) {
                         $('#loginGift').removeClass('disabled');
@@ -5145,8 +5307,15 @@ function modules(ks) {
                 this.freeze = false;
                 this.linesplit = false;
                 this.freeSpec = false;
+                // 'menu' | 'death' | 'playing' | 'spectating'. Stored, not derived: playerCells
+                // is empty both at the menu and while spectating.
+                this.screen = 'menu';
+                // One of the two reasons the menu buttons are held - see refreshMenuButtons()
+                this.connecting = false;
                 // Party member the spectate camera is following, if any - see spectatePartyMember()
                 this.spectateTarget = null;
+                // Their name at the time, which survives the ids being reassigned on a reset
+                this.spectateTargetName = null;
                 // Backs the aliveCell accessor, which pushes spawn and death to the extension
                 this._aliveCell = null;
                 this.mouse = {
@@ -5279,6 +5448,9 @@ function modules(ks) {
                 });
 
                 growUniformBatch(this.renderer);
+                installTextureFreeProbe();             // DIAGNOSTIC - see textureFreeLog
+                installBindGroupProbe(this.renderer);  // DIAGNOSTIC - see lastBindGroupFailure
+                installDeviceLostProbe(this.renderer); // DIAGNOSTIC - driver-level device loss
 
                 await document.fonts.load('bold 32px Ubuntu');
 
@@ -5308,6 +5480,15 @@ function modules(ks) {
                  */
                 this.hudContainer = new PIXI.Container();
                 this.stage.addChild(this.hudContainer);
+
+                // autoDetectRenderer falls back silently when no WebGPU adapter is handed out,
+                // so the setting says one thing and the client does another with no way to tell
+                if (this.settings.settings.webGPU && this.renderer.type !== 2) {
+                    console.warn('[Germsfox] WebGPU is switched on but could not be started - '
+                        + 'running on WebGL instead. The browser gave out no WebGPU adapter, '
+                        + 'which is usually the graphics driver rather than the game. Restarting '
+                        + 'the browser normally brings it back; chrome://gpu says why.');
+                }
 
                 console.log('%cGerms.io %c(' + (this.renderer.type === 2 ? "WebGPU" : this.renderer.type ? "WebGL" : "Canvas") + ')%c\n~ Germsfox 1.3.10 ~', 'font-size:70px;padding:5px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:white;', 'font-size:20px;padding-left:3px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:700;color:rgb(100,100,100);', 'font-size:20px;padding-left:70px;padding-right:15px;font-family:Ubuntu,Roboto,Segoe UI;font-weight:500;color:#00ff00;');
 
@@ -5699,40 +5880,19 @@ function modules(ks) {
                         );
                     }
                 } else {
-                    /**
-                     *  Following a party member takes the camera off the cursor entirely - see
-                     *  spectatePartyMember().
-                     *
-                     *  handleParty() rebuilds the party every packet, so a member who is dead or
-                     *  momentarily absent simply stops appearing in it. That is a gap to wait
-                     *  out rather than an exit, so the target is never cleared here.
-                     */
+                    // handleParty() rebuilds the party every packet, so a dead or momentarily
+                    // absent member is a gap to wait out - the target is never cleared here
                     const tracking = this.freeSpec && this.spectateTarget !== null;
-                    const tracked = tracking ? (this.party?.[this.spectateTarget] ?? null) : null;
+                    const tracked = tracking ? this.trackedPartyMember() : null;
 
                     if (tracking && !tracked) {
-                        /**
-                         *  The member is not in the party right now - dead, or simply missing
-                         *  between packets. The camera holds where it is rather than handing
-                         *  itself back to the cursor: they are usually about to respawn, and
-                         *  dropping to a free pan would throw the view somewhere else at the
-                         *  exact moment you were watching them.
-                         *
-                         *  Nothing is written to the camera target, so it stays on their last
-                         *  known position, settles there and waits - and the branch below picks
-                         *  them straight back up the moment a packet has them again. Leaving the
-                         *  party for good therefore parks the camera until the mode key is
-                         *  pressed, which is the deliberate trade for not losing a respawn.
-                         */
+                        // Missing this packet: hold on their last position rather than snapping
+                        // back to a free pan, which would throw the view off a respawn
                         this.camera.driftX = 0;
                         this.camera.driftY = 0;
                     } else if (tracked) {
-                        /**
-                         *  Eased through setPosition() rather than placed, which is the opposite
-                         *  of how the jump into tracking works and for the opposite reason: this
-                         *  runs every frame, so letting camera.tick() close the gap is what makes
-                         *  following somebody look smooth instead of locking rigidly to them.
-                         */
+                        // Eased through setPosition() every frame - camera.tick() closing the
+                        // gap is what makes following look smooth instead of rigid
                         this.camera.driftX = 0;
                         this.camera.driftY = 0;
                         this.camera.setPosition(tracked.x, tracked.y);
@@ -5833,9 +5993,54 @@ function modules(ks) {
                  */
                 const freeing = pendingTextureFrees.length > 0 && forceInstructionRebuild(this.stage);
 
-                this.renderer.render(this.stage);
+                // A poisoned batch used to end the session: the error escapes the ticker and
+                // the next frame is never armed. Caught, it is a logged hitch instead.
+                try {
+                    this.renderer.render(this.stage);
+                } catch (error) {
+                    if (!this.reportPoisonedBatch(error)) throw error;
+                }
 
                 if (freeing) drainTextureFrees();
+            }
+
+            /**
+             *  DIAGNOSTIC - reports why a bind group failed and clears the batch so the next
+             *  frame draws. Once per distinct failure, or a repeating frame fills the console.
+             */
+            reportPoisonedBatch(error) {
+                if (!String(error?.message).includes('[BindGroup]')) return false;
+
+                const failure = GF_DIAG.bindGroupFailure();
+                const signature = failure ? JSON.stringify(failure.slots) : String(error.message);
+
+                if (this.lastPoisonReport !== signature) {
+                    this.lastPoisonReport = signature;
+
+                    if (!failure) {
+                        console.error('[Germsfox] A bind group failed before the probe was installed:', error.message);
+                    } else if (failure.destroyed.length) {
+                        const log = GF_DIAG.freeLog();
+                        console.error('[Germsfox] Bind group held a DESTROYED texture: '
+                            + failure.destroyed.join(', '));
+                        for (const entry of failure.destroyed) {
+                            const uid = Number(entry.match(/uid=(\d+)/)?.[1]);
+                            const freed = log.find(item => item.uid === uid);
+                            console.error(freed
+                                ? `  uid ${uid} (${freed.size}) freed ${failure.at - freed.at}ms earlier, `
+                                  + `${freed.queued ? 'through' : 'WITHOUT'} the free queue:\n${freed.stack}`
+                                : `  uid ${uid} - no record of it being freed`);
+                        }
+                    } else {
+                        console.error('[Germsfox] Bind group was MISSING resources, not holding '
+                            + 'destroyed ones - PIXI prints the same message for both. Slots: '
+                            + failure.missing.join(', '), failure.slots);
+                    }
+                }
+
+                // The batch holding it has to go, or every frame after this throws the same way
+                forceInstructionRebuild(this.stage);
+                return true;
             }
 
             /**
@@ -6000,6 +6205,7 @@ function modules(ks) {
                 this.network.sendLocked();
                 if (this.deathTimeout)
                     clearTimeout(this.deathTimeout);
+                this.screen = 'playing';
                 this.hideMenu();
                 this.settings.setItem('nick', name);
                 this.deleteLastKiller();
@@ -6088,13 +6294,17 @@ function modules(ks) {
             }
             spectate() {
                 this.iframe();
-                if (this.playerCells.size > 0)
+                if (this.playerCells.size > 0) {
+                    this.screen = 'playing';
                     return this.hideMenu();
+                }
                 this.deleteLastKiller();
+                // Set before the redraw, or hideMenu() renders the screen we are leaving
+                this.screen = 'spectating';
                 this.hideMenu();
                 this.network.sendSpectate();
                 this.freeSpec = true;
-                this.spectateTarget = null;
+                this.clearSpectateTarget();
                 // No drift carried in from a previous spectate until the first frame recomputes it
                 this.camera.driftX = 0;
                 this.camera.driftY = 0;
@@ -6102,7 +6312,12 @@ function modules(ks) {
             setBorder(tE, tF, tG, tH) {
                 var tI = [tE, tG, tF, tH];
                 if (this.border != tI) {
-                    if (this.playerCells.size == 0) {
+                    /**
+                     *  Recentres the view for somebody sitting at the menu. Skipped while
+                     *  spectating: the border arrives on every new connection, so resuming a
+                     *  spectate across a reconnect would be undone by the very next packet.
+                     */
+                    if (this.playerCells.size == 0 && !this.freeSpec) {
                         this.freeSpec = false;
                         this.mouse.x = 0;
                         this.mouse.y = 0;
@@ -6286,7 +6501,7 @@ function modules(ks) {
             }
 
             refreshMenuAds() {
-                if ($('#menu').is(':visible')) {
+                if (!this.inGame) {
                     try {
                         aiptag.cmd.display.push(async () => {
                             aipDisplayTag.display('germs-io_300x250');
@@ -6364,20 +6579,8 @@ function modules(ks) {
                 if (parked > 0) container.removeChildren(0, parked);
             }
 
-            /**
-             *  Moves aliveCell off `node` onto a cell that is still alive, or to null when there
-             *  is none left.
-             *
-             *  Driven by a cell being eaten rather than by its corpse being collected. Those are
-             *  about a second apart - removeNode() only runs once the fade finishes, see
-             *  EATEN_FADE_TIME - and for all of it aliveCell used to point at something dead.
-             *  Everything reading it read a corpse: the camera's gate, the leaderboard entry's
-             *  colour and skin, the minimap cell, the party name.
-             *
-             *  Eaten cells are skipped when choosing, which the old version in removeNode() did
-             *  not do: the first cell that merely wasn't this one could just as easily be another
-             *  corpse mid-fade, which only moved the problem along by one cell.
-             */
+            // Moves aliveCell onto a cell that is still alive, or null. Driven by the eat
+            // rather than removeNode(), which trails it by EATEN_FADE_TIME; corpses skipped.
             repointAliveCell(node) {
                 if (this.aliveCell !== node) return;
 
@@ -6395,7 +6598,11 @@ function modules(ks) {
                 // without ever being eaten (a clear, or leaving the viewport for good)
                 this.repointAliveCell(node);
                 if (this.playerCells.size === 1 && this.playerCells.has(node)) {
-                    if (this.settings.settings.deathFreecam) this.freeSpec = true;
+                    if (this.settings.settings.deathFreecam) {
+                        // Free means free - a member tracked earlier would otherwise keep the camera
+                        this.clearSpectateTarget();
+                        this.freeSpec = true;
+                    }
                     this.deathTimeout = setTimeout(this.onDeath.bind(this), 100);
                 }
                 this.nodes.delete(node.id);
@@ -6422,7 +6629,7 @@ function modules(ks) {
                 }
 
                 // Suppress input while a key action is already in progress or the menu is open
-                if ($('#menu').is(':visible'))
+                if (!this.inGame)
                     return;
 
                 if ($('#chat_input').is(':focus')) {
@@ -6432,9 +6639,12 @@ function modules(ks) {
                         $('#chat_input').blur();
                         break;
                     case 13:
-                        this.chat.send($('#chat_input').val());
-                        $('#chat_input').val('');
-                        $('#chat_input').blur();
+                        // Left alone when the cooldown refuses it, so the message is still there
+                        // to send with the next Enter - see Chat.send()
+                        if (this.chat.send($('#chat_input').val())) {
+                            $('#chat_input').val('');
+                            $('#chat_input').blur();
+                        }
                         break;
                     }
                 } else {
@@ -6458,14 +6668,8 @@ function modules(ks) {
                         this.toggleSpectateMode();
                         return;
                     case this.controls.Split[0]:
-                        /**
-                         *  While following a party member, Split steps to the next one instead.
-                         *  There is nothing to split while spectating, and it saves the feature
-                         *  a keybind of its own - which is why the cycle has no separate one.
-                         *
-                         *  Only while already following someone: a plain free-pan spectate keeps
-                         *  Split inert exactly as it was before any of this existed.
-                         */
+                        // While following someone, Split steps to the next member - there is
+                        // nothing to split while spectating, so the cycle needs no key of its own
                         if (this.freeSpec && this.spectateTarget !== null) {
                             if (!event.repeat) this.cycleSpectateTarget();
                             return;
@@ -6486,15 +6690,8 @@ function modules(ks) {
                         this.queueSplits(1);
                         break;
                     case this.controls.Feed[0]:
-                        if (event.repeat || this.feedInterval)
-                            return;
-
-                        this.network.send(new packet.Eject());
-
-                        this.feedInterval = setInterval(() => {
-                            this.network.send(new packet.Eject());
-                        }, 20);
-
+                        if (event.repeat) return;
+                        this.startFeeding();
                         break;
                     case this.controls.Hide[0]:
                         if (event.repeat)
@@ -6547,8 +6744,13 @@ function modules(ks) {
                             break;
                         }
 
-                        // Only the 16x key has an intent known up front - see MAX_SPLIT_MODE
-                        this.queueSplits(count, count === 4 && this.network.mode === MAX_SPLIT_MODE);
+                        /**
+                         *  16x is the only key whose intent is known on press, so it never waits
+                         *  for splitsWillCap() - that reads playerCells, which trails the server
+                         *  and paces the first press. Was Self Feed only, which made one key
+                         *  feel different by mode for no visible reason.
+                         */
+                        this.queueSplits(count, count === 4);
                         break;
                     }
                     }
@@ -6626,7 +6828,8 @@ function modules(ks) {
 
             /**
              *  `rush` forces the unpaced path for a run whose intent is known up front, rather
-             *  than waiting for the cell count to show it is about to cap - see MAX_SPLIT_MODE.
+             *  than waiting for the cell count to show it is about to cap. Only the 16x key
+             *  sets it - see its case in onKeyDown().
              */
             queueSplits(count, rush = false) {
                 /**
@@ -6683,12 +6886,12 @@ function modules(ks) {
                  *  tick it actually has to cover pins the count instead, at the same speed,
                  *  because the run still finishes on the same tick.
                  *
-                 *  Only short of the cap, though. Past it the surplus is discarded anyway, and
-                 *  a trimmed run's end ticks carry one packet each rather than three, so jitter
-                 *  can drop one and lose a split - which is the one outcome that costs anything
-                 *  when the whole point of the press was to reach the cap.
+                 *  Kept full only when the extra tick is free: the player asked to fill the cap
+                 *  (`rush`) *and* the run reaches it (`capped`). Either alone over-splits - an
+                 *  untrimmed run spans count*tick - tick/3, landing in count + 1 ticks for two
+                 *  thirds of phases. Trimmed it spans count - 1 ticks exactly.
                  */
-                const packets = rushing && !capped ? (count - 1) * copies + 1 : count * copies;
+                const packets = rushing && !(rush && capped) ? (count - 1) * copies + 1 : count * copies;
 
                 /**
                  *  perSplit rather than copies, because a trimmed run's packets no longer
@@ -6789,9 +6992,28 @@ function modules(ks) {
 
             onKeyUp(event) {
                 if (event.keyCode === this.controls.Feed[0]) {
-                    clearInterval(this.feedInterval);
-                    this.feedInterval = null;
+                    this.stopFeeding();
                 }
+            }
+
+            // Paced off the measured tick rather than a fixed 20ms, which was only right
+            // because this server ticks at 40.
+            startFeeding() {
+                if (this.feedInterval) return;
+
+                this.network.send(new packet.Eject());
+
+                const period = Math.max(FEED_PERIOD_MIN, this.network.tickPeriod / FEED_COPIES);
+                this.feedInterval = setInterval(() => this.network.send(new packet.Eject()), period);
+            }
+
+            /**
+             *  Keyup is deliberately the only thing that stops this: holding the key and
+             *  tabbing away keeps the tab feeding, which is wanted. No blur handler on purpose.
+             */
+            stopFeeding() {
+                clearInterval(this.feedInterval);
+                this.feedInterval = null;
             }
             // Community leaderboard submission (see the Germsfox bridge below) - only if logged
             // in. login.uuid is set to the literal string 'logout' rather than cleared on
@@ -6919,7 +7141,7 @@ function modules(ks) {
 
                 this.chatCopyText = null;
 
-                if ($('#menu').is(':visible') || ue.target.id != 'gameMenu')
+                if (!this.inGame || ue.target.id != 'gameMenu')
                     return false;
                 ue.preventDefault();
                 var mouseX = this.mouse.realX;
@@ -7069,34 +7291,50 @@ function modules(ks) {
             }
 
             /**
-             *  Locks the spectate camera onto a party member and follows them until told not to.
-             *
-             *  The party packet carries every member's position whether or not any of their
-             *  cells are on screen - it is what draws their dots on the minimap - so this works
-             *  at any distance, which is the whole point of it. The following itself happens in
-             *  render(); this only chooses who, and gets the camera there.
+             *  Locks the spectate camera onto a party member. Their position rides the party
+             *  packet whether or not they are on screen, so this follows at any distance.
              */
             spectatePartyMember(id) {
                 if (!this.freeSpec || !this.party?.hasOwnProperty(id)) return;
 
                 this.spectateTarget = id;
+                this.spectateTargetName = this.party[id].name;
 
-                /**
-                 *  Only the target is chosen here. render() aims the camera at whoever it is
-                 *  every frame, so the ordinary camera lerp carries it over - nothing needs to
-                 *  place the camera, and switching members travels the same way any other
-                 *  camera move does rather than cutting.
-                 */
+                // Only the target is chosen here - render() aims every frame, so the ordinary
+                // camera lerp carries it over and switching members travels rather than cuts
                 this.camera.driftX = 0;
                 this.camera.driftY = 0;
             }
 
             /**
-             *  Party member ids that can be tracked, in a stable order.
-             *
-             *  Derived fresh rather than kept, because handleParty() rebuilds the party object
-             *  on every packet. Integer-like keys enumerate in ascending numeric order, so the
-             *  cycle visits everyone in the same order every time round.
+             *  Who the camera is following, or null. Party ids are reassigned on a server reset,
+             *  so an id that no longer resolves falls back to the name it was taken with.
+             */
+            trackedPartyMember() {
+                if (this.spectateTarget === null || !this.party) return null;
+
+                const byId = this.party[this.spectateTarget];
+                if (byId) return byId;
+                // Unnamed members are left alone rather than matched against each other
+                if (!this.spectateTargetName) return null;
+
+                for (const id in this.party) {
+                    if (this.party[id].name !== this.spectateTargetName) continue;
+                    this.spectateTarget = id;
+                    return this.party[id];
+                }
+                return null;
+            }
+
+            /** Hands the spectate camera back to the cursor. */
+            clearSpectateTarget() {
+                this.spectateTarget = null;
+                this.spectateTargetName = null;
+            }
+
+            /**
+             *  Trackable party member ids. Derived fresh because handleParty() rebuilds the
+             *  party every packet; integer keys enumerate ascending, so the cycle order is stable.
              */
             spectatableIds() {
                 if (!this.party) return [];
@@ -7104,10 +7342,8 @@ function modules(ks) {
             }
 
             /**
-             *  The cycle key: move to the next party member, wrapping at the end.
-             *
-             *  Picks up the first member when nothing is being tracked yet, so the key alone is
-             *  enough to start watching someone without going through the menu first.
+             *  The cycle key: next party member, wrapping. Picks up the first when nothing is
+             *  tracked, so the key alone starts a watch without going through the menu.
              */
             cycleSpectateTarget(step = 1) {
                 if (!this.freeSpec) return;
@@ -7122,16 +7358,8 @@ function modules(ks) {
             }
 
             /**
-             *  Clears every germs keybind on this key except `exceptKey`, so a key is never
-             *  bound to two things at once.
-             *
-             *  Matched on keyCode because that is what germs' own controls store - germsfox's
-             *  store event.code instead, which is why both identifiers travel together and each
-             *  side picks the one it can use. Called from the bridge when the germsfox half took
-             *  a key, and directly below when this half did.
-             *
-             *  keyCode 0 is the unbound marker here, and is skipped rather than matched, or
-             *  clearing one binding would clear every other unbound one with it.
+             *  Clears every germs keybind on this key but `exceptKey`. Matched on keyCode, which
+             *  is what germs stores; keyCode 0 is the unbound marker and is skipped, not matched.
              */
             unbindGermsKey(keyCode, code, exceptKey = null) {
                 if (!keyCode) return [];
@@ -7157,7 +7385,7 @@ function modules(ks) {
                 if (!this.freeSpec) return;
 
                 if (this.spectateTarget !== null) {
-                    this.spectateTarget = null;
+                    this.clearSpectateTarget();
                     return;
                 }
 
@@ -7169,12 +7397,8 @@ function modules(ks) {
                 const copyItem = this.ensureChatCopyItem();
                 if (copyItem) copyItem.style.display = this.chatCopyText ? '' : 'none';
 
-                /**
-                 *  Spectate is only meaningful while actually spectating, and only for someone
-                 *  the party packet is streaming a position for. Both entry points into this
-                 *  menu - a right-clicked cell and a right-clicked chat message - carry the
-                 *  owning player's id as `parent`, which is what the party is keyed by.
-                 */
+                // Only offered while spectating, and only for a party member whose position is
+                // streaming. Both entry points carry the owner's id as `parent`.
                 const spectateItem = this.ensurePartySpectateItem();
                 this.spectateMenuTarget = (this.freeSpec && node && this.myID != node.parent
                     && this.party?.hasOwnProperty(node.parent)) ? node.parent : null;
@@ -7621,9 +7845,24 @@ function modules(ks) {
                 }
                 return false;
             }
+            /**
+             *  The one place that decides the menu buttons' state. Connecting and verifying
+             *  used to disable Play independently, so whichever finished first re-enabled it.
+             */
+            refreshMenuButtons() {
+                const verifying = !!this.network.verifying;
+
+                setButtonDisabled('play', this.connecting || verifying,
+                    verifying ? 'fas fa-spinner fa-spin' : 'fas fa-play');
+
+                // Not held while verifying: a spectate clicked now is remembered and sent the
+                // moment verification lands - see sendSpectate()
+                setButtonDisabled('spectate', this.connecting);
+            }
+
             setConnecting(uH) {
-                $('#play').prop('disabled', uH);
-                $('#spectate').prop('disabled', uH);
+                this.connecting = uH;
+                this.refreshMenuButtons();
                 if (uH) {
                     $('#gamemodes').hide();
                     $('#connecting').fadeIn('fast');
@@ -7632,28 +7871,47 @@ function modules(ks) {
                     $('#connecting').fadeOut('fast');
                 }
             }
+            // The screen is set by the caller putting the player in-game; this just draws it
             hideMenu() {
-                if (this.settings.getItem('hideChat') == true) {
-                    $('#chat').hide();
-                } else {
-                    $('#chat').show();
-                }
-                $('#menu').hide();
-                if (!this.hideUI)
-                    $('#gameMenu').show();
-                this.syncPartyUI();
+                this.refreshScreen();
             }
-            showMenu() {
+            /** In the game rather than at the menu. The death screen counts as out. */
+            get inGame() { return this.screen === 'playing' || this.screen === 'spectating'; }
+
+            /**
+             *  Draws `screen`, and is the only thing that touches the menu's visibility.
+             *  Callers set the screen and redraw; a dropped socket changes neither.
+             */
+            refreshScreen() {
+                const inGame = this.inGame;
+
+                $('#deathContainer').toggle(this.screen === 'death');
+
+                if (inGame) {
+                    $('#chat').toggle(this.settings.getItem('hideChat') != true);
+                    $('#menu').hide();
+                    if (!this.hideUI) $('#gameMenu').show();
+                    this.syncPartyUI();
+                    return;
+                }
+
                 $('#gameMenu').hide();
                 $('#menu').fadeIn('fast');
                 this.onResize();
             }
+
+            showMenu() {
+                this.screen = 'menu';
+                this.refreshScreen();
+            }
+
             showDeath() {
                 this.refreshAds();
-                $('#deathContainer').show();
-                this.showMenu();
+                this.screen = 'death';
+                this.refreshScreen();
             }
             hideDeath() {
+                if (this.screen === 'death') this.screen = 'menu';
                 $('#deathContainer').fadeOut('fast');
                 this.onResize();
             }
@@ -8120,6 +8378,7 @@ function modules(ks) {
                 ["webGPU", "Use WebGPU"],
                 ["dynamicLinesplitAxis", "Dynamic Linesplit Axis"],
                 ["diagonalLinesplits", "Diagonal Linesplits"],
+                ["autosplitWarning", "Autosplit Warning"],
                 ["partyArrows", "Party Arrows"],
                 ["deathFreecam", "Freecam on Death"],
                 ["bruhMode", "Bruh Mode"],
@@ -8143,7 +8402,7 @@ function modules(ks) {
             const SETTINGS_SECTIONS = [
                 ["Appearance Options", [
                     "cellOpacity", "showSkins", "highQualitySkins", "showNames",
-                    "showMass", "shortenMass", "borderlessCells",
+                    "showMass", "shortenMass", "autosplitWarning", "borderlessCells",
                     "hideFood", "hideEjectedMass", "hideBorder", "hideMapGrid",
                     "partyArrows",
                 ]],

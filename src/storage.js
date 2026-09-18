@@ -59,7 +59,6 @@ const DEFAULT_SETTINGS = {
     ignoreInvites: false,
     toggleSettings: true,
     autoLogout: false, 
-    shortenMass: true,
     enableDebug: false,
     enableAllColorButtons: false,
     enableOldSkinsButton: false,

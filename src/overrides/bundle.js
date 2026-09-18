@@ -591,6 +591,22 @@ function modules(ks) {
         // Floor on the eject gap, so a bad tick measurement cannot become a packet flood.
         const FEED_PERIOD_MIN = 10;
 
+        /**
+         *  Settings read on the node spawn and per-packet paths, mirrored onto the game as flat
+         *  fields by syncHotSettings().
+         *
+         *  Reading one through the settings object is a three-hop walk
+         *  (game -> settings -> settings -> key), which is nothing once and adds up at the rate
+         *  these are asked for: animationDelay is read twice for every node that spawns, and
+         *  showMass once for every player cell in every packet. The flat copy is the same trick
+         *  cellOpacity and cellTexture already use, just applied to the rest of them.
+         */
+        const HOT_SETTINGS = [
+            'animationDelay', 'showNames', 'showSkins', 'blockedSkins', 'highQualitySkins',
+            'showMass', 'shortenMass', 'autosplitWarning', 'borderlessCells',
+            'hideFood', 'hideEjectedMass',
+        ];
+
         const AUTOSPLIT_MASS_CAPS = {
             'FFA': 50000,
             'Virus Feed': 40000,
@@ -846,12 +862,14 @@ function modules(ks) {
 
                 if (!this.debugValues) this.buildDebugRows();
 
-                const [cells, cellsColor] = this.getCellCountValue();
+                const { mass, alive } = this.surveyCells();
+
+                const [cells, cellsColor] = this.getCellCountValue(alive);
                 const [fps, fpsColor] = this.getFPSValue();
                 const [ping, pingColor] = this.getPingValue();
 
-                this.setDebugValue(0, String(this.getMass()), 'white');
-                this.setDebugValue(1, String(this.getScore()), 'white');
+                this.setDebugValue(0, String(mass), 'white');
+                this.setDebugValue(1, String(this.getScore(mass)), 'white');
                 this.setDebugValue(2, cells, cellsColor);
                 this.setDebugValue(3, fps, fpsColor);
                 this.setDebugValue(4, ping, pingColor);
@@ -973,31 +991,42 @@ function modules(ks) {
                 return mb + m8(mc) + ':' + m8(md) + ':' + m8(me);
             }
           
-            getMass() {
+            /**
+             *  Mass and live-cell count from a single pass.
+             *
+             *  These used to be two walks of playerCells, and getScore() called getMass() for a
+             *  third - so updateDebugHTML(), which runs on every node packet, walked the list
+             *  three times to produce five numbers. germsfoxGetState() asked for all three too.
+             *  Callers that want more than one figure should take them from here.
+             */
+            surveyCells() {
                 let total = 0;
+                let alive = 0;
+
                 for (const cell of this.game.playerCells) {
                     // Eaten cells stay in playerCells (at half their pre-eaten size) for the
                     // duration of their fade-out animation - removeNode() only runs once that
                     // finishes, in the render loop, not as soon as the server says they're gone.
                     if (cell.eaten) continue;
-                    total += cell.size ** 2;
+                    total += cell.size * cell.size;
+                    alive++;
                 }
-                return ~~(total / 100);
+
+                return { mass: ~~(total / 100), alive };
+            }
+
+            getMass() {
+                return this.surveyCells().mass;
             }
             getCellCount() {
-                let count = 0;
-                for (const cell of this.game.playerCells) {
-                    if (!cell.eaten) count++;
-                }
-                return count;
+                return this.surveyCells().alive;
             }
             /**
              *  Value plus colour rather than a <font> wrapper: the debug panel writes these into
              *  nodes it already owns (see updateDebugHTML), so handing back markup would only
              *  mean parsing it again on every packet.
              */
-            getCellCountValue() {
-                const count = this.getCellCount();
+            getCellCountValue(count = this.getCellCount()) {
                 const max = CELL_COUNT_CAPS[this.game.network.mode];
                 if (!max) return [String(count), 'white']; // Unrecognized mode - just the raw count
 
@@ -1005,8 +1034,7 @@ function modules(ks) {
                 if (count > max / 2) return [count + ' / ' + max, 'yellow'];
                 return [count + ' / ' + max, 'white'];
             }
-            getScore() {
-                const mass = this.getMass();
+            getScore(mass = this.getMass()) {
                 this.score = Math.max(this.score || 0, mass);
                 this.game.highestMass = Math.max(this.score, this.game.highestMass);
                 return ~~this.score;
@@ -2103,6 +2131,41 @@ function modules(ks) {
         }
 
         /**
+         *  The ring drawn around the cell a linesplit is anchored to - see
+         *  Game.updateLinesplitRing().
+         *
+         *  One texture for every cell: the sprite is scaled to the cell it marks, so the stroke
+         *  scales with it, and because zoom falls as cells grow the ring keeps roughly the same
+         *  thickness on screen whatever the mass.
+         */
+        const LINESPLIT_RING_TEXTURE_SIZE = 256;
+        const LINESPLIT_RING_THICKNESS = 0.03;  // of the texture's width
+        const LINESPLIT_RING_SCALE = 1.08;      // outer edge, as a multiple of the cell's radius
+
+        let linesplitRing = null;
+
+        function linesplitRingTexture() {
+            if (linesplitRing) return linesplitRing;
+
+            const size = LINESPLIT_RING_TEXTURE_SIZE;
+            const width = size * LINESPLIT_RING_THICKNESS;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+
+            const context = canvas.getContext('2d');
+            context.strokeStyle = '#ffffff';
+            context.lineWidth = width;
+            context.beginPath();
+            // Half a stroke in from the edge, so the outside of the ring is the edge of the sprite
+            context.arc(size / 2, size / 2, (size - width) / 2, 0, Math.PI * 2);
+            context.stroke();
+
+            linesplitRing = new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: canvas }) });
+            return linesplitRing;
+        }
+
+        /**
          *  Breaks depth ties between cells that quantise to the same integer size, so their draw
          *  order stays put instead of shuffling whenever a node is added or removed.
          *
@@ -2155,7 +2218,7 @@ function modules(ks) {
                 this.onScreen = true;
                 this.culled = false;
                 this.hidden = false; // set by settings that suppress a whole node type, e.g. hideFood
-                this.animationDelay = this.game.settings.settings.animationDelay;
+                this.animationDelay = this.game.animationDelay;
                 // Already parented if this renderer came back out of the pool - clean() parks
                 // roots in place rather than detaching them
                 if (this.root.parent !== this.game.cellContainer) {
@@ -2306,7 +2369,7 @@ function modules(ks) {
                 const position = this.node.lockedPosition;
                 
                 // Don't create a texture if it's an empty name or the user doesn't want one
-                if (!name || !name.trim() || !this.canDisplay(this.game.settings.settings.showNames)) return;
+                if (!name || !name.trim() || !this.canDisplay(this.game.showNames)) return;
                 
                 // Release the old name texture
                 if (this.heldName) this.game.names.release(this.heldName);
@@ -2357,8 +2420,8 @@ function modules(ks) {
             setSkin() {
                 const skin = this.node.skin;
                 if (!skin || 
-                    !this.canDisplay(this.game.settings.settings.showSkins) ||
-                    this.game.settings.settings.blockedSkins.has(skin)) return;
+                    !this.canDisplay(this.game.showSkins) ||
+                    this.game.blockedSkins.has(skin)) return;
 
                 if (this.heldSkin === skin) return;
 
@@ -2367,7 +2430,7 @@ function modules(ks) {
 
                 // Set and hold the new skin texture
                 let resource = this.game.skins.get(skin) ??
-                    this.game.skins.create(skin, this.game.settings.settings.highQualitySkins);
+                    this.game.skins.create(skin, this.game.highQualitySkins);
 
                 this.game.skins.hold(skin);
                 this.heldSkin = skin;
@@ -2404,7 +2467,7 @@ function modules(ks) {
             }
 
             setSize() {
-                if (!this.game.settings.settings.showMass) return;
+                if (!this.game.showMass) return;
                 
                 const size = this.node.size;
                 
@@ -2425,7 +2488,7 @@ function modules(ks) {
                 this.lastMassUpdate = this.game.updateTime;
 
                 const mass = Math.floor(size * size / 100);
-                const shorten = this.game.settings.settings.shortenMass;
+                const shorten = this.game.shortenMass;
                 const massText = shorten ? this.shortStringFrom(mass) : mass.toString();
                 const fontSize = shorten ? MASS_FONT_SIZE : MASS_FONT_SIZE_FULL;
 
@@ -2450,11 +2513,18 @@ function modules(ks) {
                     this.uiRoot.addChild(this.massSprite);
                 }
 
-                // Every cell, not just your own: the cap belongs to the cell, so an opponent
-                // about to pop is worth the same notice
-                this.massSprite.tint = this.game.settings.settings.autosplitWarning
-                    ? autosplitTint(mass, AUTOSPLIT_MASS_CAPS[this.game.network.mode])
+                /**
+                 *  Every cell, not just your own: the cap belongs to the cell, so an opponent
+                 *  about to pop is worth the same notice.
+                 *
+                 *  Guarded like the text above it - most updates land on the same tint, and the
+                 *  cap comes off the game rather than a string-keyed lookup per cell.
+                 */
+                const tint = this.game.autosplitWarning
+                    ? autosplitTint(mass, this.game.autosplitCap)
                     : 0xFFFFFF;
+
+                if (this.massSprite.tint !== tint) this.massSprite.tint = tint;
             }
 
             /**
@@ -2693,7 +2763,7 @@ function modules(ks) {
 
             get texture() { return this.game.cellTexture };
             get textureSize() { return this.game.cellSize; }
-            get skinSize() { return this.game.settings.settings.borderlessCells ? 1 : 0.96; }
+            get skinSize() { return this.game.borderlessCells ? 1 : 0.96; }
         }
 
         class VirusSpriteRenderer extends PlayerSpriteRenderer {
@@ -2728,8 +2798,8 @@ function modules(ks) {
                  *  place need some way to drop it.
                  */
                 this.hidden = this.node.isEjected
-                    ? this.game.settings.settings.hideEjectedMass
-                    : this.game.settings.settings.hideFood;
+                    ? this.game.hideEjectedMass
+                    : this.game.hideFood;
 
                 this.root.rotation = this.node.rotation; 
             }
@@ -2799,7 +2869,7 @@ function modules(ks) {
 
                 this.eaten = false;
                 this.hunterId = null;
-                this.animationDelay = this.game.settings.settings.animationDelay;
+                this.animationDelay = this.game.animationDelay;
             }
 
             /**
@@ -3375,13 +3445,28 @@ function modules(ks) {
                 this.game.settings.setItem('lastMode', ow[0]);
                 var oz = ow[1];
                 const previousMode = this.mode;
+                const previousServer = this.server;
                 this.mode = ow[0];
+                this.game.syncHotSettings();   // the autosplit cap is per mode
                 if (this.mode !== previousMode) {
                     // Lets the daily leaderboard panel clear its (now wrong-mode) display and
                     // refetch immediately, instead of showing stale data until its next poll.
                     window.postMessage({ __germsfox: true, type: 'modeChange', mode: this.mode }, '*');
                 }
                 this.server = oz.name;
+
+                /**
+                 *  A spectate deliberately survives a reconnect - see Game.setBorder() - because
+                 *  a round reset is announced exactly the way a fresh connection is, and somebody
+                 *  who never left should not be thrown back to the middle of the map every time
+                 *  the timer goes off. That has to stop where the player genuinely goes
+                 *  somewhere else, and this is the only place that can tell: a different server
+                 *  or mode is asked for here, while a reset simply arrives.
+                 */
+                if (this.server !== previousServer || this.mode !== previousMode) {
+                    this.game.recentreOnBorder = true;
+                }
+
                 this.ip = 'wss://' + this.domain + ':' + oz.port;
                 var oA = this.getParameterByName('ip');
                 if (oA) {
@@ -3672,7 +3757,10 @@ function modules(ks) {
                 if (this.game.screen === 'spectating') {
                     const { spectateTarget, spectateTargetName } = this.game;
                     this.game.spectate();
-                    Object.assign(this.game, { spectateTarget, spectateTargetName });
+                    // Kept across a reset, dropped across a move: the same signal that says the
+                    // player went somewhere else says the player they were watching is not there
+                    if (!this.game.recentreOnBorder)
+                        Object.assign(this.game, { spectateTarget, spectateTargetName });
                 }
 
                 // A spectate clicked before this connection existed is still waiting
@@ -4442,6 +4530,10 @@ function modules(ks) {
              *  has to tolerate being called for a value that is already in this.settings.
              */
             applySideEffect(key, value) {
+                // Before the switch, so a key that also has a side effect below still gets its
+                // flat copy refreshed first
+                if (HOT_SETTINGS.includes(key)) this.game.syncHotSettings();
+
                 switch (key) {
                     case 'acidMode':
                         if (!this.game.settings.settings.webGPU) {
@@ -4826,7 +4918,7 @@ function modules(ks) {
                     var rk = rg[rj];
                     if (rk.Skin != '') {
                         var rl = rk.Skin.split('premium/')[1].capitalize();
-                        rf += '<li><img class="nodrag" data-src="res/skins/' + rk.Skin + '.png"><p>' + rl + '</p>';
+                        rf += '<li><img class="nodrag" loading="lazy" src="res/skins/' + rk.Skin + '.png"><p>' + rl + '</p>';
                         if (this.skins.indexOf(rk.Skin) > -1) {
                             rf += `<input onclick="setSkin('` + rk.Skin + `')" type="button" class="btn btn-sm btn-success" value="Use This Skin">`;
                         } else {
@@ -4866,7 +4958,7 @@ function modules(ks) {
                 for (var rB = 0; rB < this.levels.length; rB++) {
                     var rC = this.levels[rB];
                     if (rC.Skin != '') {
-                        rA += '<li><img class="nodrag" data-src="res/skins/' + rC.Skin + '.png">';
+                        rA += '<li><img class="nodrag" loading="lazy" src="res/skins/' + rC.Skin + '.png">';
                         if (this.xp >= rC.XP) {
                             rA += `<input onclick="setSkin('` + rC.Skin + `')" type="button" class="btn btn-sm btn-success" value="Use this skin">`;
                         } else {
@@ -4889,7 +4981,7 @@ function modules(ks) {
                         var rE = this.skins[rD];
                         if (rE.trim() != '') {
                             var rF = rE.indexOf('/') > -1 ? this.toTitleCase(rE.split('/')[1]) : rE;
-                            $('#paidSkinList').append(`<li id='skinSkin'><img onclick="setSkin('` + rE + `');" loading="lazy" width='85' height='85' src="res/skins/${rE}.png" data-src="res/skins/` + rE + '.png"> <p>' + rF.capitalize() + '</p></li>');
+                            $('#paidSkinList').append(`<li id='skinSkin'><img onclick="setSkin('${rE}');" loading="lazy" width='85' height='85' src="res/skins/${rE}.png"> <p>${rF.capitalize()}</p></li>`);
                         }
                     }
                     this.game.network.send(new packet.Login(this.uuid));
@@ -5307,6 +5399,9 @@ function modules(ks) {
                 this.freeze = false;
                 this.linesplit = false;
                 this.freeSpec = false;
+                // Set by Network.connect() when the player moves to another server or mode, and
+                // consumed by the next setBorder() - see both
+                this.recentreOnBorder = false;
                 // 'menu' | 'death' | 'playing' | 'spectating'. Stored, not derived: playerCells
                 // is empty both at the menu and while spectating.
                 this.screen = 'menu';
@@ -5327,7 +5422,8 @@ function modules(ks) {
                 this.playerCells = new Set();   // Set of player's cell nodes
                 this.myCells = new Set();       // Set of player's cell IDs
                 this.leaderboard = [];
-                this.border = [-10000, -10000, 10000, 10000];
+                // [minX, maxX, minY, maxY] - the order setBorder() stores them in
+                this.border = [-10000, 10000, -10000, 10000];
                 // Texture caches
                 // Game objects
                 this.settings = new Settings(this);
@@ -5505,6 +5601,8 @@ function modules(ks) {
                 this.arrowTexture = PIXI.Assets.get('arrow');
                 this.hexTexture.source.autoGenerateMipmaps = true;
 
+                this.syncHotSettings();
+
                 // Cached rather than read through settings on every checkout and every frame of
                 // every corpse's fade
                 this.cellOpacity = this.settings.settings.cellOpacity / 100;
@@ -5575,17 +5673,11 @@ function modules(ks) {
                 let newY = (this.rawMouseY - this.height / 2) / this.camera.renderZoom + this.camera.y;
 
                 if (!this.linesplit) {
-                    // TODO renderer.tint is not a thing. Make it a thing
-                    if (this.linesplitCell && this.linesplitCell.renderer.tint !== this.linesplitCell.color) {
-                        this.linesplitCell.renderer.tint = this.linesplitCell.color;
-                    }
                     this.linesplitCell = null;
                     this.linesplitAxis = undefined;
                     this.linesplitOrigin = null;
                 } else {
                     if (this.linesplitCell?.eaten) {
-                        if (this.linesplitCell.renderer.tint !== this.linesplitCell.color)
-                            this.linesplitCell.renderer.tint = this.linesplitCell.color;
                         this.linesplitCell = null;
                         // axis and origin intentionally preserved
                     }
@@ -5602,13 +5694,6 @@ function modules(ks) {
                     }
 
                     if (this.linesplitCell) {
-                        // Highlight cell
-                        const r = (((this.linesplitCell.color >> 16) & 0xff) + 255) >> 1;
-                        const g = (((this.linesplitCell.color >> 8) & 0xff) + 255) >> 1;
-                        const b = ((this.linesplitCell.color & 0xff) + 255) >> 1;
-                        if (this.linesplitCell.renderer.tint !== (r << 16) | (g << 8) | b)
-                            this.linesplitCell.renderer.tint = (r << 16) | (g << 8) | b;
-
                         // Update axis and origin while waiting for first split if the user wants
                         if (this.splitPending || this.linesplitAxis === undefined) {
                             if (this.splitPending && this.settings.settings.dynamicLinesplitAxis)
@@ -5654,7 +5739,14 @@ function modules(ks) {
                 }
             }
             getLinesplitAxis(mouseX, mouseY) {
-                if (!this.linesplitCell) return null;
+                /**
+                 *  undefined rather than null: callers store this straight into linesplitAxis,
+                 *  which is tested with `!== undefined`. A null reads as "there is an axis" and
+                 *  sends the next frame to getCellOnAxis(), which returns early on a missing
+                 *  origin without clearing the axis - so the axis stays null, getLinesplitCell()
+                 *  is never reached again, and the linesplit is dead until the key is released.
+                 */
+                if (!this.linesplitCell) return undefined;
 
                 const dx = mouseX - this.linesplitCell.x;
                 const dy = mouseY - this.linesplitCell.y;
@@ -5717,6 +5809,57 @@ function modules(ks) {
                 }
                 return bestCell;
             }
+
+            /**
+             *  Marks the cell the linesplit is anchored to with a thin white ring.
+             *
+             *  One sprite, kept alongside the cell roots rather than inside one, carrying the
+             *  same zIndex as the cell it marks - so it sorts to that cell's own depth and a
+             *  larger cell passing over covers it, exactly as it covers the cell itself. A
+             *  child of the root would do the same, but roots are pooled, and a ring left on
+             *  one would reappear on whatever node claimed it next.
+             *
+             *  The zIndex is derived rather than copied off the root, which carries
+             *  PARKED_Z_INDEX once its renderer has been cleaned - that would drop the ring
+             *  into the run compactCellContainer() detaches. Written only when it changes, so
+             *  the container is dirtied no more often than the cell already dirties it.
+             *
+             *  Placed off the renderer rather than the node so it sits on the cell as drawn
+             *  instead of a frame ahead of it.
+             */
+            updateLinesplitRing() {
+                const cell = this.linesplit ? this.linesplitCell : null;
+
+                /**
+                 *  Eaten counts as gone here too. calcMouse() drops an eaten cell, but it runs
+                 *  on the mouse send interval while this runs per frame, so a corpse can still
+                 *  be standing here - and its renderer may already have been pooled onto some
+                 *  other node, which would put the ring on a stranger.
+                 */
+                if (!cell || cell.eaten) {
+                    if (this.linesplitRing) this.linesplitRing.visible = false;
+                    return;
+                }
+
+                let ring = this.linesplitRing;
+                if (!ring) {
+                    ring = this.linesplitRing = new PIXI.Sprite(linesplitRingTexture());
+                    ring.anchor.set(0.5, 0.5);
+                }
+                if (ring.parent !== this.cellContainer) this.cellContainer.addChild(ring);
+
+                ring.visible = true;
+                ring.x = cell.renderer.x;
+                ring.y = cell.renderer.y;
+                ring.scale.set(
+                    2 * cell.renderer.size * LINESPLIT_RING_SCALE / LINESPLIT_RING_TEXTURE_SIZE
+                );
+
+                // Same form as Renderer.tick(), so the ring lands on its cell's own layer
+                const zIndex = (cell.renderer.size | 0) + zOrderTiebreak(cell.id);
+                if (ring.zIndex !== zIndex) ring.zIndex = zIndex;
+            }
+
             sendMouse() {
                 if (this.freeze)
                     return;
@@ -5730,7 +5873,20 @@ function modules(ks) {
                      *  current position asks the server for a view that is already a trip out
                      *  of date, so the edge being panned toward arrives last.
                      */
-                    const position = this.playerCells.size > 0 ? this.mouse : this.leadCamera();
+                    const target = this.playerCells.size > 0 ? this.mouse : this.leadCamera();
+
+                    /**
+                     *  Held inside the map. Past the edge the server is being asked for a
+                     *  direction it can never satisfy: a cell already against the bottom-right
+                     *  wall with the cursor further out diagonally gets pulled along whichever
+                     *  wall the overshoot leans on instead of into the corner. Clamped per axis,
+                     *  so the corner is reachable, and copied rather than clamped in place -
+                     *  alive, `target` is this.mouse, and the cursor is not the thing at fault.
+                     */
+                    const position = {
+                        x: Math.min(Math.max(target.x, this.border[0]), this.border[1]),
+                        y: Math.min(Math.max(target.y, this.border[2]), this.border[3]),
+                    };
 
                     /**
                      *  A non-finite position is dropped rather than sent, because the filter
@@ -5824,11 +5980,7 @@ function modules(ks) {
             }
 
             leadCamera() {
-                const lead = this.camera.predict(this.leadMs());
-                return {
-                    x: Math.min(Math.max(lead.x, this.border[0]), this.border[1]),
-                    y: Math.min(Math.max(lead.y, this.border[2]), this.border[3]),
-                };
+                return this.camera.predict(this.leadMs());
             }
 
             render(tick) {
@@ -5959,6 +6111,8 @@ function modules(ks) {
                 }
 
                 this.ui.updateMinimap();
+
+                this.updateLinesplitRing();
 
                 this.cellContainer.sortChildren();
                 this.compactCellContainer();
@@ -6313,16 +6467,28 @@ function modules(ks) {
                 var tI = [tE, tG, tF, tH];
                 if (this.border != tI) {
                     /**
-                     *  Recentres the view for somebody sitting at the menu. Skipped while
-                     *  spectating: the border arrives on every new connection, so resuming a
-                     *  spectate across a reconnect would be undone by the very next packet.
+                     *  Recentres the view for somebody sitting at the menu, and for anybody who
+                     *  has just moved to another server or mode - see Network.connect(), which
+                     *  is what sets recentreOnBorder. Otherwise skipped while spectating: this
+                     *  packet arrives on every new connection and a round reset is
+                     *  indistinguishable from one, so resuming a spectate across a reset would
+                     *  be undone by the very next packet.
+                     *
+                     *  The camera is moved, not retargeted. Spectating, the pan in render()
+                     *  rebuilds the target from camera.x every frame, so a setPosition() here is
+                     *  overwritten before it can be eased toward and the view never leaves the
+                     *  corner it was in. The drift goes with it, or a pan still in progress when
+                     *  the player switched pulls straight back off centre.
                      */
-                    if (this.playerCells.size == 0 && !this.freeSpec) {
-                        this.freeSpec = false;
+                    if (this.playerCells.size == 0 && (this.recentreOnBorder || !this.freeSpec)) {
                         this.mouse.x = 0;
                         this.mouse.y = 0;
-                        this.camera.setPosition(0, 0);
+                        this.camera.driftX = 0;
+                        this.camera.driftY = 0;
+                        this.camera.x = this.camera.targetX = 0;
+                        this.camera.y = this.camera.targetY = 0;
                     }
+                    this.recentreOnBorder = false;
                     this.border = tI;
                     this.drawGrid();
                 }
@@ -6581,6 +6747,18 @@ function modules(ks) {
 
             // Moves aliveCell onto a cell that is still alive, or null. Driven by the eat
             // rather than removeNode(), which trails it by EATEN_FADE_TIME; corpses skipped.
+            /**
+             *  Refreshes the flat copies of the settings that hot paths read - see HOT_SETTINGS.
+             *
+             *  Also caches this mode's autosplit cap, which is otherwise a string-keyed lookup
+             *  per cell per mass update. Called at startup, whenever one of those settings
+             *  changes, and on every mode change.
+             */
+            syncHotSettings() {
+                for (const key of HOT_SETTINGS) this[key] = this.settings.settings[key];
+                this.autosplitCap = AUTOSPLIT_MASS_CAPS[this.network.mode];
+            }
+
             repointAliveCell(node) {
                 if (this.aliveCell !== node) return;
 
@@ -8108,12 +8286,13 @@ function modules(ks) {
             // Login.logout() sets uuid to the literal string 'logout' rather than clearing it,
             // so a plain truthiness check would misreport a logged-out session as logged in.
             const loggedIn = !!instance.login.uuid && instance.login.uuid !== 'logout';
+            const cells = instance.ui.surveyCells();   // one walk for all three figures below
 
             return {
                 alive: !!instance.aliveCell,
-                mass: instance.ui.getMass(),
-                score: instance.ui.getScore(),
-                cellCount: instance.ui.getCellCount(), // excludes cells still fading out after being eaten
+                mass: cells.mass,
+                score: instance.ui.getScore(cells.mass),
+                cellCount: cells.alive, // excludes cells still fading out after being eaten
                 loggedIn,
                 // Bare premium skin names ("Griffin", not "premium/Griffin") - matches what
                 // the extension's old #paidSkinList DOM scrape used to return. Login.logout()
@@ -8180,7 +8359,7 @@ function modules(ks) {
                     self.freeSkins = ve;
                     for (var vf = 0; vf < ve.length; vf++) {
                         var vg = ve[vf];
-                        $('#freeSkinList').append(`<li id='skinSkin'><img onclick="setSkin('free/` + vg + `');" loading="lazy" width='85' height='85' src="res/skins/free/${vg}.png" data-src="res/skins/free/` + vg + '.png"> <p>' + vg.capitalize() + '</p></li>');
+                        $('#freeSkinList').append(`<li id='skinSkin'><img onclick="setSkin('free/${vg}');" loading="lazy" width='85' height='85' src="res/skins/free/${vg}.png"> <p>${vg.capitalize()}</p></li>`);
                     }
                 });
             }

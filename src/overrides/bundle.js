@@ -2201,7 +2201,7 @@ function modules(ks) {
              *
              *  A Container by default, because most cells stack a body, a skin, a name and a
              *  mass label inside it. A renderer with nothing to group can override this and
-             *  hand back its own sprite instead - see FoodSpriteRenderer.
+             *  hand back its own sprite instead - see EjectedSpriteRenderer.
              */
             createRoot() {
                 const root = new PIXI.Container();
@@ -2698,8 +2698,7 @@ function modules(ks) {
                 this.sprite.tint = this.node.color;
 
                 // A pooled renderer can still be wearing the rim it was swapped to while it
-                // faded. Doubles as food's shape texture, which is why FoodSpriteRenderer no
-                // longer sets it - `this.texture` reads the checked-out node either way.
+                // faded - `this.texture` reads the checked-out node either way.
                 this.sprite.texture = this.texture;
                 this.rimmed = false;
                 this.eatenRimChecked = false;
@@ -2852,12 +2851,15 @@ function modules(ks) {
             get skinSize() { return 0.88; }
         }
 
-        class FoodSpriteRenderer extends SpriteRenderer {
+        class EjectedSpriteRenderer extends SpriteRenderer {
             /**
-             *  Food and ejected mass are a single tinted sprite - no skin, no name, no mass
-             *  label - so the container that exists to group those is pure overhead. Dropping it
-             *  halves the display objects for far and away the most numerous node in the game,
-             *  and every one saved is a transform the renderer no longer walks.
+             *  Ejected mass is a single tinted sprite - no skin, no name, no mass label - so the
+             *  container that exists to group those is pure overhead, and the sprite is the root.
+             *
+             *  It is drawn as a little player cell rather than a pellet - border and all,
+             *  following Borderless Cells - since it is a piece of one, and a cell spitting out
+             *  pentagons looked like it was feeding on food. Pellets themselves no longer come
+             *  through here at all; see PelletRenderer.
              */
             createRoot() {
                 this.sprite = this.createSprite();
@@ -2873,33 +2875,132 @@ function modules(ks) {
                  *
                  *  Ejected mass answers to its own setting rather than to Hide Food. It is
                  *  gameplay rather than scenery, so hiding it along with the pellets was wrong;
-                 *  but in a feed mode it is both the most numerous food node and the only one
-                 *  that draws a border, so the players who hide food for the frames in the first
-                 *  place need some way to drop it.
+                 *  but in a feed mode it is the most numerous node of all, so the players who
+                 *  hide food for the frames in the first place need some way to drop it.
                  */
-                this.hidden = this.node.isEjected
-                    ? this.game.hideEjectedMass
-                    : this.game.hideFood;
+                this.hidden = this.game.hideEjectedMass;
+            }
 
-                // A cell is round, so turning one would do nothing but hide a rotation that a
-                // pooled renderer checked out for a pellet needs to set anyway
-                this.root.rotation = this.node.isEjected ? 0 : this.node.rotation;
+            get texture() { return this.node ? this.game.cellTexture : PIXI.Texture.EMPTY; }
+            get textureSize() { return this.game.cellSize; }
+        }
+
+        /**
+         *  Food pellets, drawn as particles in Game.pelletLayer instead of as display objects in
+         *  the cell container.
+         *
+         *  Everything in cellContainer is walked whenever PIXI rebuilds its instruction set,
+         *  and under churn that is every frame - a spawn, a death or a cell crossing the screen
+         *  edge each force one. Pellets are the one population that never needs to be there:
+         *  measured in perfprobe's churn crowd, 2,000 pellets that never moved cost ~2.8ms a
+         *  frame purely by being in that list (node loop 1.0, sort 0.3, rebuild 1.4). A
+         *  particle is a plain object in a flat array; the layer uploads the lot in one
+         *  generated loop and costs PIXI one instruction however many there are.
+         *
+         *  Nothing about how a pellet looks changes. The layer sits directly beneath
+         *  cellContainer, which is exactly where pellets already sorted, since a pellet is
+         *  smaller than any cell - so ejected mass, viruses, cells and the corpses of pellets
+         *  eaten by them all still draw over it. Pellets still grow in, hop toward their eater
+         *  and fade, through the same methods as every other node.
+         *
+         *  What goes is per-pellet culling. The GPU clips an offscreen quad for nothing, and
+         *  the streamed box is not much bigger than the screen; skipping it is what lets a
+         *  pellet at rest cost nothing per frame at all. Hide Food hides the layer instead.
+         */
+        class PelletRenderer extends Renderer {
+            createRoot() {
+                return new PIXI.Particle({
+                    texture: this.game.foodTextures?.[0] ?? PIXI.Texture.EMPTY,
+                    anchorX: 0.5,
+                    anchorY: 0.5,
+                });
+            }
+
+            init(node) {
+                this.node = node;
+                node.renderer = this;
+
+                this.lastUpdate = this.game.updateTime;
+                this.animationDelay = this.game.animationDelay;
+                this.eatenFromSize = -1; // no glide under way - see glideIntoHunter()
+                this.settled = false;
+                this.hidden = this.game.hideFood; // the layer does the hiding; kept for parity
+
+                // Pellets grow into size, as Renderer.init() has always had them do
+                this.size = node.size / 2;
+                this.x = node.x;
+                this.y = node.y;
+
+                const particle = this.root;
+                // shape is 0/1/2 - pentagon, hexagon, circle - matching foodTextures' order
+                particle.texture = this.game.foodTextures[node.shape];
+                particle.rotation = node.rotation;
+                particle.tint = node.color;
+                particle.alpha = 1;
+                this.draw();
+
+                this.game.addPellet(particle);
             }
 
             /**
-             *  Ejected mass is drawn as a little player cell rather than a pellet - border and
-             *  all, following Borderless Cells - since it is a piece of one, and a cell spitting
-             *  out pentagons looked like it was feeding on food. Same atlas as the pellets, so
-             *  it still batches with them.
+             *  A pellet at rest skips everything, including the clock - which means one waking
+             *  up for any reason other than being eaten snaps to where it is going instead of
+             *  easing there. Pellets are not moved by the server, and the eaten animation runs
+             *  off its own clock, so nothing visible rests on that.
              */
-            get texture() {
-                if (!this.node) return PIXI.Texture.EMPTY;
-                if (this.node.isEjected) return this.game.cellTexture;
-                // shape is 0/1/2 - pentagon, hexagon, circle - matching foodTextures' order
-                return this.game.foodTextures[this.node.shape];
+            tick() {
+                const node = this.node;
+                if (this.settled && !node.eaten
+                    && this.x === node.x && this.y === node.y && this.size === node.size) {
+                    return true;
+                }
+
+                this.delta = Math.max(0, Math.min(1,
+                    (this.game.updateTime - this.lastUpdate) / this.animationDelay
+                ));
+                this.lastUpdate = this.game.updateTime;
+
+                if (node.eaten) {
+                    node.trackHunter();
+                    this.glideIntoHunter();
+                    // Sets the particle's alpha, or retires the node - see Renderer.fadeEaten()
+                    if (this.fadeEaten()) return false;
+                } else {
+                    this.x = lerp(this.x, node.x, this.delta);
+                    this.y = lerp(this.y, node.y, this.delta);
+                    this.size = lerp(this.size, node.size, this.delta);
+
+                    if (Math.abs(this.x - node.x) < CONVERGE_EPSILON) this.x = node.x;
+                    if (Math.abs(this.y - node.y) < CONVERGE_EPSILON) this.y = node.y;
+                    if (Math.abs(this.size - node.size) < CONVERGE_EPSILON) this.size = node.size;
+                }
+
+                this.draw();
+
+                this.settled = !node.eaten
+                    && this.x === node.x && this.y === node.y && this.size === node.size;
+                return true;
             }
 
-            get textureSize() { return this.node?.isEjected ? this.game.cellSize : this.game.foodSize; }
+            draw() {
+                const particle = this.root;
+                particle.x = this.x;
+                particle.y = this.y;
+                particle.scaleX = particle.scaleY = this.size / this.game.foodSize;
+            }
+
+            refreshColor() {
+                this.root.tint = this.node.color;
+            }
+
+            clean() {
+                this.game.removePellet(this.root);
+            }
+
+            destroy() {
+                this.game.removePellet(this.root);
+                this.root = null;
+            }
         }
 
         /**
@@ -3100,12 +3201,16 @@ function modules(ks) {
             get themeReplaces() { return true; }
         }
 
+        // Pool key for food pellets, which share nodeType.Food with ejected mass
+        const PELLET_KIND = 'pellet';
+
         class Pool {
             constructor(game) {
                 this.game = game;
                 this.playerPool = [];
                 this.virusPool = [];
                 this.foodPool = [];
+                this.pelletPool = [];
 
                 /**
                  *  `ceiling` is a memory guard, not the working capacity - see capacityFor().
@@ -3129,13 +3234,22 @@ function modules(ks) {
                         node: VirusNode,
                         renderer: VirusSpriteRenderer,
                     },
+                    // Ejected mass. Pellets are the same node type on the wire but draw
+                    // through a different renderer, so they pool apart - see kindOf()
                     [nodeType.Food]: {
                         pool: 'foodPool',
                         ceiling: 16384,
                         size: 128,
                         node: FoodNode,
-                        renderer: FoodSpriteRenderer,
-                    }
+                        renderer: EjectedSpriteRenderer,
+                    },
+                    [PELLET_KIND]: {
+                        pool: 'pelletPool',
+                        ceiling: 16384,
+                        size: 128,
+                        node: FoodNode,
+                        renderer: PelletRenderer,
+                    },
                 }
 
                 for (const cfg of Object.values(this.config)) {
@@ -3160,6 +3274,15 @@ function modules(ks) {
                 return Math.min(cfg.ceiling, cfg.peak);
             }
 
+            /**
+             *  Which pool a node belongs to. Its node type, except that a pellet and a blob of
+             *  ejected mass are both Food on the wire - and a renderer is kept with its node for
+             *  life in the pool, so the two must never be handed each other's.
+             */
+            kindOf(type, isEjected) {
+                return type === nodeType.Food && !isEjected ? PELLET_KIND : type;
+            }
+
             createNode(type, nodeData = {}) {
                 const cfg = this.config[type];
 
@@ -3175,6 +3298,7 @@ function modules(ks) {
                 this.playerPool = [];
                 this.virusPool = [];
                 this.foodPool = [];
+                this.pelletPool = [];
                 for (const [type, cfg] of Object.entries(this.config)) {
                     cfg.live = 0;
                     cfg.peak = cfg.size;
@@ -3190,7 +3314,8 @@ function modules(ks) {
             }
 
             getNode(type, nodeData) {
-                const cfg = this.config[type];
+                const kind = this.kindOf(type, nodeData.isEjected);
+                const cfg = this.config[kind];
                 const pool = this[cfg.pool];
 
                 if (++cfg.live > cfg.peak) cfg.peak = cfg.live;
@@ -3203,11 +3328,11 @@ function modules(ks) {
                     return node;
                 }
 
-                return this.createNode(type, nodeData);
+                return this.createNode(kind, nodeData);
             }
 
             putNode(node) {
-                const cfg = this.config[node.type];
+                const cfg = this.config[this.kindOf(node.type, node.isEjected)];
                 const pool = this[cfg.pool];
 
                 if (cfg.live > 0) cfg.live--;
@@ -4677,7 +4802,7 @@ function modules(ks) {
                     case 'borderlessCells':
                         this.game.cellTexture = value ? this.game.spriteSheet.textures.borderlessCell : this.game.spriteSheet.textures.cell;
                         for (const node of this.game.nodes.values()) {
-                            // Ejected mass wears the cell texture too - see FoodSpriteRenderer
+                            // Ejected mass wears the cell texture too - see EjectedSpriteRenderer
                             if (node.isEjected) node.renderer.sprite.texture = this.game.cellTexture;
                             if (node.type !== nodeType.Player) continue;
                             node.renderer.updateBorder();
@@ -4740,6 +4865,9 @@ function modules(ks) {
                                 ? this.settings.hideEjectedMass
                                 : this.settings.hideFood;
                         }
+                        // Pellets are hidden as a layer - see PelletRenderer. Absent until the
+                        // renderer is up, which then reads the setting itself
+                        if (this.game.pelletLayer) this.game.pelletLayer.visible = !this.settings.hideFood;
                         break;
                     case 'hideXP':
                         $('#xpCenter').toggle(!value);
@@ -5657,6 +5785,20 @@ function modules(ks) {
                 this.bgContainer = new PIXI.Container();
                 this.stage.addChild(this.bgContainer);
 
+                /**
+                 *  Food pellets, as particles - see PelletRenderer. Directly beneath the cells,
+                 *  which is where pellets always sorted: nothing in cellContainer is smaller.
+                 *
+                 *  Position, scale and colour change while a pellet grows in or is eaten, so
+                 *  they upload every frame; rotation and texture are fixed at spawn, so they
+                 *  upload only when a pellet comes or goes.
+                 */
+                this.pelletLayer = new PIXI.ParticleContainer({
+                    dynamicProperties: { position: true, vertex: true, color: true, rotation: false, uvs: false },
+                });
+                this.pelletLayer.visible = !this.settings.settings.hideFood;
+                this.stage.addChild(this.pelletLayer);
+
                 // Renderers parked since the last compaction pass - see compactCellContainer()
                 this.parkedRoots = 0;
                 this.cellContainer = new PIXI.Container();
@@ -5706,6 +5848,8 @@ function modules(ks) {
                 this.cellTexture = this.settings.settings.borderlessCells ? this.spriteSheet.textures.borderlessCell : this.spriteSheet.textures.cell;
                 this.virusTexture = this.spriteSheet.textures.virus;
                 this.foodTextures = [this.spriteSheet.textures.food1, this.spriteSheet.textures.food2, this.spriteSheet.textures.food3];
+                // Every frame is in the same atlas, which is what lets one particle layer draw all three
+                this.pelletLayer.texture = this.foodTextures[0];
 
                 this.bruh = new Audio(`${extensionURL}sound/bruh.mp3`);
 
@@ -6834,6 +6978,38 @@ function modules(ks) {
              *  pass with the render group bookkeeping done properly, which hand-splicing would
              *  not. One O(n) pass every few hundred deaths, rather than an O(n) scan per death.
              */
+            /**
+             *  Puts a pellet's particle in the layer, remembering where so it can come out again
+             *  without a search. Order within the layer means nothing - pellets are all one layer
+             *  - which is what makes the swap-remove below safe.
+             */
+            addPellet(particle) {
+                const list = this.pelletLayer.particleChildren;
+                particle.pelletIndex = list.length;
+                list.push(particle);
+                // Rotation and texture live in the static buffer, which only re-uploads on this
+                this.pelletLayer.update();
+            }
+
+            /**
+             *  Takes a particle out in O(1) by moving the last one into its slot. The layer's own
+             *  removeParticle() is an indexOf and a splice over every pellet on the map, per
+             *  pellet eaten.
+             */
+            removePellet(particle) {
+                const list = this.pelletLayer.particleChildren;
+                const index = particle.pelletIndex;
+                if (index === undefined || list[index] !== particle) return; // already out
+
+                const last = list.pop();
+                if (last !== particle) {
+                    list[index] = last;
+                    last.pelletIndex = index;
+                }
+                particle.pelletIndex = undefined;
+                this.pelletLayer.update();
+            }
+
             compactCellContainer() {
                 if (this.parkedRoots < CELL_COMPACT_THRESHOLD) return;
                 this.parkedRoots = 0;

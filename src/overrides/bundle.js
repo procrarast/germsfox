@@ -5997,6 +5997,7 @@ function modules(ks) {
 
                 this.nodeCountRoot = Math.sqrt(this.nodes.size); // For mass label zoom threshold
                 this.rememberAppearance();
+                this.syncMenuMouse();
 
                 // Before the node loop so every renderer culls against the same viewport.
                 // camera.tick() runs after the loop, so this trails a frame - the margin in
@@ -6060,6 +6061,13 @@ function modules(ks) {
                         this.camera.driftX = 0;
                         this.camera.driftY = 0;
                         this.camera.setPosition(tracked.x, tracked.y);
+                    } else if (this.freeSpec && this.userMenuOpen) {
+                        // The cursor stopped counting when the menu opened, but the pan below
+                        // would keep running off wherever it was right-clicked. Stopped instead,
+                        // so the player the menu is for stays where it was opened on them.
+                        this.camera.driftX = 0;
+                        this.camera.driftY = 0;
+                        this.camera.setPosition(this.camera.x, this.camera.y);
                     } else if (this.freeSpec && this.mouse) {
                         /**
                          *  Spectate pans by how far the cursor is from the middle of the screen,
@@ -7300,11 +7308,38 @@ function modules(ks) {
                 if (!uc.isTrusted) {
                     return;
                 }
+                // Always tracked: this is only where the next menu opens
                 this.pageX = uc.pageX;
                 this.pageY = uc.pageY;
-                this.rawMouseX = uc.clientX;
-                this.rawMouseY = uc.clientY;
+
+                // Tracked, but not applied, while the user menu is up: reaching for a row would
+                // otherwise steer your cells, or pan the spectate camera off the player it was
+                // opened on. syncMenuMouse() applies it the moment the menu closes, so the
+                // cursor counts from where it actually is without having to be moved again.
+                this.pointerX = uc.clientX;
+                this.pointerY = uc.clientY;
+                if (this.userMenuOpen) return;
+
+                this.applyPointer();
+            }
+
+            /** Makes the cursor's latest position the one the game steers and pans by. */
+            applyPointer() {
+                if (this.pointerX === undefined) return;
+                this.rawMouseX = this.pointerX;
+                this.rawMouseY = this.pointerY;
                 this.calcMouse();
+            }
+
+            /**
+             *  Picks the cursor back up on the frame the user menu closes. Checked per frame
+             *  rather than hooked, because the menu is hidden from a dozen places - a row, a
+             *  click elsewhere, Escape, the game's own code - and this catches all of them.
+             */
+            syncMenuMouse() {
+                const open = this.userMenuOpen;
+                if (this.userMenuWasOpen && !open) this.applyPointer();
+                this.userMenuWasOpen = open;
             }
             onMouseDown(ud) {
                 if (ud.target.className != 'userMenuItem') {
@@ -7334,6 +7369,16 @@ function modules(ks) {
                 if (!this.inGame || ue.target.id != 'gameMenu')
                     return false;
                 ue.preventDefault();
+
+                // Hit-tested where this click actually is. The last mouse move is not good enough:
+                // moves are held back while a menu is open, so right-clicking another cell with
+                // one already up would otherwise open the menu for whatever was under the old spot
+                this.pageX = ue.pageX;
+                this.pageY = ue.pageY;
+                this.pointerX = ue.clientX;
+                this.pointerY = ue.clientY;
+                this.applyPointer();
+
                 var mouseX = this.mouse.realX;
                 var mouseY = this.mouse.realY;
                 for (const [id, node] of this.nodes) {

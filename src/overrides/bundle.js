@@ -2856,10 +2856,9 @@ function modules(ks) {
              *  Ejected mass is a single tinted sprite - no skin, no name, no mass label - so the
              *  container that exists to group those is pure overhead, and the sprite is the root.
              *
-             *  It is drawn as a little player cell rather than a pellet - border and all,
-             *  following Borderless Cells - since it is a piece of one, and a cell spitting out
-             *  pentagons looked like it was feeding on food. Pellets themselves no longer come
-             *  through here at all; see PelletRenderer.
+             *  It takes the same random pellet shapes as food, but its colour from the player
+             *  theme - see FoodNode.themeKey. Pellets themselves no longer come through here at
+             *  all; see PelletRenderer.
              */
             createRoot() {
                 this.sprite = this.createSprite();
@@ -2879,10 +2878,17 @@ function modules(ks) {
                  *  hide food for the frames in the first place need some way to drop it.
                  */
                 this.hidden = this.game.hideEjectedMass;
+
+                this.root.rotation = this.node.rotation;
             }
 
-            get texture() { return this.node ? this.game.cellTexture : PIXI.Texture.EMPTY; }
-            get textureSize() { return this.game.cellSize; }
+            get texture() {
+                if (!this.node) return PIXI.Texture.EMPTY;
+                // shape is 0/1/2 - pentagon, hexagon, circle - matching foodTextures' order
+                return this.game.foodTextures[this.node.shape];
+            }
+
+            get textureSize() { return this.game.foodSize; }
         }
 
         /**
@@ -4802,8 +4808,6 @@ function modules(ks) {
                     case 'borderlessCells':
                         this.game.cellTexture = value ? this.game.spriteSheet.textures.borderlessCell : this.game.spriteSheet.textures.cell;
                         for (const node of this.game.nodes.values()) {
-                            // Ejected mass wears the cell texture too - see EjectedSpriteRenderer
-                            if (node.isEjected) node.renderer.sprite.texture = this.game.cellTexture;
                             if (node.type !== nodeType.Player) continue;
                             node.renderer.updateBorder();
                         }

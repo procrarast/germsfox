@@ -2217,6 +2217,7 @@ function modules(ks) {
                 this.root.visible = true;
                 this.onScreen = true;
                 this.culled = false;
+                this.eatenFromSize = -1; // no glide under way - see glideIntoHunter()
                 this.hidden = false; // set by settings that suppress a whole node type, e.g. hideFood
                 this.animationDelay = this.game.animationDelay;
                 // Already parented if this renderer came back out of the pool - clean() parks
@@ -2245,6 +2246,37 @@ function modules(ks) {
 
                 this.root.alpha = this.opacity * (1 - EATEN_FADE_DEPTH * progress);
                 return false;
+            }
+
+            /**
+             *  Swallows a corpse that is not a player cell - food, ejected mass, a virus - by
+             *  carrying it all the way into its hunter's centre while it shrinks away, which is
+             *  how the original client animated every non-player kill.
+             *
+             *  Player cells approach at their own pace and stop at three of their radii, and
+             *  food had been given the same treatment: a pellet is so small that three of its
+             *  radii never reach the cell that ate it, and at that pace it covered a few units
+             *  before its fade ran out, so it simply blinked out where it lay. Here the glide
+             *  runs on the fade's own clock, so it always completes, at any frame rate.
+             *
+             *  Squared, so it starts slowly and is pulled in at the end - it reads as being
+             *  swallowed rather than sliding. It disappears under the hunter's rim on the way,
+             *  since a corpse always sorts beneath the larger cell that ate it.
+             */
+            glideIntoHunter() {
+                if (this.eatenFromSize < 0) {
+                    this.eatenFromX = this.x;
+                    this.eatenFromY = this.y;
+                    this.eatenFromSize = this.size;
+                }
+
+                const progress = Math.min(1, (this.game.updateTime - this.node.eatenAt)
+                    / (this.animationDelay * EATEN_FADE_TIME));
+                const pull = progress * progress;
+
+                this.x = lerp(this.eatenFromX, this.node.x, pull);
+                this.y = lerp(this.eatenFromY, this.node.y, pull);
+                this.size = this.eatenFromSize * (1 - progress);
             }
 
             /**
@@ -2301,20 +2333,27 @@ function modules(ks) {
                 }
 
                 // Update position
+                const gliding = this.node.eaten && this.node.type !== nodeType.Player;
+
                 if (this.node.eaten) {
                     // Cute eating animations
                     this.node.trackHunter();
-                    this.x = lerp(this.x, this.node.x, this.delta / 5);
-                    this.y = lerp(this.y, this.node.y, this.delta / 5);
+
+                    if (gliding) {
+                        this.glideIntoHunter();
+                    } else {
+                        this.x = lerp(this.x, this.node.x, this.delta / 5);
+                        this.y = lerp(this.y, this.node.y, this.delta / 5);
+                    }
 
                     if (this.fadeEaten()) return false;
                 } else {
                     this.x = lerp(this.x, this.node.x, this.delta);
                     this.y = lerp(this.y, this.node.y, this.delta);
                 }
-                
-                // Update renderer size (not node size!)
-                this.size = lerp(this.size, this.node.size, this.delta);
+
+                // Update renderer size (not node size!) - a glide sets its own
+                if (!gliding) this.size = lerp(this.size, this.node.size, this.delta);
 
                 // Let lerp snap so it doesn't have to keep recalculating if it has reached its destination
                 if (Math.abs(this.x - this.node.x) < CONVERGE_EPSILON) this.x = this.node.x;
@@ -2896,8 +2935,9 @@ function modules(ks) {
                 // alpha is an invisible cell that never retires
                 this.eatenAt = this.game.updateTime || performance.now();
 
-                // Max distance is 3x cell radius
-                this.eatenMaxDist = this.size * 3;
+                // Max distance is 3x cell radius. Only player cells are held to it: anything else
+                // is swallowed whole, all the way to the hunter's centre - see glideIntoHunter()
+                this.eatenMaxDist = this.type === nodeType.Player ? this.size * 3 : Infinity;
 
                 // Where it died, so every re-aim is measured from the same origin instead of
                 // compounding frame over frame

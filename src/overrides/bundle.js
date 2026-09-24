@@ -2801,16 +2801,25 @@ function modules(ks) {
                     ? this.game.hideEjectedMass
                     : this.game.hideFood;
 
-                this.root.rotation = this.node.rotation; 
+                // A cell is round, so turning one would do nothing but hide a rotation that a
+                // pooled renderer checked out for a pellet needs to set anyway
+                this.root.rotation = this.node.isEjected ? 0 : this.node.rotation;
             }
 
-            get texture() { 
+            /**
+             *  Ejected mass is drawn as a little player cell rather than a pellet - border and
+             *  all, following Borderless Cells - since it is a piece of one, and a cell spitting
+             *  out pentagons looked like it was feeding on food. Same atlas as the pellets, so
+             *  it still batches with them.
+             */
+            get texture() {
                 if (!this.node) return PIXI.Texture.EMPTY;
+                if (this.node.isEjected) return this.game.cellTexture;
                 // shape is 0/1/2 - pentagon, hexagon, circle - matching foodTextures' order
-                return this.game.foodTextures[this.node.shape]; 
+                return this.game.foodTextures[this.node.shape];
             }
 
-            get textureSize() { return this.game.foodSize; }
+            get textureSize() { return this.node?.isEjected ? this.game.cellSize : this.game.foodSize; }
         }
 
         /**
@@ -2981,10 +2990,11 @@ function modules(ks) {
             /**
              *  Ejected mass is a food node to the renderer, but to everyone looking at it it is
              *  a player's mass - it carries the colour of whoever spat it out, and that is how
-             *  you tell whose it is. The food theme recolouring it threw that away, so it keeps
-             *  the colour the server sent and only real food answers to the theme.
+             *  you tell whose it is. So it answers to the player theme, not the food one: the
+             *  player slot tints rather than replaces, and the server sends ejected mass in its
+             *  owner's colour, so a blob comes out exactly the shade of the cell that fired it.
              */
-            get themeKey() { return this.isEjected ? null : 'food'; }
+            get themeKey() { return this.isEjected ? 'players' : 'food'; }
             get shape() {
                 if (this._shape == null) {
                     this._shape = Math.floor(Math.random() * 3);
@@ -4585,6 +4595,8 @@ function modules(ks) {
                     case 'borderlessCells':
                         this.game.cellTexture = value ? this.game.spriteSheet.textures.borderlessCell : this.game.spriteSheet.textures.cell;
                         for (const node of this.game.nodes.values()) {
+                            // Ejected mass wears the cell texture too - see FoodSpriteRenderer
+                            if (node.isEjected) node.renderer.sprite.texture = this.game.cellTexture;
                             if (node.type !== nodeType.Player) continue;
                             node.renderer.updateBorder();
                         }

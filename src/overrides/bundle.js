@@ -5411,6 +5411,9 @@ function modules(ks) {
                 this.spectateTarget = null;
                 // Their name at the time, which survives the ids being reassigned on a reset
                 this.spectateTargetName = null;
+                // Owner id of any player the spectate camera is following by their cells in
+                // view, rather than through the party packet - see followPlayer()
+                this.followTarget = null;
                 // Backs the aliveCell accessor, which pushes spawn and death to the extension
                 this._aliveCell = null;
                 this.mouse = {
@@ -6004,6 +6007,12 @@ function modules(ks) {
                     node.renderer.tick();
                 }
 
+                // Kept fresh while the menu is up, so Follow aims at wherever they got to by the
+                // time the row is clicked - see followPlayer()
+                if (this.followMenuTarget != null && this.userMenuOpen) {
+                    this.playerCentroid(this.followMenuTarget, this.followMenuLast);
+                }
+
                 if (this.aliveCell) {
 
                     // Get alive player cells and base camera position off each cell's size relative to total size
@@ -6034,8 +6043,11 @@ function modules(ks) {
                 } else {
                     // handleParty() rebuilds the party every packet, so a dead or momentarily
                     // absent member is a gap to wait out - the target is never cleared here
-                    const tracking = this.freeSpec && this.spectateTarget !== null;
-                    const tracked = tracking ? this.trackedPartyMember() : null;
+                    const following = this.freeSpec && this.followTarget !== null;
+                    const tracking = following || (this.freeSpec && this.spectateTarget !== null);
+                    const tracked = following ? this.followedPlayer()
+                        : tracking ? this.trackedPartyMember()
+                        : null;
 
                     if (tracking && !tracked) {
                         // Missing this packet: hold on their last position rather than snapping
@@ -7468,6 +7480,35 @@ function modules(ks) {
                 return item;
             }
 
+            /** Adds "Follow" to the game's own user menu, once, matching its existing rows. */
+            ensureFollowItem() {
+                if (this.followItem) return this.followItem;
+
+                const list = document.querySelector('#userMenu > ul');
+                if (!list) return null;
+
+                const item = document.createElement('li');
+                item.id = 'userMenuFollow';
+                item.className = 'userMenuItem';
+                item.innerHTML = '<i class="fas fa-crosshairs"></i><p>Follow</p>';
+
+                item.addEventListener('click', () => {
+                    $('#userMenu').hide();
+                    if (this.followMenuTarget === null) return;
+                    // The same row stops following whoever it is already following
+                    if (this.followTarget === this.followMenuTarget) {
+                        this.clearSpectateTarget();
+                    } else {
+                        this.followPlayer(this.followMenuTarget, this.followMenuLast);
+                    }
+                });
+
+                // Appended rather than prepended, for the reason ensureChatCopyItem() gives
+                list.append(item);
+                this.followItem = item;
+                return item;
+            }
+
             /**
              *  Locks the spectate camera onto a party member. Their position rides the party
              *  packet whether or not they are on screen, so this follows at any distance.
@@ -7475,6 +7516,7 @@ function modules(ks) {
             spectatePartyMember(id) {
                 if (!this.freeSpec || !this.party?.hasOwnProperty(id)) return;
 
+                this.followTarget = null;
                 this.spectateTarget = id;
                 this.spectateTargetName = this.party[id].name;
 
@@ -7504,10 +7546,82 @@ function modules(ks) {
                 return null;
             }
 
+            /**
+             *  Locks the spectate camera onto any player, party or not, by the cells of theirs
+             *  that are in view. Unlike a party member there is no packet carrying their
+             *  position from across the map - it works because the camera keeps them in the
+             *  streamed box, and sendMouse() asks for wherever the camera is.
+             */
+            followPlayer(id, lastSeen = null) {
+                if (!this.freeSpec) return;
+
+                this.spectateTarget = null;
+                this.spectateTargetName = null;
+                this.followTarget = Number(id);
+
+                this.camera.driftX = 0;
+                this.camera.driftY = 0;
+
+                /**
+                 *  Aimed at where they were last seen rather than left wherever the camera is.
+                 *  A player can slip out of the stream between opening the menu and clicking
+                 *  the row, and holding still would then never find them again; heading for
+                 *  their last position brings them back into it. Overridden on the next frame
+                 *  if they are still in view.
+                 */
+                if (lastSeen) this.camera.setPosition(lastSeen.x, lastSeen.y);
+            }
+
+            /** Where the followed player is, or null if none of their cells are in view. */
+            followedPlayer() {
+                const point = this.followPoint ??= { x: 0, y: 0 };
+                return this.playerCentroid(this.followTarget, point) ? point : null;
+            }
+
+            /**
+             *  Writes the centre of a player's living cells into `point`, and returns false -
+             *  leaving `point` alone - if none are in view: dead, or gone somewhere the stream
+             *  no longer reaches. Weighted by size and read off the drawn position, the same way
+             *  the camera centres on your own cells.
+             *
+             *  A pass over the node map, but only on frames spent following someone or with the
+             *  menu open; the node loop itself is left alone. Player cells only: ejected mass
+             *  can carry its owner as `parent` too, and would drag the camera toward wherever
+             *  they were feeding.
+             */
+            playerCentroid(id, point) {
+                let totalSize = 0;
+                let x = 0;
+                let y = 0;
+
+                for (const node of this.nodes.values()) {
+                    if (node.parent !== id || node.eaten || node.type !== nodeType.Player) continue;
+                    totalSize += node.size;
+                    x += node.renderer.x * node.size;
+                    y += node.renderer.y * node.size;
+                }
+
+                if (totalSize === 0) return false;
+
+                point.x = x / totalSize;
+                point.y = y / totalSize;
+                return true;
+            }
+
+            /**
+             *  Whether the right-click user menu is up. Read off the inline style that jQuery's
+             *  show() and hide() write, rather than through :visible, which forces a layout -
+             *  this is asked every frame and on every mouse move.
+             */
+            get userMenuOpen() {
+                return (this.userMenuEl ??= document.getElementById('userMenu'))?.style.display === 'block';
+            }
+
             /** Hands the spectate camera back to the cursor. */
             clearSpectateTarget() {
                 this.spectateTarget = null;
                 this.spectateTargetName = null;
+                this.followTarget = null;
             }
 
             /**
@@ -7562,7 +7676,7 @@ function modules(ks) {
             toggleSpectateMode() {
                 if (!this.freeSpec) return;
 
-                if (this.spectateTarget !== null) {
+                if (this.spectateTarget !== null || this.followTarget !== null) {
                     this.clearSpectateTarget();
                     return;
                 }
@@ -7582,6 +7696,23 @@ function modules(ks) {
                     && this.party?.hasOwnProperty(node.parent)) ? node.parent : null;
                 if (spectateItem) {
                     spectateItem.style.display = this.spectateMenuTarget !== null ? '' : 'none';
+                }
+
+                /**
+                 *  Everyone else gets Follow instead - party members already have Spectate,
+                 *  which reaches them anywhere on the map. Only offered for a player with cells
+                 *  in view, since that is all it can track: a chat sender across the map would
+                 *  leave the camera holding on nothing.
+                 */
+                const followItem = this.ensureFollowItem();
+                const lastSeen = this.followMenuLast ??= { x: 0, y: 0 };
+                this.followMenuTarget = (this.freeSpec && node && node.parent > 0
+                    && this.myID != node.parent && this.spectateMenuTarget === null
+                    && this.playerCentroid(Number(node.parent), lastSeen)) ? Number(node.parent) : null;
+                if (followItem) {
+                    followItem.style.display = this.followMenuTarget !== null ? '' : 'none';
+                    followItem.querySelector('p').textContent =
+                        this.followTarget === this.followMenuTarget ? 'Stop Following' : 'Follow';
                 }
 
                 if (node && this.myID != node.parent) {

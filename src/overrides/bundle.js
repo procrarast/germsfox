@@ -793,6 +793,9 @@ function modules(ks) {
             clearPartyHTML() {
                 this.partyText.innerHTML = '';
                 this.mapParty.innerHTML = '';
+                // Kept in step with what is on the page - see updateDebugHTML()
+                this.partyTextHTML = '';
+                this.mapPartyHTML = '';
             }
             
 
@@ -947,10 +950,18 @@ function modules(ks) {
                             </div>`;
                     }
 
-                    this.partyText.innerHTML = partyTextHTML;
+                    // This runs on every packet, and assigning innerHTML re-parses and re-lays
+                    // out the list whether or not a character of it changed
+                    if (this.partyTextHTML !== partyTextHTML) {
+                        this.partyTextHTML = partyTextHTML;
+                        this.partyText.innerHTML = partyTextHTML;
+                    }
                     game.partyMove();
 
-                    this.mapParty.innerHTML = mapPartyHTML;
+                    if (this.mapPartyHTML !== mapPartyHTML) {
+                        this.mapPartyHTML = mapPartyHTML;
+                        this.mapParty.innerHTML = mapPartyHTML;
+                    }
                     game.themeMove();
                 }
             }
@@ -4073,7 +4084,6 @@ function modules(ks) {
                     let skin = null;
                     let name = null;
                     let color = null;
-                    let rgb = null;
                     let parent = -1;
                     let lockedColor = null;
                     let lockedPosition = null;
@@ -4087,9 +4097,10 @@ function modules(ks) {
                         let r = buffer.readUInt8();
                         let g = buffer.readUInt8();
                         let b = buffer.readUInt8();
-                        rgb = `rgb(${r}, ${g}, ${b})`;
+                        // The CSS string is built below only where it is kept: for a new node,
+                        // or a colour that actually changed. Existing nodes are re-sent their
+                        // colour on about half of all updates, and it has not once differed
                         color = (r << 16) + (g << 8) + b;
-                        
                     }
                     if (hasSkin) skin = buffer.readStringZeroUtf8().substr(1);
                     if (hasName) name = buffer.readStringZeroUtf8().trim().removeWideChars();
@@ -4115,7 +4126,7 @@ function modules(ks) {
                             size: size,
                             name: name,
                             color: color,
-                            rgb: rgb,
+                            rgb: color === null ? null : cssColorFrom(color),
                             skin: skin,
                             lockedColor: lockedColor,
                             lockedPosition: lockedPosition,
@@ -4147,7 +4158,7 @@ function modules(ks) {
                      */
                     if (hasColor && color !== node.baseColor) {
                         node.baseColor = color;
-                        node.baseRgb = rgb;
+                        node.baseRgb = cssColorFrom(color);
                         node.applyTheme();
                         node.renderer.refreshColor();
                     }

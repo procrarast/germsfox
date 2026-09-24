@@ -2026,8 +2026,8 @@ function modules(ks) {
 
         /**
          *  'Renderer' has nothing to do with PIXI.Renderer, rather it's my implementation of allowing different ways for 
-         *  an attached Node to be displayed to the main container. Sprite renderers are the only
-         *  family left now that jelly is gone, but the split is what keeps adding another cheap.
+         *  an attached Node to be displayed. Two families now: sprite renderers, and the particle
+         *  PelletRenderer that draws food - the split is what kept adding the second cheap.
          *  Composition (allegedly) will make appearance easy to extend and customize!
          *
          *  This base class provides:

@@ -19,8 +19,8 @@ python3 util/outline.py     # after anything that moves code
 | region | lines | notes |
 | --- | --- | --- |
 | vendored | 20-89 | `Filter` + the two badwords lists, and the little CommonJS shim that serves them. `base64-js`, `ieee754` and `feross/buffer` used to live here too - 2,302 lines, 22% of the file, carried so `BinaryReader`/`BinaryWriter` could use node's Buffer. They now use `DataView`/`TextDecoder`/`TextEncoder` instead, which is what the note here used to ask for. |
-| game classes | 141-7500 | see the table below |
-| bootstrap | 7501-end | jQuery/DOM wiring, keybind handlers, `var instance = new Game()` |
+| game classes | 141-8557 | see the table below |
+| bootstrap | 8558-end | jQuery/DOM wiring, keybind handlers, `var instance = new Game()` |
 
 `src/overrides/lib/pixi.js` is PIXI v8, vendored whole. The page loads jQuery, Bootstrap 4 and
 a colour picker itself, so `$` is germs.io's, not ours — we cannot remove it.

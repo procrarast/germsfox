@@ -2252,19 +2252,17 @@ function modules(ks) {
             }
 
             /**
-             *  Swallows a corpse that is not a player cell - food, ejected mass, a virus - by
-             *  carrying it all the way into its hunter's centre while it shrinks away, which is
-             *  how the original client animated every non-player kill.
+             *  Carries a corpse that is not a player cell - food, ejected mass, a virus - its
+             *  three radii toward its hunter while it shrinks away.
              *
-             *  Player cells approach at their own pace and stop at three of their radii, and
-             *  food had been given the same treatment: a pellet is so small that three of its
-             *  radii never reach the cell that ate it, and at that pace it covered a few units
-             *  before its fade ran out, so it simply blinked out where it lay. Here the glide
-             *  runs on the fade's own clock, so it always completes, at any frame rate.
+             *  The distance is the same as a player cell's (see Node.getEatenBy()); the pace is
+             *  what differs. A player cell approaches by a per-frame lerp, and food had been
+             *  given that too - but a pellet's fade is over before that lerp covers more than a
+             *  few units of it, so it simply blinked out where it lay. Here the hop runs on the
+             *  fade's own clock, so it always completes, at any frame rate.
              *
-             *  Squared, so it starts slowly and is pulled in at the end - it reads as being
-             *  swallowed rather than sliding. It disappears under the hunter's rim on the way,
-             *  since a corpse always sorts beneath the larger cell that ate it.
+             *  Eased out, so the hop lands while the corpse is still visible and settles rather
+             *  than accelerating into the moment it is removed.
              */
             glideIntoHunter() {
                 if (this.eatenFromSize < 0) {
@@ -2275,7 +2273,7 @@ function modules(ks) {
 
                 const progress = Math.min(1, (this.game.updateTime - this.node.eatenAt)
                     / (this.animationDelay * EATEN_FADE_TIME));
-                const pull = progress * progress;
+                const pull = 1 - (1 - progress) * (1 - progress);
 
                 this.x = lerp(this.eatenFromX, this.node.x, pull);
                 this.y = lerp(this.eatenFromY, this.node.y, pull);
@@ -2966,9 +2964,8 @@ function modules(ks) {
                 // alpha is an invisible cell that never retires
                 this.eatenAt = this.game.updateTime || performance.now();
 
-                // Max distance is 3x cell radius. Only player cells are held to it: anything else
-                // is swallowed whole, all the way to the hunter's centre - see glideIntoHunter()
-                this.eatenMaxDist = this.type === nodeType.Player ? this.size * 3 : Infinity;
+                // Max distance is 3x cell radius
+                this.eatenMaxDist = this.size * 3;
 
                 // Where it died, so every re-aim is measured from the same origin instead of
                 // compounding frame over frame

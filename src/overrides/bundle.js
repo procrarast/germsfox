@@ -2949,7 +2949,6 @@ function modules(ks) {
 
                 this.eaten = false;
                 this.hunterId = null;
-                this.animationDelay = this.game.animationDelay;
             }
 
             /**
@@ -4649,8 +4648,11 @@ function modules(ks) {
                         }
                         break;
                     case 'animationDelay':
+                        // The renderer's copy is the one every animation reads; this used to
+                        // write one on the node that nothing read, so cells already on screen
+                        // kept the old delay until they were recycled
                         for (const node of this.game.nodes.values()) {
-                            node.animationDelay = value;
+                            node.renderer.animationDelay = value;
                         }
                         break;
                     case 'customTheme':

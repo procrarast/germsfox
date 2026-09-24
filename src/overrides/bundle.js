@@ -1094,53 +1094,75 @@ function modules(ks) {
         const CULL_MARGIN = 64;
 
         /**
-         *  Spacing between the splits of a 2x/3x/4x macro.
+         *  Split macros. What the design rests on, all measured live on us.germs.io (Ultra,
+         *  2026-09-24) rather than inferred:
          *
-         *  The server advances a tick at a time and takes at most one split per tick, so two
-         *  splits landing inside the same tick means the second is dropped outright - which is
-         *  how a 4x comes out as a 3x. Spacing them is the only lever the client has, since
-         *  there is no macro support server-side to ask for.
+         *  - The server performs at most one split per tick and drops the rest. Three split
+         *    packets sent in the same millisecond turned one cell into two.
+         *  - Every split is confirmed: the own-cell (0x20) packets for the cells it created
+         *    arrive just ahead of the node packet of the tick that performed it, locked to the
+         *    tick grid within ~2ms.
+         *  - Send-to-confirmation has a hard floor (~57ms at 55ms ping) and a one-sided late
+         *    tail. About a quarter of lone splits are performed one or two ticks after the
+         *    first tick they could have made, in clustered episodes, at any ping and any cell
+         *    count - so it is the server, not the line. Never early.
          *
-         *  Measured against us.germs.io over 2465 ticks: the stream runs at 25 Hz (mean 39.2ms,
-         *  median 39.7ms) but arrives badly jittered - consecutive ticks land 26ms to 49ms apart
-         *  at the 10th and 90th percentiles. Split packets ride the same link, so a nominal
-         *  spacing S reaches the server at roughly S-14ms .. S+9ms. That is exactly why the old
-         *  45ms dropped splits: a good share of the time it arrived under one tick apart and
-         *  collapsed. One tick plus this margin clears the jitter both ways without feeling
-         *  sluggish, and replaces the old split personality where 2x and 3x used 75ms (safe but
-         *  slow) and 4x used 45ms (fast but lossy).
+         *  That slip is what breaks any open-loop schedule, however it is tuned: a split
+         *  performed a tick late lands in the next split's tick and one of the two is dropped.
+         *  Paced 58ms apart, 3x came out as three splits 14 times in 23 and as two the other
+         *  nine. Waiting for each split's confirmation before sending the next, 21 in 21.
+         *  See SplitScheduler.
          */
-        const SPLIT_JITTER_MARGIN = 18;
 
         /**
          *  Ceiling on splits waiting to go out. Chaining two 4x presses for eight splits is a
          *  real Self Feed technique and has to fit exactly; this is also what stops a held key
-         *  building a queue that keeps splitting long after it was let go, since key repeat
-         *  arrives faster than one split per tick can drain.
+         *  building a queue that keeps splitting long after it was let go.
          *
-         *  Counted in splits the player asked for, not packets queued: a rushed run sends
-         *  SPLIT_RUSH_COPIES packets per split and still costs the queue one. See queuedSplits.
+         *  Counted in splits the player asked for, not packets queued: a blanketed run sends
+         *  SPLIT_RUSH_COPIES packets per split and still costs the queue one.
          */
         const SPLIT_QUEUE_MAX = 8;
 
         /**
-         *  Copies sent per tick once a macro is known to end at the cell cap.
+         *  Packets per tick in a blanketed run - the 16x key, or any run bound for the cell cap.
          *
-         *  Spacing splits apart buys accuracy by giving up throughput: the queue asks for one
-         *  every splitSpacing on a server that will take one every tick. That trade is worth
-         *  making when the count matters and worthless when it doesn't - past the cap the
-         *  server discards the surplus regardless, so there is nothing left to protect.
-         *
-         *  So a capped run stops pacing and blankets the ticks instead, which is exactly what
-         *  hand-spamming does and why it has always felt faster: with a copy always waiting,
-         *  a split goes in the moment the tick flips rather than a jitter margin later. Three
-         *  a tick covers the measured jitter; the surplus lands in a tick that has already
-         *  taken one and costs nothing.
+         *  Speed there matters more than the count, and waiting on confirmations costs about
+         *  a tick per split, so those runs stay open-loop: copies go out every third of a tick,
+         *  so a copy is always waiting when a tick flips, and the surplus lands in a tick that
+         *  has already taken one and costs nothing. The run ends on the first copy of its last
+         *  tick rather than filling it, which is what keeps the count from overshooting.
+         *  Measured over 22 live 16x presses: exact 73%, one short 14%, one over 14% - better
+         *  than every alternative tried, including aiming one packet at each tick and topping
+         *  a short run up once its confirmations were in.
          */
         const SPLIT_RUSH_COPIES = 3;
 
-        const SPLIT_SPACING_MIN = 45;
-        const SPLIT_SPACING_MAX = 90;
+        /** Send-to-confirmation assumed until a lone split has measured it - see latency. */
+        const SPLIT_LATENCY_DEFAULT = 60;
+
+        /**
+         *  How many ticks late the server may perform a split before its confirmation is given
+         *  up on. Two covers every slip seen live; a split still missing after that almost
+         *  certainly could not happen at all - the cell cap, or cells too small to divide.
+         */
+        const SPLIT_SLIP_TICKS = 2;
+
+        /** Lone splits kept for the latency floor and the slip rate, newest last. */
+        const SPLIT_SAMPLE_WINDOW = 24;
+        const SPLIT_SAMPLES_MIN = 8;
+
+        /**
+         *  Ticks a 16x may add to itself to make up splits it has lost - see watchTick().
+         *
+         *  Live, a max split loses splits in two ways: the server performs a tick late, so its
+         *  copies collide with the next tick's, or the line stalls and a burst of copies
+         *  arrives together and collapses into one tick. Either is a 16x that comes out an 8x
+         *  or a 4x unless the run makes up the difference. Three covers the worst seen - a stall
+         *  that cost two - with one to spare; past that the run is almost certainly unable to
+         *  split at all, and the copies are only wasted.
+         */
+        const SPLIT_RUSH_EXTEND_MAX = 3;
 
         /**
          *  The tick rate is measured rather than assumed, so a server on a different rate paces
@@ -1155,39 +1177,344 @@ function modules(ks) {
         const TICK_EMA = 0.05;
 
         /**
-         *  Phase tracking, which exists so the split margin can be measured rather than assumed.
+         *  Sends every split in the game - plain Space included - and every split macro.
          *
-         *  The anchor is pulled toward each arrival quickly (the grid is stable, so a few
-         *  samples pin it); the jitter estimate is deliberately slower, because it is a spread
-         *  rather than a level and a couple of outliers should not move it.
+         *  Two kinds of run, because the macros want different things:
          *
-         *  Measured on us.germs.io: arrivals sit on a 40.00ms grid with a residual SD of
-         *  2.05ms over 839 packets - the grid itself is near-perfect, and what varies is
-         *  delivery.
+         *  Exact (Space, 2x, 3x, a held key): the count has to be right, so the run is closed
+         *  loop. One split goes out and the next waits for the server to confirm it. A split
+         *  cannot be confirmed before it has been performed, so two can never share a tick
+         *  however late the server runs, and the count comes out right by construction. The
+         *  cost is time: the next split reaches the server a tick later than a perfectly paced
+         *  one could - a 3x measured 265ms median to its third split, against 203ms paced, and
+         *  paced came out a 2x in 9 presses of 23.
+         *
+         *  Blanketed (16x, or a run bound for the cell cap): speed first, a split every tick.
+         *  Copies go out every third of a tick so one is always waiting when a tick flips, and
+         *  the run ends on the first copy of its last tick, which is what keeps a clean press
+         *  at exactly its count. Then it keeps count as the confirmations come back, and the
+         *  moment the splits confirmed plus the ticks its outstanding copies can still reach
+         *  fall short of the count, it adds ticks to make up the difference - seamlessly if it
+         *  is still sending, which it usually is, since a tick is reported ~1.5 ticks after it
+         *  happens. Overshooting is the lesser failure for a max split, so the accounting errs
+         *  that way - see watchTick() and SPLIT_RUSH_EXTEND_MAX.
+         *
+         *  Runs queue rather than restart, because chaining is a real technique - two 4x for
+         *  eight splits in Self Feed - and restarting would throw away what had not gone out
+         *  yet. A press only ever adds.
+         *
+         *  The line is learned from the player's own splits, for free: every lone split's
+         *  send-to-confirmation time is a sample, the smallest recent one is the latency floor
+         *  that sizes the confirm window, and the share more than a tick above it is the slip
+         *  rate (a diagnostic - `__gfDiag.splits()`).
          */
-        const TICK_PHASE_EMA = 0.1;
-        const TICK_JITTER_EMA = 0.02;
+        class SplitScheduler {
+            constructor(game) {
+                this.game = game;
+                this.runs = [];          // presses waiting to go out, head first
+                this.timer = null;       // the next blanket copy, or a confirmation deadline
+                this.awaiting = null;    // the exact split whose confirmation is due
+                this.watch = null;       // the blanket whose confirmations are being counted
+                this.lastSendAt = -Infinity;
+                this.lastBlanket = false; // whether the last packet belonged to a blanket
+                this.tickSerial = 0;     // node packets seen - one per server tick
+                this.splitSerial = -1;   // the tick of the last own split seen
+                this.splitsSeen = 0;     // own splits confirmed, ever
+                this.samples = [];       // lone splits' send-to-confirmation, ms
+                this.extensions = 0;     // ticks 16x have added to make up lost splits, ever
+            }
 
-        /**
-         *  Converts the EMA of |residual| into the SD of a *delivered gap*, which is what
-         *  actually decides whether two splits collapse into one tick.
-         *
-         *  mean|X| is SD * sqrt(2/pi) for a normal, so SD is mean|X| * 1.2533; and the gap
-         *  between two arrivals is a difference of two of them, widening it by sqrt(2). The
-         *  product is the only number here that is arithmetic rather than judgement.
-         */
-        const JITTER_ABS_TO_GAP_SD = 1.2533 * Math.SQRT2;
+            // ---- what the server reports -----------------------------------------------
 
-        /**
-         *  How many sigmas of delivered-gap jitter the split margin has to clear.
-         *
-         *  Four, because that is what the existing hand-tuned 18ms turns out to BE: the
-         *  measured gap SD is ~3.6ms, and 18/3.6 = 4.9. It also reproduces this project's own
-         *  two observations - at 4 sigma a 45ms spacing loses a split in ~59% of eight-split
-         *  macros ("a good share of the time", which is what retired it) while 58ms loses one
-         *  in ~0.008%.
-         */
-        const SPLIT_JITTER_SIGMAS = 4;
+            /**
+             *  Every own-cell packet. A split into sixteen cells is sixteen of these, and they
+             *  are one split because they share a tick - counted by node packets rather than by
+             *  arrival time, since the server sometimes delivers two ticks in one burst.
+             *  Own-cell packets arrive just ahead of their tick's node packet.
+             */
+            onOwnCell() {
+                if (this.splitSerial === this.tickSerial) return;
+                this.splitSerial = this.tickSerial;
+                this.splitsSeen++;
+
+                const watch = this.watch;
+                if (watch && ++watch.confirmed >= watch.count) this.endWatch();
+
+                const awaiting = this.awaiting;
+                if (!awaiting) return;
+
+                this.awaiting = null;
+                clearTimeout(this.timer);
+                this.timer = null;
+                this.sample(performance.now() - awaiting.sentAt);
+                this.pump();
+            }
+
+            /** Every node packet - one per server tick, closing the tick it reports. */
+            onTick() {
+                this.tickSerial++;
+                if (this.watch) this.watchTick();
+            }
+
+            /** A new connection is a new route, and possibly a new server. */
+            forgetNetwork() {
+                this.samples.length = 0;
+            }
+
+            // ---- the network model -----------------------------------------------------
+
+            sample(ms) {
+                this.samples.push(ms);
+                if (this.samples.length > SPLIT_SAMPLE_WINDOW) this.samples.shift();
+            }
+
+            /**
+             *  The floor of send-to-confirmation: the fastest a split can come back. The
+             *  minimum rather than an average, because a lone split sent at a random moment
+             *  waits a random part of a tick on top of it - the spread above the floor is the
+             *  tick, not the line.
+             */
+            get latency() {
+                return this.samples.length ? Math.min(...this.samples) : SPLIT_LATENCY_DEFAULT;
+            }
+
+            /** Share of recent lone splits the server performed a tick or more late. */
+            get slipRate() {
+                if (this.samples.length < SPLIT_SAMPLES_MIN) return 0;
+                // Unslipped, a split comes back within a tick of the floor
+                const slipped = this.latency + this.game.network.tickPeriod;
+                let late = 0;
+                for (const ms of this.samples) if (ms >= slipped) late++;
+                return late / this.samples.length;
+            }
+
+            /** How long an exact split's confirmation is waited for - see SPLIT_SLIP_TICKS. */
+            get confirmWindow() {
+                return this.latency + (SPLIT_SLIP_TICKS + 1) * this.game.network.tickPeriod + 10;
+            }
+
+            // ---- queueing ---------------------------------------------------------------
+
+            /**
+             *  Adds a press of `count` splits. `rush` marks a run whose intent is known up
+             *  front - the 16x key - as blanketed without waiting to see it reach the cap.
+             */
+            queue(count, rush = false) {
+                /**
+                 *  Clamped rather than dropped: "no more than eight" reads as a ceiling, and
+                 *  clamping is what keeps the 4x + 4x chain landing on exactly eight.
+                 */
+                const room = SPLIT_QUEUE_MAX - this.queued;
+                if (room <= 0) return;
+                count = Math.min(count, room);
+
+                /**
+                 *  count > 1: a lone split has no sequencing problem to solve, and blanketing
+                 *  one would spread copies across a tick boundary and split twice.
+                 */
+                const capped = this.game.splitsWillCap(count);
+                if (count === 1 || !(rush || capped)) {
+                    this.runs.push({ blanket: false, left: count });
+                    this.pump();
+                    return;
+                }
+
+                /**
+                 *  count * COPIES packets a third of a tick apart span count ticks less a third,
+                 *  and can be consumed by count + 1 ticks for most phases - an overshoot. Ending
+                 *  on the first copy of the last tick spans exactly count - 1 ticks, so it covers
+                 *  count ticks at every phase. The full blanket is kept only where the surplus is
+                 *  free: a 16x that will reach the cap.
+                 */
+                const packets = rush && capped
+                    ? count * SPLIT_RUSH_COPIES
+                    : (count - 1) * SPLIT_RUSH_COPIES + 1;
+
+                /**
+                 *  perSplit, because a trimmed run's packets do not divide evenly into splits.
+                 *  Watched only when it is not heading for the cap, where the server stops
+                 *  splitting on its own and a quiet tick would mean nothing.
+                 */
+                this.runs.push({
+                    blanket: true, left: packets, perSplit: packets / count,
+                    count, watched: !capped,
+                });
+                this.pump();
+            }
+
+            /** Splits asked for and not yet sent, blanket copies counted once. */
+            get queued() {
+                let total = 0;
+                for (const run of this.runs) {
+                    total += run.blanket ? Math.ceil(run.left / run.perSplit) : run.left;
+                }
+                return total;
+            }
+
+            /** Dying or disconnecting mid-macro must not leave splits to fire into the next life. */
+            flush() {
+                clearTimeout(this.timer);
+                this.timer = null;
+                this.runs.length = 0;
+                this.awaiting = null;
+                this.watch = null;
+                this.lastBlanket = false;
+            }
+
+            // ---- sending ----------------------------------------------------------------
+
+            pump() {
+                if (this.timer || this.awaiting) return;
+
+                const run = this.runs[0];
+                if (!run) return;
+
+                /**
+                 *  A blanket continues at a third of a tick - into the next run too, if that is
+                 *  a blanket, so chained max splits stay continuous the way hand-spamming is.
+                 *  Anything else after a blanket waits a whole tick, or its packet could land
+                 *  in the blanket's last tick and be dropped there. After an exact split nothing
+                 *  waits at all: it has been confirmed, so it is already behind us.
+                 */
+                const period = this.game.network.tickPeriod;
+                const gap = run.gap !== undefined ? run.gap
+                    : !this.lastBlanket ? 0
+                    : run.blanket ? period / SPLIT_RUSH_COPIES
+                    : period;
+
+                /**
+                 *  Scheduled against when the last packet was *due*, not when it went, because
+                 *  setTimeout runs late and anchoring on the achieved time lets that lateness
+                 *  compound across a blanket - measured at 10ms over a 4x, a quarter of a tick.
+                 *  A backlog is sent now and re-anchored rather than fired together.
+                 */
+                const due = this.lastSendAt + gap;
+                const wait = due - performance.now();
+                if (wait <= 0) return this.release(performance.now());
+
+                this.timer = setTimeout(() => {
+                    this.timer = null;
+                    this.release(due);
+                }, wait);
+            }
+
+            release(at) {
+                const run = this.runs[0];
+                if (!run) return;
+
+                if (--run.left <= 0) this.runs.shift();
+                this.lastSendAt = at;
+                this.lastBlanket = run.blanket;
+
+                if (run.blanket) {
+                    // A new blanket (not an extension of the watched one) starts a new watch
+                    if (run.watched && this.watch !== run.watch) this.startWatch(run);
+                    if (this.watch && this.watch === run.watch) this.watch.sends.push(at);
+                    this.game.network.send(new packet.Split());
+                    this.pump();
+                    return;
+                }
+
+                // Anything else confirming now is not the blanket's
+                this.endWatch();
+                this.game.network.send(new packet.Split());
+
+                /**
+                 *  Given up on after the confirm window, and never re-sent: a lone split cannot
+                 *  collide with anything, so one that is never confirmed is one that could not
+                 *  happen - the cap, or cells too small to divide - and sending it again could
+                 *  only ever overshoot. The run just moves on.
+                 */
+                this.awaiting = { sentAt: performance.now() };
+                this.timer = setTimeout(() => {
+                    this.timer = null;
+                    this.awaiting = null;
+                    this.pump();
+                }, this.confirmWindow);
+            }
+
+            // ---- watching a blanket -----------------------------------------------------
+
+            startWatch(run) {
+                this.endWatch();
+                this.watch = run.watch = {
+                    run,
+                    count: run.count,        // splits the player asked for
+                    confirmed: 0,
+                    startSerial: this.tickSerial,
+                    sends: [],               // when each of its copies went, extensions included
+                    extended: 0,
+                };
+            }
+
+            /**
+             *  Called as each tick is reported, and asks one question: can this run still reach
+             *  its count? Splits confirmed so far, plus the ticks its outstanding copies can
+             *  still reach - the ones sent too recently to have been reported, and the ones not
+             *  yet sent. If that falls short, the difference is lost: copies that collided in a
+             *  late tick, or a stall that delivered a burst of them into one. The run gets that
+             *  many more ticks.
+             *
+             *  "Too recently" is generous. Unslipped, a copy's tick is reported within a tick of
+             *  the latency floor; and live, about a fifth of splits are performed a tick late on
+             *  top of that. So a copy only counts as settled two ticks past the floor. Any
+             *  tighter and those late-but-coming splits read as lost - measured live at one
+             *  tick, half of all 16x came out 5x. A split later still errs the same way, which
+             *  is the direction a max split is allowed to err.
+             */
+            watchTick() {
+                const watch = this.watch;
+                const period = this.game.network.tickPeriod;
+                const now = performance.now();
+                const sending = this.runs[0] === watch.run;
+
+                const settled = now - this.latency - 2 * period;
+                let first = null;
+                for (const at of watch.sends) if (at > settled) { first = at; break; }
+
+                let last = watch.sends.length ? watch.sends[watch.sends.length - 1] : null;
+                if (sending) {
+                    const next = this.lastSendAt + period / SPLIT_RUSH_COPIES;
+                    if (first === null) first = next;
+                    last = this.lastSendAt + watch.run.left * period / SPLIT_RUSH_COPIES;
+                }
+
+                /**
+                 *  Copies spread over a span reach one tick more than the ticks it spans. Spans
+                 *  are whole thirds of a tick by construction, but they were laid out at the tick
+                 *  period of the moment and are measured at today's, which drifts a tenth of a
+                 *  millisecond either way - enough to read three ticks as 2.99 and floor it to
+                 *  two, which live made half of all 16x add a tick they did not need. A tenth of a
+                 *  tick of slack absorbs that and still tells 2⅔ ticks from three.
+                 */
+                const reachable = first === null ? 0 : Math.floor((last - first) / period + 0.1) + 1;
+                const short = watch.count - watch.confirmed - reachable;
+                if (short <= 0) return;
+
+                const add = Math.min(short, SPLIT_RUSH_EXTEND_MAX - watch.extended);
+                if (add <= 0) return this.endWatch();
+                watch.extended += add;
+                this.extensions += add;
+
+                if (sending) {
+                    // More ticks of copies, straight on the end of the blanket
+                    watch.run.left += add * SPLIT_RUSH_COPIES;
+                } else {
+                    // A copy a full tick after the blanket's last, so it lands in a tick of its
+                    // own rather than beside that last copy, then the blanket's cadence on
+                    this.runs.unshift({
+                        blanket: true, left: (add - 1) * SPLIT_RUSH_COPIES + 1, perSplit: SPLIT_RUSH_COPIES,
+                        watch, gap: period,
+                    });
+                    this.pump();
+                }
+            }
+
+            /** Stops counting. */
+            endWatch() {
+                this.watch = null;
+            }
+        }
 
         /**
          *  Raises PIXI's per-frame ceiling on separately-shaded objects.
@@ -3595,13 +3922,9 @@ function modules(ks) {
             constructor(game) {
                 this.game = game;
                 this.open = false;
-                // Paced off the server's own rate rather than a guess - see SPLIT_JITTER_MARGIN
+                // Measured off the server's own rate rather than assumed - see TICK_EMA
                 this.tickPeriod = SERVER_TICK_ESTIMATE;
                 this.lastTickAt = 0;
-                this.tickAnchor = undefined;
-                // Seeded at the value that reproduces SPLIT_JITTER_MARGIN exactly, so a fresh
-                // connection paces the way it always did until it has measured something
-                this.tickJitter = SPLIT_JITTER_MARGIN / (SPLIT_JITTER_SIGMAS * JITTER_ABS_TO_GAP_SD);
                 this.ping = Date.now();
                 this.searching = false;
                 this.verifying = false;
@@ -3727,48 +4050,11 @@ function modules(ks) {
                 const gap = now - this.lastTickAt;
                 if (gap < TICK_COALESCE_MS) return;
                 this.lastTickAt = now;
-                if (gap > TICK_STALL_MS) {
-                    // A hiccup says nothing about the rate, and re-anchoring on one would drag
-                    // the phase estimate a whole slot sideways. Restart the grid from here.
-                    this.tickAnchor = now;
-                    return;
-                }
+                // A hiccup says nothing about the rate
+                if (gap > TICK_STALL_MS) return;
                 this.tickPeriod += (gap - this.tickPeriod) * TICK_EMA;
-
-                if (this.tickAnchor === undefined) { this.tickAnchor = now; return; }
-
-                /**
-                 *  Where this arrival fell against the grid we have been predicting. Skipped
-                 *  ticks are fine - the slot index absorbs them - but a packet landing in the
-                 *  slot we are already anchored on is one tick smeared across two messages
-                 *  rather than a new one, and its "residual" would be the smear, not jitter.
-                 */
-                const slots = Math.round((now - this.tickAnchor) / this.tickPeriod);
-                if (slots < 1) return;
-
-                const residual = now - (this.tickAnchor + slots * this.tickPeriod);
-                this.tickAnchor += slots * this.tickPeriod + residual * TICK_PHASE_EMA;
-                this.tickJitter += (Math.abs(residual) - this.tickJitter) * TICK_JITTER_EMA;
             }
 
-            /**
-             *  The margin is whichever is larger: the hand-tuned constant, or what this
-             *  connection has actually been measured to need.
-             *
-             *  Deliberately one-directional. On a clean line the measurement comes in under
-             *  SPLIT_JITTER_MARGIN and nothing changes - the constant is already about four
-             *  sigma there, so there is no speed to win and shaving it would only trade a
-             *  0.008% chance of losing a split per macro for a 1% one. The case this exists
-             *  for is the other end: a player whose line jitters three times as much gets no
-             *  warning today, just splits that quietly collapse. There the margin widens on
-             *  its own.
-             */
-            get splitSpacing() {
-                const measured = this.tickJitter * JITTER_ABS_TO_GAP_SD * SPLIT_JITTER_SIGMAS;
-                const margin = Math.max(SPLIT_JITTER_MARGIN, measured);
-                return Math.min(SPLIT_SPACING_MAX,
-                    Math.max(SPLIT_SPACING_MIN, this.tickPeriod + margin));
-            }
             async sendNick(nick) {
                 // Spawning supersedes any spectate still waiting on verification
                 this.spectatePending = false;
@@ -3969,6 +4255,7 @@ function modules(ks) {
                 this.game.chat.clear();
                 this.game.log('Connection Open!');
                 this.game.clearNodes();
+                this.game.splits.forgetNetwork();
                 this.open = true;
                 this.send(new packet.Login(this.game.login.uuid ? this.game.login.uuid : ''));
 
@@ -4157,6 +4444,8 @@ function modules(ks) {
                 }
                 const id = reader.readUInt32();
                 this.game.myCells.add(id); // id of node owned by player
+                // A new cell of ours is how a split is confirmed - see SplitScheduler
+                this.game.splits.onOwnCell();
 
                 if (this.game.nodes.has(id)) {
                     // This has never fired once, but I'm keeping it
@@ -4169,6 +4458,7 @@ function modules(ks) {
 
             handleNodes(buffer) {
                 this.noteServerTick();
+                this.game.splits.onTick();
 
                 let eatCount = buffer.readUInt16();
                 for (let i = 0; i < eatCount; i++) {
@@ -5664,10 +5954,7 @@ function modules(ks) {
                 this.login = new Login(this);
                 this.chat = new Chat(this);
                 this.pool = new Pool(this);
-                this.splitQueue = [];     // see queueSplits()
-                this.lastSplitAt = 0;
-                this.lastSplitRush = false;
-                this.splitTimer = null;
+                this.splits = new SplitScheduler(this);
                 this.foodEaten = 0;
                 this.lastColor = null; // color/skin of the last cell we were alive as
                 this.lastSkin = null;
@@ -6910,7 +7197,7 @@ function modules(ks) {
                 }
             }
             clearNodes() {
-                this.flushSplits();
+                this.splits.flush();
                 this.deleteLastKiller();
                 for (const node of this.nodes.values()) { this.pool.putNode(node); }
                 this.nodes.clear();
@@ -7159,7 +7446,7 @@ function modules(ks) {
                             this.bruh.currentTime = 0.15;
                             this.bruh.play();
                         }
-                        this.queueSplits(1);
+                        this.splits.queue(1);
                         break;
                     case this.controls.Feed[0]:
                         if (event.repeat) return;
@@ -7203,7 +7490,7 @@ function modules(ks) {
                             if (this.settings.settings.oldSplitMacros) {
                                 this.network.send(new packet.Split());
                             } else {
-                                this.queueSplits(1);
+                                this.splits.queue(1);
                             }
                             return;
                         }
@@ -7217,31 +7504,16 @@ function modules(ks) {
                         }
 
                         /**
-                         *  16x is the only key whose intent is known on press, so it never waits
-                         *  for splitsWillCap() - that reads playerCells, which trails the server
-                         *  and paces the first press. Was Self Feed only, which made one key
-                         *  feel different by mode for no visible reason.
+                         *  16x is the only key whose intent is known on press, so it blankets
+                         *  without waiting for splitsWillCap() - that reads playerCells, which
+                         *  trails the server. The rest are exact - see SplitScheduler.
                          */
-                        this.queueSplits(count, count === 4);
+                        this.splits.queue(count, count === 4);
                         break;
                     }
                     }
                 }
             }
-            /**
-             *  Adds `count` splits to the outgoing queue.
-             *
-             *  A queue rather than a fresh schedule per press, because chaining macros is a real
-             *  technique - two 4x presses for eight splits in Self Feed - and restarting would
-             *  throw away whatever of the first macro had not gone out yet, then send on top of
-             *  its last split inside the same tick. Both halves of that are a dropped split. Now
-             *  a press only ever adds to the count, and nothing else decides when they leave.
-             *
-             *  Every split in the game goes through here, plain Space included. That is what
-             *  keeps the spacing honest: pacing only the macros would still let a manual split
-             *  land in the same tick as a macro's, and the queue cannot space against a send it
-             *  never saw.
-             */
             /**
              *  Whether `count` more splits would finish at the cell cap.
              *
@@ -7296,170 +7568,6 @@ function modules(ks) {
                     this.network.send(new packet.Split());
                     if (count > 2) setTimeout(() => this.network.send(new packet.Split()), 75);
                 }, 75);
-            }
-
-            /**
-             *  `rush` forces the unpaced path for a run whose intent is known up front, rather
-             *  than waiting for the cell count to show it is about to cap. Only the 16x key
-             *  sets it - see its case in onKeyDown().
-             */
-            queueSplits(count, rush = false) {
-                /**
-                 *  Room is counted in splits the player asked for, never in packets on the
-                 *  wire, so a rushed run occupies exactly what it means rather than three times
-                 *  it. Two 4x presses still fill the queue exactly, rushed or not.
-                 *
-                 *  A press that only partly fits is clamped rather than dropped - "no more than
-                 *  eight" reads as a ceiling, not as an all-or-nothing admission test, and
-                 *  clamping is what keeps the 4x+4x chain landing on exactly eight. One edge
-                 *  falls out of it: with seven already queued a 4x clamps to one, and a single
-                 *  split fails the count > 1 test below, so that last split goes out paced
-                 *  instead of blanketed. That is the correct call for a lone split and not a bug.
-                 */
-                const room = SPLIT_QUEUE_MAX - this.queuedSplits;
-                if (room <= 0) return;
-                count = Math.min(count, room);
-
-                /**
-                 *  count > 1, because the rush exists to get a *run* of splits into consecutive
-                 *  ticks. A single split has no sequencing problem to solve - one packet always
-                 *  lands - so the redundant copies can only do harm: three of them spread over
-                 *  two thirds of a tick, so a tick boundary falls between them most of the time
-                 *  and one press comes out as two splits.
-                 *
-                 *  Decided against the clamped count, not the requested one, so the rush matches
-                 *  the run actually queued.
-                 */
-                const capped = this.splitsWillCap(count);
-                const rushing = count > 1 && (rush || capped);
-
-                /**
-                 *  Pushed as its own run rather than added to a running total, because a rushed
-                 *  run and a paced one are counted in different units and drain at different
-                 *  rates. One scalar could hold the count or the cadence of whichever press
-                 *  landed last but never both, so mixing the two kinds corrupted them in both
-                 *  directions: a paced press arriving behind a rushed one clamped the shared
-                 *  total against a limit in the wrong unit and silently destroyed queued copies,
-                 *  and whichever press set the shared spacing dragged every split still waiting
-                 *  into its cadence - so a paced 3x pressed alongside a rushed 4x came out at
-                 *  one copy per third of a tick and collapsed into it on the server.
-                 *
-                 *  A rushed run is measured in ticks to cover, not packets to send: the copies
-                 *  multiply and the interval divides by the same factor, so the run still spans
-                 *  count ticks - it just arrives with something always waiting.
-                 */
-                const copies = rushing ? SPLIT_RUSH_COPIES : 1;
-
-                /**
-                 *  ...but count * copies packets span count*tick - tick/3, and the ticks that
-                 *  can consume them are the ones in (0, span + tick]. That is count + 1 ticks
-                 *  for two thirds of all tick phases, and the press comes out a split long -
-                 *  a 16x turning 1 cell into 32 rather than 16. Ending the blanket on the last
-                 *  tick it actually has to cover pins the count instead, at the same speed,
-                 *  because the run still finishes on the same tick.
-                 *
-                 *  Kept full only when the extra tick is free: the player asked to fill the cap
-                 *  (`rush`) *and* the run reaches it (`capped`). Either alone over-splits - an
-                 *  untrimmed run spans count*tick - tick/3, landing in count + 1 ticks for two
-                 *  thirds of phases. Trimmed it spans count - 1 ticks exactly.
-                 */
-                const packets = rushing && !(rush && capped) ? (count - 1) * copies + 1 : count * copies;
-
-                /**
-                 *  perSplit rather than copies, because a trimmed run's packets no longer
-                 *  divide evenly into its splits - 10 packets carry 4 - and dividing by copies
-                 *  would quietly under-count what the run still owes, letting a press past the
-                 *  ceiling. It is packets-per-split for every shape: 1 paced, COPIES blanketed,
-                 *  and the fraction in between when trimmed.
-                 */
-                this.splitQueue.push({ left: packets, copies, perSplit: packets / count });
-                this.pumpSplits();
-            }
-
-            /** Splits the player has asked for and not yet seen leave, rush copies counted once. */
-            get queuedSplits() {
-                let total = 0;
-                // perSplit is 1 for a paced run, so this is the same arithmetic either way
-                for (const run of this.splitQueue) total += Math.ceil(run.left / run.perSplit);
-                return total;
-            }
-
-            /**
-             *  Releases the next split once a full spacing has passed since the last one -
-             *  immediately when the queue has been idle, which is the ordinary case for a single
-             *  press, so nothing pays latency for the pacing it doesn't need.
-             *
-             *  The spacing belongs to the run at the head of the queue, not to the queue, which
-             *  is what lets a rushed press and a paced one sit in it at the same time without
-             *  either adopting the other's cadence.
-             *
-             *  Blanketing is only ever allowed *inside* a rushed run, or across a boundary where
-             *  the run on both sides is rushed - chained max splits stay continuous, the way
-             *  hand-spamming them is. A boundary with a paced run on either side takes the full
-             *  splitSpacing instead: those are two different splits the player asked for, and
-             *  two splits a third of a tick apart are one split as far as the server is
-             *  concerned.
-             */
-            pumpSplits() {
-                if (this.splitTimer || !this.splitQueue.length) return;
-
-                const run = this.splitQueue[0];
-                /**
-                 *  Mid-run this is always true, because the packet before it came from this
-                 *  same run - the head does not change until a run is exhausted - so there is
-                 *  no separate "first packet of the run" test to make. What it actually reads
-                 *  is whether the run either side of this boundary blankets.
-                 */
-                const blanketing = run.copies > 1 && this.lastSplitRush;
-                const spacing = blanketing
-                    ? this.network.tickPeriod / run.copies
-                    : this.network.splitSpacing;
-
-                /**
-                 *  Scheduled against when this packet was *due*, not when the last one actually
-                 *  went, because setTimeout runs late and anchoring on the achieved time makes
-                 *  that lateness compound. Measured in the page: a rushed 4x that should span
-                 *  146.7ms spanned 156.6ms, every hop a couple of ms late and never recovering.
-                 *  Ten milliseconds is a quarter of a tick, which is the difference between a
-                 *  blanket that covers four ticks and one that clips a fifth.
-                 *
-                 *  Falling behind by more than a whole spacing is a stall rather than drift, so
-                 *  that path re-anchors on the clock instead of trying to catch up - which would
-                 *  fire the backlog together and collapse it on the server.
-                 */
-                const due = this.lastSplitAt + spacing;
-                const wait = due - performance.now();
-                if (wait <= 0) return this.releaseSplit();
-
-                this.splitTimer = setTimeout(() => {
-                    this.splitTimer = null;
-                    this.releaseSplit(due);
-                }, wait);
-            }
-
-            /** `at` is the time this packet was due; absent, it is going out unscheduled. */
-            releaseSplit(at) {
-                const run = this.splitQueue[0];
-                if (!run) return;
-
-                // The run leaves the queue as its last packet goes, so the next pump reads the
-                // next run's cadence rather than this one's
-                if (--run.left <= 0) this.splitQueue.shift();
-
-                this.lastSplitAt = at === undefined ? performance.now() : at;
-                this.lastSplitRush = run.copies > 1;
-                this.network.send(new packet.Split());
-                // Re-entrant by one hop only: lastSplitAt has just moved, so the next call
-                // always schedules rather than releasing again
-                this.pumpSplits();
-            }
-
-            // Dying mid-macro must not leave splits queued, or they fire into the next life
-            flushSplits() {
-                if (this.splitTimer) clearTimeout(this.splitTimer);
-                this.splitTimer = null;
-                this.splitQueue.length = 0;
-                this.lastSplitRush = false;
             }
 
             onKeyUp(event) {
@@ -8616,6 +8724,12 @@ function modules(ks) {
 
         var instance = new Game();
         GF_DIAG.game = instance; // DIAGNOSTIC - see GF_DIAG
+        // What the split scheduler has learned about this connection: `__gfDiag.splits()`
+        GF_DIAG.splits = () => ({
+            latency: instance.splits.latency,
+            slipRate: +instance.splits.slipRate.toFixed(2),
+            samples: instance.splits.samples.map(Math.round),
+        });
 
         $('#play').click(function(v7) {
             if (v7.originalEvent === undefined) {

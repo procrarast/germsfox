@@ -3453,7 +3453,7 @@ function modules(ks) {
             'Eject': EjectWriter,
             'Party': PartyWriter
         };
-        ;const oj = 'g-h';
+        ;const WS_PROTOCOL = 'g-h'; // the socket subprotocol the server expects
         const ok = ['6', '9'];
         const ol = ['4', '2', '0'];
         const om = (oo, op, oq) => {
@@ -3494,8 +3494,8 @@ function modules(ks) {
                 this.maxReconnectDelay = 30000;
                 this.reconnectMultiplier = 1.5;
             }
-            connect(mode, ou) {
-                if (this.open && this.mode == mode && !ou) {
+            connect(mode, force) {
+                if (this.open && this.mode == mode && !force) {
                     return;
                 }
                 if (this.reconnect) {
@@ -3515,34 +3515,34 @@ function modules(ks) {
                     this.ws.onclose = null;
                     try {
                         this.ws.close();
-                    } catch (ov) {}
+                    } catch (error) {}
                     this.ws = null;
                 }
                 // Renders the current screen; a reconnect comes through here and used to
                 // force the menu up
                 this.game.refreshScreen();
-                var ow = this.findMode(mode);
-                if (!ow) {
+                var found = this.findMode(mode);
+                if (!found) {
                     mode = 'FFA';
-                    ow = this.findMode(mode);
+                    found = this.findMode(mode);
                 }
                 // ow[0], not `mode`: connect() accepts either a mode key or a server name, and
                 // storing the raw argument meant lastMode could hold something like
                 // "NA Self Feed 1". network.mode is seeded from it on the next page load, so the
                 // daily leaderboard would then ask the board for a server name, get nothing back
                 // and hide itself until a connection re-established the real mode.
-                this.game.settings.setItem('lastMode', ow[0]);
-                var oz = ow[1];
+                this.game.settings.setItem('lastMode', found[0]);
+                var entry = found[1];
                 const previousMode = this.mode;
                 const previousServer = this.server;
-                this.mode = ow[0];
+                this.mode = found[0];
                 this.game.syncHotSettings();   // the autosplit cap is per mode
                 if (this.mode !== previousMode) {
                     // Lets the daily leaderboard panel clear its (now wrong-mode) display and
                     // refetch immediately, instead of showing stale data until its next poll.
                     window.postMessage({ __germsfox: true, type: 'modeChange', mode: this.mode }, '*');
                 }
-                this.server = oz.name;
+                this.server = entry.name;
 
                 /**
                  *  A spectate deliberately survives a reconnect - see Game.setBorder() - because
@@ -3556,32 +3556,32 @@ function modules(ks) {
                     this.game.recentreOnBorder = true;
                 }
 
-                this.ip = 'wss://' + this.domain + ':' + oz.port;
-                var oA = this.getParameterByName('ip');
-                if (oA) {
-                    this.ip = 'wss://' + oA;
-                    this.game.log('Connecting to Private Server: ' + oA);
+                this.ip = 'wss://' + this.domain + ':' + entry.port;
+                var privateIp = this.getParameterByName('ip');
+                if (privateIp) {
+                    this.ip = 'wss://' + privateIp;
+                    this.game.log('Connecting to Private Server: ' + privateIp);
                 } else {
                     this.game.log('Connecting to ' + this.server);
                 }
-                this.ws = new WebSocket(this.ip,oj);
+                this.ws = new WebSocket(this.ip, WS_PROTOCOL);
                 this.ws.binaryType = 'arraybuffer';
                 this.ws.onopen = this.onOpen.bind(this);
                 this.ws.onmessage = this.onMessage.bind(this);
                 this.ws.onclose = this.onClose.bind(this);
                 this.ws.onerror = this.onClose.bind(this);
             }
-            getParameterByName(oF, oG) {
-                if (!oG)
-                    oG = window.location.href;
-                oF = oF.replace(/[\[\]]/g, '\\$&');
-                var oH = new RegExp('[?&]' + oF + '(=([^&#]*)|&|#|$)')
-                  , oI = oH.exec(oG);
-                if (!oI)
+            getParameterByName(name, url) {
+                if (!url)
+                    url = window.location.href;
+                name = name.replace(/[\[\]]/g, '\\$&');
+                var pattern = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)')
+                  , match = pattern.exec(url);
+                if (!match)
                     return null;
-                if (!oI[2])
+                if (!match[2])
                     return '';
-                return decodeURIComponent(oI[2].replace(/\+/g, ' '));
+                return decodeURIComponent(match[2].replace(/\+/g, ' '));
             }
             send(packet) {
                 if (this.open) {
@@ -3638,18 +3638,18 @@ function modules(ks) {
                 return Math.min(SPLIT_SPACING_MAX,
                     Math.max(SPLIT_SPACING_MIN, this.tickPeriod + margin));
             }
-            async sendNick(oK) {
+            async sendNick(nick) {
                 // Spawning supersedes any spectate still waiting on verification
                 this.spectatePending = false;
                 await this.verify();
                 if (this.skin != '') {
-                    this.send(new packet.Name('<' + this.skin + '>' + oK));
+                    this.send(new packet.Name('<' + this.skin + '>' + nick));
                 } else {
-                    this.send(new packet.Name(oK));
+                    this.send(new packet.Name(nick));
                 }
             }
-            sendParty(oL, oM) {
-                this.send(new packet.Party(oL,oM));
+            sendParty(action, code) {
+                this.send(new packet.Party(action,code));
             }
             setSkin(value) {
                 if (value == '' || value == 'None') {
@@ -3693,12 +3693,12 @@ function modules(ks) {
                     this.flushingSpectate = false;
                 }
             }
-            sendMouse(oO) {
+            sendMouse(position) {
                 if (!this.game.freeze && this.game.inGame)
-                    this.send(new packet.Mouse(oO.x,oO.y));
+                    this.send(new packet.Mouse(position.x,position.y));
             }
-            sendChat(oP, oQ) {
-                this.send(new packet.Chat(oP,oQ));
+            sendChat(message, channel) {
+                this.send(new packet.Chat(message,channel));
             }
             /**
              *  Resolves once the server has acknowledged verification (handleRestart), or as
@@ -3811,8 +3811,8 @@ function modules(ks) {
                     'sitekey': '6LfRVZ8UAAAAAEgD_Zaf5L8XItSFUqsFjOXfVBlT',
                     'size': 'invisible',
                     'theme': 'dark',
-                    'callback': oU => {
-                        this.token = oU;
+                    'callback': token => {
+                        this.token = token;
                         this.sendVerification();
                         grecaptcha.reset(this.captchaId);
                     }
@@ -3866,8 +3866,8 @@ function modules(ks) {
                 }
                 this.moreServers();
             }
-            sendUUID(oV) {
-                this.send(new packet.Login(oV));
+            sendUUID(uuid) {
+                this.send(new packet.Login(uuid));
             }
             sendLocked() {
                 const now = Date.now() / 1000;
@@ -3876,56 +3876,56 @@ function modules(ks) {
                     this.send(new packet.Login('locked-' + this.game.settings.getItem('lockedColor') + '-' + this.game.settings.getItem('lockedPosition')));
                 }
             }
-            onMessage(oX) {
-                let oY = new reader(oX.data);
-                let oZ = oY.readUInt8();
-                switch (oZ) {
+            onMessage(event) {
+                let buffer = new reader(event.data);
+                let opcode = buffer.readUInt8();
+                switch (opcode) {
                     case 16:
-                        this.handleNodes(oY);
+                        this.handleNodes(buffer);
                         break;
                     case 0x12:
                     case 20:
                         this.handleClear();
                         break;
                     case 32:
-                        this.handleAddNode(oY);
+                        this.handleAddNode(buffer);
                         break;
                     case 0x31:
-                        this.handleLeaderboardFFA(oY);
+                        this.handleLeaderboardFFA(buffer);
                         break;
                     case 0x32:
-                        this.handleLeaderboardText(oY);
+                        this.handleLeaderboardText(buffer);
                         break;
                     case 0x41:
-                        this.handleBorder(oY);
+                        this.handleBorder(buffer);
                         break;
                     case 0x55:
-                        this.handlePartyCode(oY);
+                        this.handlePartyCode(buffer);
                         break;
                     case 0x56:
-                        this.handleChat(oY);
+                        this.handleChat(buffer);
                         break;
                     case 0x57:
-                        this.handleParty(oY);
+                        this.handleParty(buffer);
                         break;
                     case 0x58:
-                        this.handleLevel(oY);
+                        this.handleLevel(buffer);
                         break;
                     case 100:
                         this.handlePong();
                         break;
                     case 0x77:
-                        this.handleRadius(oY);
+                        this.handleRadius(buffer);
                         break;
                     case 0xfe:
-                        this.handleRestart(oY);
+                        this.handleRestart(buffer);
                         break;
                 }
             }
 
-            onClose(p0) {
+            onClose(event) {
                 $('#resetCenter').hide();
-                this.game.log('Connection Closed! ' + (p0.reason ? p0.reason : ''));
+                this.game.log('Connection Closed! ' + (event.reason ? event.reason : ''));
 
                 // Spectating survives the socket: the player never asked to stop, so the
                 // screen is left alone and onOpen re-asserts it.
@@ -3943,17 +3943,17 @@ function modules(ks) {
                 if (this.reconnect) {
                     clearTimeout(this.reconnect);
                 }
-                if (p0.reason == 'No Slots') {
+                if (event.reason == 'No Slots') {
                     this.reconnectAttempts = 0;
                     return this.connect(this.mode);
                 }
-                const p1 = Math.min(this.baseReconnectDelay * Math.pow(this.reconnectMultiplier, this.reconnectAttempts), this.maxReconnectDelay);
-                this.game.log('Reconnecting in ' + (p1 / 1000).toFixed(1) + 's...');
+                const delay = Math.min(this.baseReconnectDelay * Math.pow(this.reconnectMultiplier, this.reconnectAttempts), this.maxReconnectDelay);
+                this.game.log('Reconnecting in ' + (delay / 1000).toFixed(1) + 's...');
                 this.reconnectAttempts++;
                 this.reconnect = setTimeout( () => {
                     this.connect(this.server, true);
                 }
-                , p1);
+                , delay);
             }
 
             handleLevel(reader) {
@@ -3964,24 +3964,24 @@ function modules(ks) {
             }
 
             handlePong() {
-                var p4 = Date.now();
-                var p5 = p4 - this.ping;
-                this.game.ping = p5;
+                var now = Date.now();
+                var rtt = now - this.ping;
+                this.game.ping = rtt;
             }
 
-            handlePartyCode(p6) {
-                var p7 = p6.readStringZeroUtf8();
-                if (p7 == 'invalid') {
+            handlePartyCode(reader) {
+                var code = reader.readStringZeroUtf8();
+                if (code == 'invalid') {
                     return this.game.exitParty();
                 }
                 this.game.inParty = true;
-                this.game.partyCodeJoined = p7;
+                this.game.partyCodeJoined = code;
                 // The server has confirmed this tab is in, so the other tabs can follow it in -
                 // see announcePartyCode()
-                this.game.announcePartyCode(p7);
+                this.game.announcePartyCode(code);
                 this.game.syncPartyUI();
-                window.location.hash = p7;
-                $('#partyCopyCode').val('germs.io/' + p7);
+                window.location.hash = code;
+                $('#partyCopyCode').val('germs.io/' + code);
                 $('.partyCreate').hide();
                 $('#partyFind').hide();
                 $('#partyJoin').hide();
@@ -3989,42 +3989,42 @@ function modules(ks) {
                 $('.partyCard').addClass('partyGlow');
             }
 
-            handleParty(p8) {
-                let p9 = p8.readUInt16();
-                let pa = {};
-                for (let pb = 0; pb < p9; pb++) {
-                    let pc = p8.readUInt32();
-                    let pd = p8.readStringZeroUtf8();
-                    let pe = p8.readUInt8()
-                      , pf = p8.readUInt8()
-                      , pg = p8.readUInt8();
-                    let ph = '#' + ((1 << 0x18) + (pe << 16) + (pf << 8) + pg).toString(16).slice(1);
-                    let pi = p8.readInt32();
-                    let pj = p8.readInt32();
-                    let pk = p8.readInt32();
-                    var pl;
-                    if (this.game.party && this.game.party.hasOwnProperty(pc)) {
-                        pl = this.game.party[pc];
-                        pl.targetX = pj;
-                        pl.targetY = pk;
+            handleParty(reader) {
+                let count = reader.readUInt16();
+                let party = {};
+                for (let i = 0; i < count; i++) {
+                    let id = reader.readUInt32();
+                    let name = reader.readStringZeroUtf8();
+                    let r = reader.readUInt8()
+                      , g = reader.readUInt8()
+                      , b = reader.readUInt8();
+                    let color = '#' + ((1 << 0x18) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                    let mass = reader.readInt32();
+                    let x = reader.readInt32();
+                    let y = reader.readInt32();
+                    var member;
+                    if (this.game.party && this.game.party.hasOwnProperty(id)) {
+                        member = this.game.party[id];
+                        member.targetX = x;
+                        member.targetY = y;
                     } else {
-                        pl = new PartyMember(this.game,pc,pi,pj,pk,pd);
+                        member = new PartyMember(this.game,id,mass,x,y,name);
                     }
-                    pl.color = ph;
-                    pl.name = pd;
-                    pl.mass = pi;
-                    pl.updateTime = performance.now();
-                    pl.updatePos();
-                    pa[pc] = pl;
+                    member.color = color;
+                    member.name = name;
+                    member.mass = mass;
+                    member.updateTime = performance.now();
+                    member.updatePos();
+                    party[id] = member;
                 }
-                this.game.party = pa;
+                this.game.party = party;
             }
 
-            handleAddNode(po) {
+            handleAddNode(reader) {
                 if (this.game.myCells.size == 0) {
                     this.game.startTime = Date.now();
                 }
-                const id = po.readUInt32();
+                const id = reader.readUInt32();
                 this.game.myCells.add(id); // id of node owned by player
 
                 if (this.game.nodes.has(id)) {
@@ -4201,9 +4201,9 @@ function modules(ks) {
 
             }
 
-            handleBorder(pW) {
-                this.game.setBorder(pW.readDouble(), pW.readDouble(), pW.readDouble(), pW.readDouble());
-                this.game.myID = pW.readUInt32();
+            handleBorder(reader) {
+                this.game.setBorder(reader.readDouble(), reader.readDouble(), reader.readDouble(), reader.readDouble());
+                this.game.myID = reader.readUInt32();
             }
             handleLeaderboardText(reader) {
                 const amount = reader.readUInt16();
@@ -4261,21 +4261,21 @@ function modules(ks) {
                 this.game.chat.onMessage(sender, color, message, parent, channel);
             }
 
-            findMode(qi) {
-                for (var qj in this.modes) {
-                    var qk = this.modes[qj];
-                    var ql = qk.servers.find(qm => qm.name == qi);
-                    var qn = qk.max;
-                    if (ql) {
-                        return [qj, ql];
+            findMode(name) {
+                for (var mode in this.modes) {
+                    var info = this.modes[mode];
+                    var server = info.servers.find(s => s.name == name);
+                    var max = info.max;
+                    if (server) {
+                        return [mode, server];
                     } else {
-                        if (qj == qi) {
-                            for (var qo = 0; qo < qk.servers.length; qo++) {
-                                var qp = qk.servers[qo];
-                                if (qp.count >= qn - 5) {
+                        if (mode == name) {
+                            for (var i = 0; i < info.servers.length; i++) {
+                                var candidate = info.servers[i];
+                                if (candidate.count >= max - 5) {
                                     continue;
                                 }
-                                return [qj, qp];
+                                return [mode, candidate];
                             }
                         }
                     }
@@ -4284,10 +4284,10 @@ function modules(ks) {
 
             refresh() {
                 if (this.open && !this.game.inGame) {
-                    $.getJSON('php/Servers.php?region=' + this.region, qq => {
-                        this.domain = qq.ip;
-                        this.region = qq.region;
-                        this.modes = qq.modes;
+                    $.getJSON('php/Servers.php?region=' + this.region, data => {
+                        this.domain = data.ip;
+                        this.region = data.region;
+                        this.modes = data.modes;
                         $('#region' + this.region).removeClass('btn-secondary').addClass('btn-primary');
                         this.game.setModes(this.modes);
                         $('#gamemodes > .gm.active').removeClass('active');
@@ -4301,15 +4301,15 @@ function modules(ks) {
             moreServers() {
                 if (!this.modes || !this.mode)
                     return;
-                var qr = this.modes[this.mode];
-                var qs = qr.servers;
-                if (qs.length > 1) {
-                    let qt = '<div class="tab-pane" role="tabpanel">';
-                    for (let qu = 0; qu < qs.length; qu++) {
-                        qt += `<button type="button" onclick="connect('` + qs[qu].name + `');" class="btn btn-primary btn btn-block">\n                            <b>` + qs[qu].name + '</b> (' + qs[qu].count + '/' + qr.max + ')\n                        </button>';
+                var info = this.modes[this.mode];
+                var servers = info.servers;
+                if (servers.length > 1) {
+                    let html = '<div class="tab-pane" role="tabpanel">';
+                    for (let i = 0; i < servers.length; i++) {
+                        html += `<button type="button" onclick="connect('` + servers[i].name + `');" class="btn btn-primary btn btn-block">\n                            <b>` + servers[i].name + '</b> (' + servers[i].count + '/' + info.max + ')\n                        </button>';
                     }
-                    qt += '</div>';
-                    $('#moreServersList').html(qt);
+                    html += '</div>';
+                    $('#moreServersList').html(html);
                     $('#moreServers').off('click').on('click', this.toggleMoreServers.bind(this));
                     $('#moreServers').show();
                 } else {
@@ -4330,23 +4330,23 @@ function modules(ks) {
                     $('#moreServersList').show();
                 }
             }
-            fetchServers(qv) {
+            fetchServers(region) {
                 this.searching = true;
                 $('#regionNA, #regionEU, #regionAS, #regionTest').removeClass('btn-primary').addClass('btn-secondary');
-                $.getJSON('php/Servers.php' + (qv ? '?region=' + qv : ''), qw => {
-                    this.domain = qw.ip;
-                    this.region = qw.region;
-                    this.modes = qw.modes;
+                $.getJSON('php/Servers.php' + (region ? '?region=' + region : ''), data => {
+                    this.domain = data.ip;
+                    this.region = data.region;
+                    this.modes = data.modes;
                     $('#region' + this.region).removeClass('btn-secondary').addClass('btn-primary');
                     this.game.setRegion(this.region);
                     this.game.setModes(this.modes);
                     if (this.mode) {
                         this.connect(this.mode, true);
                     } else {
-                        for (var qx in this.modes) {
-                            var qy = this.modes[qx];
-                            if (qy.default == true) {
-                                this.connect(qx, true);
+                        for (var mode in this.modes) {
+                            var info = this.modes[mode];
+                            if (info.default == true) {
+                                this.connect(mode, true);
                             }
                         }
                     }

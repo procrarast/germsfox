@@ -344,6 +344,21 @@ function renderUpdateNotice() {
     overlay.classList.add("germsfoxUpdateVisible");
 }
 
+/**
+ *  A random cell colour the way Ogar picks one for a player: one channel full, one nearly off,
+ *  one anywhere, in a shuffled order. This is what "Random" shows in the cell preview - the
+ *  server rolls its own at spawn, so it is a preview of the kind of colour you will get rather
+ *  than the exact one.
+ */
+function ogarRandomColor() {
+    const colorRGB = [0xFF, 0x07, (Math.random() * 256) >> 0];
+    colorRGB.sort(() => 0.5 - Math.random());
+    return `rgb(${colorRGB[0]}, ${colorRGB[2]}, ${colorRGB[1]})`;
+}
+
+// Rolled once a page, and again on every click of the Random button
+let randomPreviewColor = ogarRandomColor();
+
 function renderGameMenu() {
 
     const spectateIcon = document.getElementById("spectate").querySelector("i");
@@ -435,11 +450,11 @@ async function renderCellPreviewCard() {
                 const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setColor);
                 if (cellColor && match) {
                     // Set preview color to your skin
-                    cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                    setPreviewColor(cellColorList[match[0]][1]);
                 } else {
                     // If not, set preview color to your set color
                     //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                    cellColor.style.backgroundColor = settings.setColor === "None" ? "rgb(200,200,200)" : cellColorList[settings.setColor][1];
+                    setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
                 }
             }
             return; // Continue with default deleteButton behavior
@@ -492,12 +507,12 @@ async function renderCellPreviewCard() {
                     const match = Object.entries(cellColorList).find(([_, val]) => val[0] === completeSrc.slice(18, -4));
                     if (match) {
                         // Set preview color to your skin
-                        cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                        setPreviewColor(cellColorList[match[0]][1]);
                     } else {
                         // If not, set preview color to your set color
                         //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
                         console.debug(settings.setColor);
-                        cellColor.style.backgroundColor = settings.setColor === "None" ? "rgb(200,200,200)" : cellColorList[settings.setColor][1];
+                        setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
                     }
 
                     skinsCard.style.display = 'none';
@@ -535,6 +550,16 @@ async function renderCellPreviewCard() {
     // Cell preview
     const cellColor = document.createElement("div");
     cellColor.id = "cellColor";
+
+    /**
+     *  The one place the preview's colour is set. Also published as --germsfoxCellColor, which
+     *  the skins menu draws its skin rings in - see style.css - so the rings always match the
+     *  cell you are looking at, whether that is your own colour, a random roll or a skin's.
+     */
+    function setPreviewColor(color) {
+        cellColor.style.backgroundColor = color;
+        document.documentElement.style.setProperty("--germsfoxCellColor", color);
+    }
 
     const cellSkin = document.createElement("img");
     cellSkin.id = "cellSkin";
@@ -648,16 +673,18 @@ async function renderCellPreviewCard() {
         randomColorButton.style.color = "rgba(0, 0, 0, 0.5)";
         randomColorButton.onclick = () => {
             console.debug("Set color to none");
+            // A new roll every click, just for the fun of watching it change
+            randomPreviewColor = ogarRandomColor();
             setSkin(settings.setSkin); // perhaps heavy handed? what condition would prevent duplicate setSkin calls
             // Would the skin you have on override your cell color?
             const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
             if (match) {
                 // Set color to your skin
-                cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                setPreviewColor(cellColorList[match[0]][1]);
             } else {
                 // If not, set color to gray
                 //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                cellColor.style.backgroundColor = "rgb(200,200,200)";
+                setPreviewColor(randomPreviewColor);
             }
             setSetting('setColor', 'None');
         };
@@ -684,11 +711,11 @@ async function renderCellPreviewCard() {
                     const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
                     if (match) {
                         // Set color to your skin
-                        cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                        setPreviewColor(cellColorList[match[0]][1]);
                     } else {
                         // If not, set color to gray
                         //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                        cellColor.style.backgroundColor = "rgb(200,200,200)";
+                        setPreviewColor(randomPreviewColor);
                     }
                     setSetting('setColor', 'None');
                 }
@@ -708,11 +735,11 @@ async function renderCellPreviewCard() {
                 const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
                 if (match) {
                     // Set color to your skin
-                    cellColor.style.backgroundColor = cellColorList[match[0]][1];
+                    setPreviewColor(cellColorList[match[0]][1]);
                 } else {
                     // If not, set color to your color
                     //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                    cellColor.style.backgroundColor = cellColorList[key][1];
+                    setPreviewColor(cellColorList[key][1]);
                 }
                 setSetting('setColor', key);
             };
@@ -785,11 +812,11 @@ async function renderCellPreviewCard() {
         const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));
         if (match) { //match[0] is the key, if it finds it within the colors constant
             // Set color to your skin
-            cellColor.style.backgroundColor = cellColorList[match[0]][1];
+            setPreviewColor(cellColorList[match[0]][1]);
         } else {
             // If not, set color to your color
             //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-            cellColor.style.backgroundColor = settings.setColor === "None" ? "rgb(200,200,200)" : cellColorList[settings.setColor][1];
+            setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
         }
         
         // Color picker

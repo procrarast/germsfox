@@ -996,6 +996,13 @@ input:focus + .slider.danger {
 #customSkinList {
     display: table;
 }
+
+/* Skin rings in the skins menu take the cell preview's colour - see setPreviewColor() in
+ * dom.js. The #skinContainer prefix outranks germs' own `ul.skinList li img` white border,
+ * which wins a tie against extension CSS in Chrome. */
+#skinContainer ul.skinList li img {
+    border-color: var(--germsfoxCellColor, #fff);
+}
 #nick::-webkit-scrollbar {
     width: 5px;
     background-color: transparent;

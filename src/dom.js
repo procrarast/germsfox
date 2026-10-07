@@ -359,6 +359,17 @@ function ogarRandomColor() {
 // Rolled once a page, and again on every click of the Random button
 let randomPreviewColor = ogarRandomColor();
 
+/**
+ *  The one place the cell preview's colour is set. Also published as --germsfoxCellColor, which
+ *  the skins menu draws its skin rings in - see style.css - so the rings always match the cell
+ *  you are looking at, whether that is your own colour, a random roll or a skin's.
+ */
+function setPreviewColor(color) {
+    const cellColor = document.getElementById("cellColor");
+    if (cellColor) cellColor.style.backgroundColor = color;
+    document.documentElement.style.setProperty("--germsfoxCellColor", color);
+}
+
 function renderGameMenu() {
 
     const spectateIcon = document.getElementById("spectate").querySelector("i");
@@ -550,16 +561,6 @@ async function renderCellPreviewCard() {
     // Cell preview
     const cellColor = document.createElement("div");
     cellColor.id = "cellColor";
-
-    /**
-     *  The one place the preview's colour is set. Also published as --germsfoxCellColor, which
-     *  the skins menu draws its skin rings in - see style.css - so the rings always match the
-     *  cell you are looking at, whether that is your own colour, a random roll or a skin's.
-     */
-    function setPreviewColor(color) {
-        cellColor.style.backgroundColor = color;
-        document.documentElement.style.setProperty("--germsfoxCellColor", color);
-    }
 
     const cellSkin = document.createElement("img");
     cellSkin.id = "cellSkin";

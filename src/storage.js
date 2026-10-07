@@ -261,12 +261,7 @@ function deleteAllCustomSkins() {
             setSetting("setSkin", "None");
             document.getElementById("cellSkinButton").style.removeProperty("background-image");
             document.getElementById("cellSkin").style.display = "none";
-            const cellColor = document.getElementById("cellColor");
-            if (settings.setColor !== "None") { // You have a color
-                cellColor.style.backgroundColor = cellColorList[settings.setColor][1];
-            } else { // You have no color
-                cellColor.style.backgroundColor = "rgb(200,200,200)";
-            }
+            setPreviewColor(settings.setColor !== "None" ? cellColorList[settings.setColor][1] : randomPreviewColor);
         } else {
             console.debug("You're not wearing an imgur skin, doing nothing");
         }

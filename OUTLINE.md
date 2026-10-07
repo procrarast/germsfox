@@ -11,7 +11,7 @@ python3 util/outline.py     # after anything that moves code
 ```
 
 <!-- AUTO:STATS -->
-`bundle.js` is **9517** lines and holds **38** classes.
+`bundle.js` is **9527** lines and holds **38** classes.
 <!-- /AUTO:STATS -->
 
 ## Layout
@@ -55,33 +55,33 @@ cannot see its globals; they talk to it over `postMessage` through `bridge.js`.
 | `NameCache`             | 2048-2091 | 44   | `TextureCache`         | Name-label textures, keyed by name + parent                                     |
 | `SkinCache`             | 2137-2176 | 40   | `TextureCache`         | Skin resources; get() returns a SkinResource, not a texture                     |
 | `SkinResource`          | 2247-2298 | 52   | -                      | Loads a skin, clips it to a disc, classifies whether it is opaque               |
-| `Renderer`              | 2530-3016 | 487  | -                      | Base per-node display object: cull, interpolate, fade corpses, pool             |
-| `SpriteRenderer`        | 3023-3126 | 104  | `Renderer`             | Sprite-backed renderer; body texture, skin sprite, rim swap                     |
-| `PlayerSpriteRenderer`  | 3132-3152 | 21   | `SpriteRenderer`       | Adds name and skin handling on top of SpriteRenderer                            |
-| `CellSpriteRenderer`    | 3158-3184 | 27   | `PlayerSpriteRenderer` | Player cells: border, mass label, opacity                                       |
-| `VirusSpriteRenderer`   | 3186-3190 | 5    | `PlayerSpriteRenderer` | Virus texture and size                                                          |
-| `EjectedSpriteRenderer` | 3192-3230 | 39   | `SpriteRenderer`       | Ejected mass: one tinted food-shape sprite, player-themed                       |
-| `PelletRenderer`        | 3254-3348 | 95   | `Renderer`             | Food pellets as particles in pelletLayer; does nothing at rest                  |
-| `Node`                  | 3357-3501 | 145  | -                      | Server state for one entity: position, size, colour, eaten                      |
-| `FoodNode`              | 3511-3534 | 24   | `Node`                 | Food and ejected mass; pellet shape; ejected takes the player theme             |
-| `CellNode`              | 3536-3539 | 4    | `Node`                 | A player cell                                                                   |
-| `VirusNode`             | 3541-3546 | 6    | `Node`                 | A virus                                                                         |
-| `Pool`                  | 3551-3691 | 141  | -                      | Per-type node/renderer recycling, with ceilings and peak tracking               |
-| `PingWriter`            | 3716-3724 | 9    | -                      | Packet: keepalive                                                               |
-| `ProtocolWriter`        | 3725-3735 | 11   | -                      | Packet: protocol + Cloudflare token (verification handshake)                    |
-| `LoginWriter`           | 3736-3745 | 10   | -                      | Packet: account uuid                                                            |
-| `SpectateWriter`        | 3746-3754 | 9    | -                      | Packet: begin spectating                                                        |
-| `NameWriter`            | 3755-3764 | 10   | -                      | Packet: nickname (spawn)                                                        |
-| `ChatWriter`            | 3765-3775 | 11   | -                      | Packet: chat message                                                            |
-| `MouseWriter`           | 3776-3786 | 11   | -                      | Packet: cursor/view position, sent every 40ms                                   |
-| `SplitWriter`           | 3787-3800 | 14   | -                      | Packet: split                                                                   |
-| `EjectWriter`           | 3801-3809 | 9    | -                      | Packet: eject mass                                                              |
-| `PartyWriter`           | 3810-3822 | 13   | -                      | Packet: party create/join/leave                                                 |
-| `BinaryWriter`          | 3834-3911 | 78   | -                      | Builds outgoing packets                                                         |
-| `Network`               | 3932-4789 | 858  | -                      | Socket, verification handshake, every opcode handler, tick measurement          |
-| `Settings`              | 4842-5252 | 411  | -                      | The settings blob, defaults merge, and the side effects each change fans out    |
-| `Login`                 | 5253-5911 | 659  | -                      | Account, XP, shop, skin ownership                                               |
-| `Game`                  | 5913-8751 | 2839 | -                      | Everything else: the frame loop, input, node map, spectate, split keys          |
+| `Renderer`              | 2536-3022 | 487  | -                      | Base per-node display object: cull, interpolate, fade corpses, pool             |
+| `SpriteRenderer`        | 3029-3132 | 104  | `Renderer`             | Sprite-backed renderer; body texture, skin sprite, rim swap                     |
+| `PlayerSpriteRenderer`  | 3138-3158 | 21   | `SpriteRenderer`       | Adds name and skin handling on top of SpriteRenderer                            |
+| `CellSpriteRenderer`    | 3164-3190 | 27   | `PlayerSpriteRenderer` | Player cells: border, mass label, opacity                                       |
+| `VirusSpriteRenderer`   | 3192-3196 | 5    | `PlayerSpriteRenderer` | Virus texture and size                                                          |
+| `EjectedSpriteRenderer` | 3198-3236 | 39   | `SpriteRenderer`       | Ejected mass: one tinted food-shape sprite, player-themed                       |
+| `PelletRenderer`        | 3260-3354 | 95   | `Renderer`             | Food pellets as particles in pelletLayer; does nothing at rest                  |
+| `Node`                  | 3363-3507 | 145  | -                      | Server state for one entity: position, size, colour, eaten                      |
+| `FoodNode`              | 3517-3540 | 24   | `Node`                 | Food and ejected mass; pellet shape; ejected takes the player theme             |
+| `CellNode`              | 3542-3545 | 4    | `Node`                 | A player cell                                                                   |
+| `VirusNode`             | 3547-3552 | 6    | `Node`                 | A virus                                                                         |
+| `Pool`                  | 3557-3697 | 141  | -                      | Per-type node/renderer recycling, with ceilings and peak tracking               |
+| `PingWriter`            | 3722-3730 | 9    | -                      | Packet: keepalive                                                               |
+| `ProtocolWriter`        | 3731-3741 | 11   | -                      | Packet: protocol + Cloudflare token (verification handshake)                    |
+| `LoginWriter`           | 3742-3751 | 10   | -                      | Packet: account uuid                                                            |
+| `SpectateWriter`        | 3752-3760 | 9    | -                      | Packet: begin spectating                                                        |
+| `NameWriter`            | 3761-3770 | 10   | -                      | Packet: nickname (spawn)                                                        |
+| `ChatWriter`            | 3771-3781 | 11   | -                      | Packet: chat message                                                            |
+| `MouseWriter`           | 3782-3792 | 11   | -                      | Packet: cursor/view position, sent every 40ms                                   |
+| `SplitWriter`           | 3793-3806 | 14   | -                      | Packet: split                                                                   |
+| `EjectWriter`           | 3807-3815 | 9    | -                      | Packet: eject mass                                                              |
+| `PartyWriter`           | 3816-3828 | 13   | -                      | Packet: party create/join/leave                                                 |
+| `BinaryWriter`          | 3840-3917 | 78   | -                      | Builds outgoing packets                                                         |
+| `Network`               | 3938-4795 | 858  | -                      | Socket, verification handshake, every opcode handler, tick measurement          |
+| `Settings`              | 4848-5258 | 411  | -                      | The settings blob, defaults merge, and the side effects each change fans out    |
+| `Login`                 | 5259-5917 | 659  | -                      | Account, XP, shop, skin ownership                                               |
+| `Game`                  | 5919-8761 | 2843 | -                      | Everything else: the frame loop, input, node map, spectate, split keys          |
 <!-- /AUTO:CLASSES -->
 
 ## The frame
@@ -299,17 +299,17 @@ Things that have cost real debugging time here:
 | `PARKED_Z_INDEX`              | 2412 | `-1e9`                                           |
 | `CELL_COMPACT_THRESHOLD`      | 2422 | `384`                                            |
 | `LINESPLIT_RING_TEXTURE_SIZE` | 2490 | `256`                                            |
-| `LINESPLIT_RING_THICKNESS`    | 2491 | `0.03;  // of the texture's width`               |
-| `LINESPLIT_RING_SCALE`        | 2492 | `1.08;      // outer edge, as a multiple of ...` |
-| `PELLET_KIND`                 | 3549 | `'pellet'`                                       |
-| `WRITER_CHUNK`                | 3832 | `1024`                                           |
-| `DISPLAY_PREFERENCES`         | 4812 | `['all', 'party', 'self', 'none']`               |
-| `PARTY_ARROW_SIZE`            | 4821 | `52;      // on-screen pixels along the arro...` |
-| `PARTY_ARROW_MARGIN`          | 4822 | `34;    // how far the tip sits in from the ...` |
-| `PARTY_ARROW_ALPHA`           | 4823 | `0.85`                                           |
-| `PARTY_ARROW_HYSTERESIS`      | 4831 | `8`                                              |
-| `SETTINGS_NOT_SYNCED`         | 4833 | `new Set([`                                      |
-| `GERMSFOX_BRIDGE_CALLABLE`    | 8922 | `{`                                              |
+| `LINESPLIT_RING_THICKNESS`    | 2497 | `10.5 / 512;  // of the texture's width`         |
+| `LINESPLIT_RING_SCALE`        | 2498 | `255 / 256;       // outer edge, as a multip...` |
+| `PELLET_KIND`                 | 3555 | `'pellet'`                                       |
+| `WRITER_CHUNK`                | 3838 | `1024`                                           |
+| `DISPLAY_PREFERENCES`         | 4818 | `['all', 'party', 'self', 'none']`               |
+| `PARTY_ARROW_SIZE`            | 4827 | `52;      // on-screen pixels along the arro...` |
+| `PARTY_ARROW_MARGIN`          | 4828 | `34;    // how far the tip sits in from the ...` |
+| `PARTY_ARROW_ALPHA`           | 4829 | `0.85`                                           |
+| `PARTY_ARROW_HYSTERESIS`      | 4837 | `8`                                              |
+| `SETTINGS_NOT_SYNCED`         | 4839 | `new Set([`                                      |
+| `GERMSFOX_BRIDGE_CALLABLE`    | 8932 | `{`                                              |
 <!-- /AUTO:CONSTANTS -->
 
 ## Protocol

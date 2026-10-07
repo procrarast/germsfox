@@ -1573,7 +1573,8 @@ ul.skinList.germsfoxGroupSkins {
 .germsfoxSkinFileButton {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    /* Before the card's scale, which takes about a quarter off */
+    gap: 10px;
 }
 
 /* Germsfox's keybinds at the end of germs' Controls pane - see renderControlsTabPane() */

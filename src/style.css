@@ -993,9 +993,6 @@ input:focus + .slider.danger {
     cursor: pointer;
     transform: scale(1.1);
 }
-#customSkin {
-    display: table;
-}
 #customSkinList {
     display: table;
 }

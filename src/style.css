@@ -1548,7 +1548,7 @@ ul.skinList.germsfoxGroupSkins {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    gap: 8px;
+    gap: 24px;
 }
 /* germs centres the input group with auto margins, which a flex row would otherwise honour
  * by pushing the buttons to the far edge */

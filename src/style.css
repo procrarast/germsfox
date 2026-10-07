@@ -973,6 +973,9 @@ textarea {
     border-color: color-mix(in srgb, var(--germsfoxCellColor, #fff) 80%, black);
     /* Thinner than germs' 5px, and the same as a group's border */
     border-width: 4px;
+    /* germs paints white behind every skin, which filled in the see-through parts of skins
+     * with transparent backgrounds */
+    background-color: transparent;
 }
 #nick::-webkit-scrollbar {
     width: 5px;
@@ -1398,7 +1401,26 @@ ul.skinList li p.germsfoxGroupName {
     border-radius: 14px;
     background-color: rgb(52, 58, 64);
     box-shadow: rgba(0, 0, 0, 0.45) 0 0 18px 2px;
-    scrollbar-width: thin;
+}
+/* The green pill the skins list scrolls with (germs' #skinContainer). No scrollbar-width or
+ * scrollbar-color on the panel itself: setting either makes Chrome ignore these */
+.germsfoxGroupPanel::-webkit-scrollbar {
+    width: 12px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+.germsfoxGroupPanel::-webkit-scrollbar-thumb {
+    background-color: rgb(46, 204, 113);
+    border-radius: 6px;
+}
+.germsfoxGroupPanel::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+/* Firefox has no ::-webkit-scrollbar, so it gets the colour this way instead */
+@supports not selector(::-webkit-scrollbar) {
+    .germsfoxGroupPanel {
+        scrollbar-color: rgb(46, 204, 113) transparent;
+    }
 }
 .germsfoxGroupHeader {
     display: flex;

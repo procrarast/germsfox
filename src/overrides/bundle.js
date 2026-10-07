@@ -6958,8 +6958,17 @@ function modules(ks) {
             }
 
             setSkin(skin) {
+                skin = String(skin ?? '').trim();
                 if (skin === '') return;
                 if (skin.includes('imgur')) {
+                    /**
+                     *  Whitespace stripped the way tryAddingSkin() strips it before saving the
+                     *  link to the custom skins list. A pasted link often carries a stray space
+                     *  or newline, and Apply used to save the clean link to the list while this
+                     *  kept and sent the dirty one, and the skin silently never appeared. Free
+                     *  skin names have spaces inside them, so only links are stripped.
+                     */
+                    skin = skin.replace(/\s/g, '');
                     if (skin.includes('i.imgur.com/')) {
                         hideSkins();
                         hideShop();

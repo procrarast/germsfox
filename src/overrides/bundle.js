@@ -1125,17 +1125,6 @@ function modules(ks) {
         const SPLIT_QUEUE_MAX = 8;
 
         /**
-         *  Holding a macro key keeps splitting once it has been held this long - see
-         *  startHeldSplit(). Roughly where an OS key repeat used to start it, which is what
-         *  drove this before, so the feel is the same without depending on each player's
-         *  keyboard settings.
-         */
-        const HELD_SPLIT_DELAY = 400;
-
-        // How often a held key checks whether the last split it asked for has gone out
-        const HELD_SPLIT_POLL = 10;
-
-        /**
          *  Packets per tick in a blanketed run - the 16x key, or any run bound for the cell cap.
          *
          *  Speed there matters more than the count, and waiting on confirmations costs about
@@ -7514,11 +7503,18 @@ function modules(ks) {
                     case this.controls.Double[0]:
                     case this.controls.Triple[0]:
                     case this.controls['16x'][0]: {
-                        // Holding is on a timer of its own - see startHeldSplit()
-                        if (event.repeat) return;
                         this.splitPending = false;
-                        this.startHeldSplit(event.keyCode);
-
+                        // Held keys repeat as plain single splits rather than restarting the
+                        // macro, which is what these did before and what leaning on the key
+                        // should do
+                        if (event.repeat) {
+                            if (this.settings.settings.oldSplitMacros) {
+                                this.network.send(new packet.Split());
+                            } else {
+                                this.splits.queue(1);
+                            }
+                            return;
+                        }
                         const count = event.keyCode === this.controls.Double[0] ? 2
                                     : event.keyCode === this.controls.Triple[0] ? 3
                                     : 4;
@@ -7599,53 +7595,6 @@ function modules(ks) {
                 if (event.keyCode === this.controls.Feed[0]) {
                     this.stopFeeding();
                 }
-                if (event.keyCode === this.heldSplitKey) {
-                    this.stopHeldSplit();
-                }
-            }
-
-            /**
-             *  Keeps a held macro key splitting, as plain single splits, once it has been held
-             *  for HELD_SPLIT_DELAY - leaning on the key should keep going, and people asked
-             *  for it back when it went.
-             *
-             *  This used to ride the OS key repeat, queueing a split per repeat. That repeats
-             *  about thirty times a second while a lone split waits for its confirmation, so
-             *  the queue filled to SPLIT_QUEUE_MAX within a quarter of a second and went on
-             *  splitting for up to eight more after the key was let go. Topping the queue up
-             *  only once it is empty splits just as fast while held - each split still goes
-             *  the moment the one before is confirmed - and stops when the key comes up.
-             *
-             *  Old Split Macros has no queue to watch, so there it sends a split a tick.
-             */
-            startHeldSplit(keyCode) {
-                this.stopHeldSplit();
-                this.heldSplitKey = keyCode;
-
-                this.heldSplitTimer = setTimeout(() => {
-                    const legacy = this.settings.settings.oldSplitMacros;
-                    this.heldSplitTimer = setInterval(() => {
-                        // Dead or between lives: a split now would go out into the next one
-                        if (!this.aliveCell) return;
-                        if (legacy) {
-                            this.network.send(new packet.Split());
-                        } else if (this.splits.queued === 0) {
-                            this.splits.queue(1);
-                        }
-                    }, legacy ? this.network.tickPeriod : HELD_SPLIT_POLL);
-                }, HELD_SPLIT_DELAY);
-            }
-
-            /**
-             *  Unlike feeding, a hold also ends when the window loses focus: the key-up goes to
-             *  whatever has focus instead, and without this the cells would keep splitting
-             *  until the key was pressed and released again back here.
-             */
-            stopHeldSplit() {
-                // Timeouts and intervals share one id space, so either clear stops either
-                clearTimeout(this.heldSplitTimer);
-                this.heldSplitTimer = null;
-                this.heldSplitKey = null;
             }
 
             // Paced off the measured tick rather than a fixed 20ms, which was only right
@@ -9285,7 +9234,6 @@ function modules(ks) {
 
             window.onkeydown = instance.onKeyDown.bind(instance);
             window.onkeyup = instance.onKeyUp.bind(instance);
-            window.addEventListener('blur', () => instance.stopHeldSplit());
             var vz = document.getElementById('game');
             vz.onmousedown = instance.onMouseDown.bind(instance);
             vz.oncontextmenu = instance.onContextMenu.bind(instance);

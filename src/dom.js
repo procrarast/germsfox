@@ -172,7 +172,8 @@ function renderDailyLeaderboardPanel() {
 }
 
 /**
- *  Appends text to an element, turning `backtick`-delimited spans into <code>.
+ *  Appends text to an element, turning `backtick`-delimited spans into <code> and bare
+ *  http(s) URLs into links that open in a new tab.
  *
  *  Assembled from text nodes and elements rather than innerHTML for the same reason the title
  *  is: nothing the copy says can turn into markup. An odd number of backticks leaves the
@@ -182,7 +183,7 @@ function renderDailyLeaderboardPanel() {
 function appendUpdateText(parent, text) {
     text.split("`").forEach((chunk, index) => {
         if (index % 2 === 0) {
-            if (chunk) parent.append(chunk);
+            if (chunk) appendLinkedText(parent, chunk);
             return;
         }
 
@@ -191,6 +192,29 @@ function appendUpdateText(parent, text) {
         code.textContent = chunk;
         parent.append(code);
     });
+}
+
+/**
+ *  Appends plain text with any URL in it made into a link. A URL ends at whitespace, and
+ *  trailing punctuation is left out of it, so the full stop after one at the end of a
+ *  sentence stays text instead of breaking the link.
+ */
+function appendLinkedText(parent, text) {
+    const url = /https?:\/\/\S*[^\s.,!?;:)]/g;
+    let last = 0;
+    for (const match of text.matchAll(url)) {
+        if (match.index > last) parent.append(text.slice(last, match.index));
+
+        const link = document.createElement("a");
+        link.href = match[0];
+        link.textContent = match[0];
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        parent.append(link);
+
+        last = match.index + match[0].length;
+    }
+    if (last < text.length) parent.append(text.slice(last));
 }
 
 /**
@@ -240,7 +264,15 @@ function renderUpdateNotice() {
 
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
-    appendUpdateText(body, "You can now enable the original game's split macros in Settings->Controls if you find the new ones unpleasant.\n\nPlus, parties have a couple new features: arrows pointing towards offscreen teammates, and you can spectate party members by pressing Q, and change the spectated player by pressing your split button. Sorry if the new keybinds break your controls, please just re-set them.\n\nLastly, if you've been getting black screens for the past months, I found a root cause and you should no longer be randomly crashing every ~2 hours.\n\nThank you for balling.");
+    appendUpdateText(body,
+        "Support for Firefox has been restored. You can find the Firefox addon at https://pishi.dev/germsfox.\n\n" +
+        "A linesplitting cell once again has an indicator.\n\n" +
+        "Split macros have once again been slightly tweaked. Holding a macro key keeps splitting, and stops the moment you let go.\n\n" +
+        "Mass now turns yellow, then red, as a cell gets close to autosplitting. You can turn this off with Autosplit Warning in Settings.\n\n" +
+        "While spectating, right-click any player to follow them.\n\n" +
+        "Ejected mass now takes your Player Cells theme colour, and eaten food and mass hop toward whoever ate them.\n\n" +
+        "The game should run noticeably smoother, especially in crowded lobbies and feed modes.\n\n" +
+        "Fixed holding a Germsfox keybind (like N or B) toggling it over and over, and Imgur skins sometimes not applying.\n\n");
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";
@@ -260,6 +292,15 @@ function renderUpdateNotice() {
     content.id = "germsfoxUpdateContent";
     content.className = "tab-content";
     content.append(body, signoff);
+
+    /**
+     *  Long notes scroll inside the panel rather than growing the card past the window, which
+     *  pushed the title and the close button off the top. Measured against the window in the
+     *  card's own units, since the card is scaled up by the transform copied above - like it,
+     *  set once and not following a resize.
+     */
+    const scale = Number(/scale\(([\d.]+)/.exec(card.style.transform)?.[1]) || 1;
+    content.style.maxHeight = `${Math.max(150, window.innerHeight * 0.8 / scale - 90)}px`;
 
     card.append(close, title, content);
     overlay.appendChild(card);

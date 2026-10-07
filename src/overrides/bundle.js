@@ -6376,9 +6376,9 @@ function modules(ks) {
             /**
              *  Marks the cell the linesplit is anchored to with a thin white ring.
              *
-             *  One sprite, kept alongside the cell roots rather than inside one, carrying the
-             *  same zIndex as the cell it marks - so it sorts to that cell's own depth and a
-             *  larger cell passing over covers it, exactly as it covers the cell itself. A
+             *  One sprite, kept alongside the cell roots rather than inside one, sorted just
+             *  above the cell it marks - so it sits at that cell's own depth and a larger cell
+             *  passing over covers it, exactly as it covers the cell itself. A
              *  child of the root would do the same, but roots are pooled, and a ring left on
              *  one would reappear on whatever node claimed it next.
              *
@@ -6422,8 +6422,14 @@ function modules(ks) {
                     2 * cell.renderer.size * LINESPLIT_RING_SCALE / LINESPLIT_RING_TEXTURE_SIZE
                 );
 
-                // Same form as Renderer.tick(), so the ring lands on its cell's own layer
-                const zIndex = (cell.renderer.size | 0) + zOrderTiebreak(cell.id);
+                /**
+                 *  Same form as Renderer.tick(), so the ring lands on its cell's own layer, plus
+                 *  half a tiebreak step to put it on top of that cell. An exact tie left the
+                 *  order to whichever of the two joined the container first, and since the ring
+                 *  lies inside the cell's outline, losing the tie hid it outright. Half a step is
+                 *  still short of the next id tied with this cell, so nothing else moves.
+                 */
+                const zIndex = (cell.renderer.size | 0) + zOrderTiebreak(cell.id) + 0.000005;
                 if (ring.zIndex !== zIndex) ring.zIndex = zIndex;
             }
 

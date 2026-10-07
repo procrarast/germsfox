@@ -7434,13 +7434,21 @@ function modules(ks) {
             repointAliveCell(node) {
                 if (this.aliveCell !== node) return;
 
-                this.aliveCell = null;
+                /**
+                 *  Found first and assigned once. Going through null on the way announced a
+                 *  death and then a spawn to the extension (see the aliveCell setter) every
+                 *  time the tracked cell was eaten or merged away while you stayed alive - and
+                 *  on a "spawn" it re-applies your cell colour through setSkin(), which closes
+                 *  the skins menu. So browsing skins mid-game kept throwing you out of it.
+                 */
+                let next = null;
                 for (const cell of this.playerCells) {
                     if (cell !== node && !cell.eaten) {
-                        this.aliveCell = cell;
+                        next = cell;
                         break;
                     }
                 }
+                this.aliveCell = next;
             }
 
             removeNode(node) {

@@ -574,14 +574,14 @@
     height: auto;
     margin: 0 0 2.5px 1.5px;
 }
-/* Stickers section within the same panel: a two-column grid of square tiles, each sticker
+/* Stickers section within the same panel: a four-column grid of square tiles, each sticker
  * scaled to fit its tile whatever its shape. Prefixed with #germsfoxEmotes because the emote
  * rules above (#germsfoxEmotes ul li) otherwise outrank these - which is what kept sticker
  * tiles at the emotes' 25px, with tall and wide stickers spilling out of them. */
 #germsfoxEmotes #germsfoxStickersList {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
     margin: 2px 4px 4px 3px;
 }
 #germsfoxEmotes #germsfoxStickersList li {

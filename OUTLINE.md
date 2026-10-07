@@ -36,7 +36,7 @@ cannot see its globals; they talk to it over `postMessage` through `bridge.js`.
 | `src/dom.js` | all injected UI - daily leaderboard, settings pane, player menu, emotes, update notice |
 | `src/content.js` | `init()`: loads settings, then calls every `render*` in order |
 | `src/storage.js` | `DEFAULT_SETTINGS`, `getSettings()`, `setSetting()` - `chrome.storage.local` |
-| `src/skinfolders.js` | the custom skins menu: folders, the right-click menu, drag to reorder and group; `customSkins` holds URL strings and `{ name, skins }` folders |
+| `src/skingroups.js` | the custom skins menu: groups, the right-click menu, drag to reorder and group; `customSkins` holds URL strings and `{ name, skins }` groups |
 | `src/background.js` | service worker: skins, leaderboard API, the MAIN-world URL injection |
 | `src/style.css` | styles for everything `dom.js` injects |
 

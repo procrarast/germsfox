@@ -101,7 +101,6 @@ settings = structuredClone(DEFAULT_SETTINGS);
 germsSettings = structuredClone(DEFAULT_GERMS_SETTINGS);
 
 const handlers = {
-    exportSkins,
     storeSkins,
     getSettings,
 };
@@ -273,7 +272,7 @@ function tryAddingSkin(skin) {
     // I just passed my entire storage.js source to my custom skins array and it broke the delete button 
     // and it's impossible to delete without manual intervention
     // Therefore I will be replacing the previous skin.includes("https://i.imgur.com/") condition  
-    // Against every saved skin, folders included - see customSkinUrls() in skinfolders.js
+    // Against every saved skin, groups included - see customSkinUrls() in skingroups.js
     if (/^https:\/\/i\.imgur\.com\/[^/]+$/.test(skin) && !customSkinUrls().includes(skin)) {
         settings.customSkins.unshift(skin);
         chrome.storage.local.set({ "customSkins": settings.customSkins });
@@ -291,19 +290,19 @@ function storeSkins(request) {
 
 /**
  *  Adds a list of skins as an export writes it. Loose skins are URL strings, as in every file
- *  saved before folders existed, and go in one at a time through tryAddingSkin() the way they
- *  always have. Folders - { name, skins } - come in whole, keeping only skins not already
+ *  saved before groups existed, and go in one at a time through tryAddingSkin() the way they
+ *  always have. Groups - { name, skins } - come in whole, keeping only skins not already
  *  saved; one with nothing new left in it is skipped. See normalizeCustomSkins().
  */
 function importCustomSkins(raw) {
     if (!Array.isArray(raw)) return;
     for (const entry of raw) {
-        if (isSkinFolder(entry)) {
-            const [folder] = normalizeCustomSkins([entry], customSkinUrls());
-            if (!folder) continue;
-            settings.customSkins.unshift(folder);
+        if (isSkinGroup(entry)) {
+            const [group] = normalizeCustomSkins([entry], customSkinUrls());
+            if (!group) continue;
+            settings.customSkins.unshift(group);
             saveCustomSkins();
-            console.log(`Imported folder ${folder.name} (${folder.skins.length})`);
+            console.log(`Imported group ${group.name} (${group.skins.length})`);
         } else if (tryAddingSkin(String(entry))) {
             console.log("Imported skin " + entry);
         }
@@ -330,18 +329,6 @@ function importSkinsFromFile(files) {
             console.warn("Invalid file type for", file.name);
         }
     }
-}
-
-function exportSkins() {
-    const stringifiedArray = JSON.stringify(settings.customSkins);
-    const blob = new Blob([stringifiedArray], { type: 'application/json' });
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    chrome.runtime.sendMessage({ // you can't download from content_scripts
-        action: 'download',
-        url: blobUrl,
-        filename: "skins.json"
-    });
 }
 
 function resetBlockRules() {

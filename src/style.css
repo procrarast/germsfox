@@ -1285,19 +1285,19 @@ input:focus + .slider.danger {
     cursor: pointer;
 }
 
-/* ---- custom skin folders - see skinfolders.js ---------------------------------------- */
+/* ---- custom skin groups - see skingroups.js ---------------------------------------- */
 
-/* A folder takes one skin's place - 85px, like a skin image - but as a rounded square with a
+/* A group takes one skin's place - 85px, like a skin image - but as a rounded square with a
  * plain border, so it reads as a container rather than another cell. Holds a 3x3 grid of its
  * first nine skins */
-.germsfoxFolderPreview {
+.germsfoxGroupPreview {
     width: 85px;
     height: 85px;
     box-sizing: border-box;
-    border: 5px solid rgba(255, 255, 255, 0.18);
+    border: 3px solid rgba(255, 255, 255, 0.4);
     border-radius: 16px;
     background-color: rgba(0, 0, 0, 0.35);
-    padding: 6px;
+    padding: 8px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
@@ -1306,25 +1306,25 @@ input:focus + .slider.danger {
     transform: scale(1);
     transition: 0.5s;
 }
-.germsfoxFolderPreview:hover {
+.germsfoxGroupPreview:hover {
     transform: scale(1.1);
     transition: 0.3s;
 }
-.germsfoxFolderTile {
+.germsfoxGroupTile {
     border-radius: 50%;
     background-size: cover;
     background-position: center;
     background-color: rgba(255, 255, 255, 0.15);
 }
 
-/* The name sits under the folder exactly like a skin's name; clicking it renames */
-ul.skinList li p.germsfoxFolderName {
+/* The name sits under the group exactly like a skin's name; clicking it renames */
+ul.skinList li p.germsfoxGroupName {
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
     word-break: break-word;
 }
-.germsfoxFolderRename {
+.germsfoxGroupRename {
     width: 85px;
     padding: 1px 3px;
     border: none;
@@ -1341,7 +1341,7 @@ ul.skinList li p.germsfoxFolderName {
     cursor: grabbing !important;
     user-select: none !important;
 }
-#customSkinList li.germsfoxDragging, .germsfoxFolderSkins li.germsfoxDragging {
+#customSkinList li.germsfoxDragging, .germsfoxGroupSkins li.germsfoxDragging {
     opacity: 0.3;
 }
 #germsfoxSkinGhost {
@@ -1358,15 +1358,15 @@ ul.skinList li p.germsfoxFolderName {
     opacity: 0.9;
     pointer-events: none;
 }
-#germsfoxSkinGhost.germsfoxGhostFolder {
+#germsfoxSkinGhost.germsfoxGhostGroup {
     border: none;
     background: none;
 }
-#germsfoxSkinGhost .germsfoxFolderPreview {
+#germsfoxSkinGhost .germsfoxGroupPreview {
     width: 64px;
     height: 64px;
-    padding: 4px;
-    border-width: 4px;
+    padding: 5px;
+    border-width: 2px;
     border-radius: 12px;
 }
 #germsfoxDropLine {
@@ -1378,7 +1378,7 @@ ul.skinList li p.germsfoxFolderName {
     pointer-events: none;
     box-shadow: 0 0 6px rgba(0, 123, 255, 0.8);
 }
-/* What a drop in the middle of a skin or folder would make, drawn where it would appear */
+/* What a drop in the middle of a skin or group would make, drawn where it would appear */
 #germsfoxMergePreview {
     position: fixed;
     z-index: 1001;
@@ -1387,8 +1387,8 @@ ul.skinList li p.germsfoxFolderName {
     transform: scale(1.08);
 }
 
-/* ---- the folder view ---- */
-#germsfoxFolderView {
+/* ---- the group view ---- */
+#germsfoxGroupView {
     position: absolute;
     left: 0;
     width: 100%;
@@ -1399,10 +1399,10 @@ ul.skinList li p.germsfoxFolderName {
     background-color: rgba(0, 0, 0, 0.55);
     border-radius: 6px;
 }
-#germsfoxFolderView.germsfoxDropOut {
+#germsfoxGroupView.germsfoxDropOut {
     background-color: rgba(0, 123, 255, 0.25);
 }
-.germsfoxFolderPanel {
+.germsfoxGroupPanel {
     width: 86%;
     max-height: 86%;
     overflow-y: auto;
@@ -1412,35 +1412,35 @@ ul.skinList li p.germsfoxFolderName {
     box-shadow: rgba(0, 0, 0, 0.45) 0 0 18px 2px;
     scrollbar-width: thin;
 }
-.germsfoxFolderHeader {
+.germsfoxGroupHeader {
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
     margin-bottom: 4px;
 }
-p.germsfoxFolderTitle {
+p.germsfoxGroupTitle {
     margin: 0;
     font-family: Ubuntu, Roboto, sans-serif;
     font-size: 20px;
     font-weight: 700;
     cursor: pointer;
 }
-.germsfoxFolderTitle .germsfoxFolderRename {
+.germsfoxGroupTitle .germsfoxGroupRename {
     width: 220px;
     font-size: 18px;
 }
-.germsfoxFolderClose {
+.germsfoxGroupClose {
     position: absolute;
     right: 0;
     top: 2px;
     cursor: pointer;
     opacity: 0.7;
 }
-.germsfoxFolderClose:hover {
+.germsfoxGroupClose:hover {
     opacity: 1;
 }
-ul.skinList.germsfoxFolderSkins {
+ul.skinList.germsfoxGroupSkins {
     display: flow-root;
     margin: 0;
 }
@@ -1491,7 +1491,7 @@ ul.skinList.germsfoxFolderSkins {
     margin: 5px 0;
     border-color: rgb(102, 102, 102);
 }
-/* Just the skin (or folder), centred - there is no name to sit beside it */
+/* Just the skin (or group), centred - there is no name to sit beside it */
 #germsfoxSkinMenu > ul li.germsfoxSkinMenuHeader {
     display: flex;
     justify-content: center;
@@ -1507,10 +1507,29 @@ ul.skinList.germsfoxFolderSkins {
     background-size: cover;
     background-position: center;
 }
-.germsfoxSkinMenuIcon.germsfoxFolderPreview {
+/* A group's header: small grid and its name, laid out like #userMenuPlayer */
+#germsfoxSkinMenu > ul li.germsfoxSkinMenuHeader.germsfoxSkinMenuNamed {
+    display: block;
+    padding: 5px;
+}
+.germsfoxSkinMenuNamed .germsfoxSkinMenuIcon.germsfoxGroupPreview {
+    position: absolute;
+    top: 3px;
+    left: 6px;
+    width: 24px;
+    height: 24px;
+    padding: 2px;
+    gap: 1px;
+    border-width: 1px;
+    border-radius: 6px;
+}
+.germsfoxSkinMenuNamed p {
+    color: #fff !important;
+}
+.germsfoxSkinMenuIcon.germsfoxGroupPreview {
     padding: 3px;
     gap: 1px;
-    border: 3px solid rgba(255, 255, 255, 0.18);
+    border: 2px solid rgba(255, 255, 255, 0.4);
     border-radius: 9px;
     background-color: rgba(0, 0, 0, 0.35);
     cursor: default;
@@ -1522,4 +1541,27 @@ ul.skinList.germsfoxFolderSkins {
 }
 .germsfoxSkinMenuDanger i {
     color: #ff6b6b !important;
+}
+
+/* Import and Export beside Apply - see addSkinFileButtons() */
+.germsfoxSkinInputRow {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 8px;
+}
+/* germs centres the input group with auto margins, which a flex row would otherwise honour
+ * by pushing the buttons to the far edge */
+.germsfoxSkinInputRow > .input-group {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+.germsfoxSkinFileButtons {
+    flex: none;
+}
+.germsfoxSkinFileButton {
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }

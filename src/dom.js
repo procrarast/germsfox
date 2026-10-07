@@ -425,9 +425,9 @@ async function renderCellPreviewCard() {
     cellSkinButton.appendChild(cellSkinLabel);
 
     async function skinsListClicked(event) {
-        // Folders, their names and the open folder view handle their own clicks - see
-        // skinfolders.js. A skin image inside the folder view still comes through here, so
-        // picking one there wears it exactly the way picking one outside a folder does.
+        // Groups, their names and the open group view handle their own clicks - see
+        // skingroups.js. A skin image inside the group view still comes through here, so
+        // picking one there wears it exactly the way picking one outside a group does.
         if (event.target.closest("[data-germsfox-click]") && event.target.tagName !== "IMG") return;
 
         if (event.target.innerText === "Apply") {
@@ -1190,34 +1190,6 @@ function createDangerousButton(onClick, labelText, buttonText) {
     return createSettingRow(labelText, button, ROW_BUTTON_STYLE);
 }
 
-function createFileInputButton(onChange, labelText, buttonText) {
-    const fileInput = document.createElement("input");
-    fileInput.id = "skinsInput";
-    fileInput.type = "file";
-    fileInput.accept = "application/json";
-    fileInput.style.display = "none";
-    fileInput.addEventListener("change", (event) => onChange(event.target.files));
-
-    // A label rather than a button, so clicking it opens the hidden file input
-    const button = document.createElement("label");
-    button.htmlFor = "skinsInput";
-    button.classList.add("btn");
-    button.textContent = buttonText;
-
-    return createSettingRow(labelText, [button, fileInput], ROW_BUTTON_STYLE);
-}
-
-function createDownloadButton(labelText, buttonText) {
-    const blob = new Blob([JSON.stringify(settings.customSkins)], { type: 'application/json' });
-
-    const anchor = document.createElement("a");
-    anchor.href = window.URL.createObjectURL(blob);
-    anchor.download = "skins";
-    anchor.append(createRowButton(buttonText));
-
-    return createSettingRow(labelText, anchor, ROW_BUTTON_STYLE);
-}
-
 // Return a div .row with a key (as in "keyboard") tester for settings.key
 function createKeyTester(key, text) {
     const keyTester = document.createElement("input");
@@ -1298,9 +1270,8 @@ function renderGeneralTabPane() {
         panel.style.display = showDailyLeaderboardInput.checked && hasEntries ? "block" : "none";
     });
 
+    // Import and Export live beside the custom skin box now - see addSkinFileButtons()
     const skinsPill = createPill("Custom Skins");
-    const skinsExportButton = createDownloadButton("Export to File", "Export");
-    const skinsImportButton = createFileInputButton(importSkinsFromFile, "Import from File", "Import");
     const skinsDeleteButton = createDangerousButton(deleteAllCustomSkins, "Delete All Skins", "Delete");
 
     const dangerPill = createPill("! DANGER ZONE !");
@@ -1328,8 +1299,6 @@ function renderGeneralTabPane() {
         showDailyLeaderboardCheckbox,
 
         skinsPill,
-        skinsExportButton,
-        skinsImportButton,
         skinsDeleteButton,
 
         dangerPill,

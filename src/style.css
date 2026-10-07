@@ -1559,8 +1559,8 @@ ul.skinList.germsfoxGroupSkins {
 .germsfoxSkinFileButtons {
     flex: none;
 }
+/* Keeps Bootstrap's 1px border, which is what makes these the Apply box's height */
 .germsfoxSkinFileButton {
-    border: 0;
     display: inline-flex;
     align-items: center;
     gap: 6px;

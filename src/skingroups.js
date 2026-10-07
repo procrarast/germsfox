@@ -256,11 +256,11 @@ function addSkinFileButtons(applySkinButton) {
     const button = (glyph, label, title, onClick) => {
         const b = document.createElement("button");
         b.type = "button";
-        b.className = "btn btn-secondary germsfoxSkinFileButton";
+        b.className = "btn btn-info germsfoxSkinFileButton";
         b.title = title;
         const icon = document.createElement("i");
         icon.className = `fas ${glyph}`;
-        b.append(icon, label);
+        b.append(label, icon);
         // Ours to handle - see the early return in renderCellPreviewCard's skinsListClicked,
         // which would otherwise cancel the file picker and the download
         b.dataset.germsfoxClick = "";
@@ -282,8 +282,10 @@ function addSkinFileButtons(applySkinButton) {
 
     const files = document.createElement("div");
     files.className = "btn-group germsfoxSkinFileButtons";
-    files.append(importButton, exportButton, fileInput);
-    row.appendChild(files);
+    files.append(importButton, exportButton);
+    // Outside the button group: Bootstrap squares the right corners of any button that is not
+    // its group's last child, hidden input or not
+    row.append(files, fileInput);
 }
 
 function submitCustomSkin() {

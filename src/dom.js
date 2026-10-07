@@ -5,17 +5,10 @@
 
 console.debug("Running dom.js");
 
-// Community daily-top-3 leaderboard (pishi.dev), rendered just below the game's own
-// #leaderboard panel - as an actual child of it, so it inherits #leaderboard's own scaling
-// (see the comment further down) and positioning for free.
 /**
  *  Resolves a skin as the game itself does: a custom skin is already a full imgur URL, and
  *  anything else names one of the game's own under res/skins. Relative is correct - this panel
  *  lives in the germs.io document, so it resolves against the game's own assets.
- *
- *  Re-validated here even though submit.php already refused anything that did not match: this
- *  value ends up in a CSS url(), and the endpoint is not the only thing that could ever put a
- *  string in front of it.
  */
 function dailyLeaderboardSkinURL(skin) {
     if (typeof skin !== "string" || skin === "") return null;
@@ -72,24 +65,11 @@ function renderDailyLeaderboardPanel() {
     list.id = "germsfoxDailyLeaderboardList";
 
     panel.append(title, list);
-    // A genuine child of #leaderboard (not a sibling positioned to look adjacent) - #leaderboard
-    // has `overflow: visible`, so this isn't clipped by its parent's own explicit height (which
-    // bundle.js recalculates on every entry-count change, and doesn't know about this panel).
-    // Being a descendant means it automatically inherits #leaderboard's own
-    // `transform: scale(UIRatio)` (applied directly on #leaderboard in Game.onResize(), not on
-    // an ancestor), so it scales in lockstep for free - no need to duplicate that math here.
     leaderboardDiv.appendChild(panel);
 
-    // Starts hidden and only appears once there is something to put in it. A board that is
-    // empty, a fetch that failed, and a game that hasn't reported its mode yet all have nothing
-    // to show - previously each of them left a "Daily" heading sitting above an empty list.
     const hidePanel = () => { panel.style.display = "none"; };
     hidePanel();
 
-    // Returns true once a real attempt against the server was made (regardless of whether it
-    // found any entries), false if it couldn't even try - e.g. bundle.js hasn't finished
-    // establishing the game mode yet, which is common in the first second or two after a page
-    // load. Distinguishing the two lets the caller retry quickly only in the "couldn't try" case.
     async function refresh() {
         const state = await germsfoxGetState();
         if (!state || !state.mode) {
@@ -104,9 +84,6 @@ function renderDailyLeaderboardPanel() {
             hidePanel();
             return false; // Background script unreachable, or offline
         }
-        // getDailyLeaderboard() returns null (not []) on a failed fetch - that's a request that
-        // didn't actually happen, not a leaderboard that's actually empty, so it must NOT be
-        // treated as success or the retry loop below stops on the very first (failed) attempt.
         if (!Array.isArray(entries)) {
             hidePanel();
             return false;
@@ -115,8 +92,6 @@ function renderDailyLeaderboardPanel() {
             hidePanel();
             return true;
         }
-        // Still fetches and keeps the list populated even while hidden, so toggling the
-        // "Show daily leaderboard" setting back on doesn't need to wait for the next poll.
         panel.style.display = settings.showDailyLeaderboard ? "block" : "none";
 
         list.replaceChildren();
@@ -265,14 +240,17 @@ function renderUpdateNotice() {
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
     appendUpdateText(body,
-        "Support for Firefox has been restored. You can find the Firefox addon at https://pishi.dev/germsfox.\n\n" +
-        "A linesplitting cell once again has an indicator.\n\n" +
-        "Split macros have once again been slightly tweaked. Holding a macro key keeps splitting, and stops the moment you let go.\n\n" +
-        "Mass now turns yellow, then red, as a cell gets close to autosplitting. You can turn this off with Autosplit Warning in Settings.\n\n" +
-        "While spectating, right-click any player to follow them.\n\n" +
-        "Ejected mass now takes your Player Cells theme colour, and eaten food and mass hop toward whoever ate them.\n\n" +
-        "The game should run noticeably smoother, especially in crowded lobbies and feed modes.\n\n" +
-        "Fixed holding a Germsfox keybind (like N or B) toggling it over and over, and Imgur skins sometimes not applying.\n\n");
+        "Lots of changes this time around.\n\n" +
+        "- Support for Firefox has been restored. You can find the Firefox addon at https://pishi.dev/germsfox.\n" +
+        "- The custom skins menu now can be organized into groups, and you can move skins around as you wish. I don't feel like adding this for veteran/free/premium skins though\n" +
+        "- Added back a linesplitting cell's indicative border. Not sure how to articulate this\n" +
+        "- Split macros have once again been slightly tweaked. Fixed a bug that caused someone to lag by pressing and holding a keybind (allegedly)\n\n" +
+        "- While spectating, right-click any player and click \"Follow\" to follow them\n" +
+        "- Ejected mass now inherits your Player Cells theme color\n" +
+        "- The game should run noticeably smoother. I had antialiasing (useless for sprite graphics!) enabled from some experiments a long time ago, costing a ton of rendering time\n" +
+        "- Fixed Imgur skins sometimes not applying\n\n" +
+        "I hope you enjoy. Thank you for balling."
+    );
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";

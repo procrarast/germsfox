@@ -60,8 +60,6 @@ const DEFAULT_SETTINGS = {
     toggleSettings: true,
     autoLogout: false, 
     enableDebug: false,
-    enableAllColorButtons: false,
-    enableOldSkinsButton: false,
     leaderboardOptOut: false,
     showDailyLeaderboard: true,
 };

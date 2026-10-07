@@ -57,6 +57,8 @@ async function init() {
     renderDailyLeaderboardPanel();
     renderNick();
     renderGermsfoxButton();
+    renderControlsTabPane();
+    renderGameSettingsAdditions();
     renderPlayerMenu();
     renderUpdateNotice();
 
@@ -165,9 +167,12 @@ async function init() {
         // visible - and only worth doing for one that is actually on screen
         if (document.getElementById("germsfoxSettings")?.style.display !== "none") {
             renderGeneralTabPane();
-            renderControlsTabPane();
             renderBlocklistTabPane();
         }
+        // In germs' own settings, which are built once and always present
+        renderControlsTabPane();
+        const ignoreInvites = document.getElementById("ignoreInvites");
+        if (ignoreInvites) ignoreInvites.checked = settings.ignoreInvites;
 
         // A blocklist from another tab has to reach messages already on screen; new ones were
         // always handled, since the chat observer reads `settings` as they arrive
@@ -199,7 +204,7 @@ async function init() {
 
         console.debug(`Unbound ${cleared.join(", ")} - reused by germs' own controls`);
         await chrome.storage.local.set({ controls: settings.controls });
-        if (document.getElementById("germsfox-settings-controls")) renderControlsTabPane();
+        renderControlsTabPane();
     });
 
     const skinButton = document.getElementById("skin");

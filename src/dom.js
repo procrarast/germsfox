@@ -677,11 +677,9 @@ async function renderCellPreviewCard() {
 
         for (const key in cellColorList) {
 
-            // Setting not toggled, and owns the skin respective to the button's color.
+            // Owns the skin respective to the button's color.
             // (ownedSkins can only be non-empty if you're logged in, so no separate check needed)
-            if (!settings.enableAllColorButtons &&
-                ownedSkins.includes(cellColorList[key][0])
-            ) {
+            if (ownedSkins.includes(cellColorList[key][0])) {
                 //console.debug("You apparently own the " + key + " skin");
                 const disabledColorButton = document.createElement("div");
                 disabledColorButton.style.backgroundColor = cellColorList[key][1];
@@ -702,7 +700,7 @@ async function renderCellPreviewCard() {
                     setSetting('setColor', 'None');
                 }
                 continue;
-            } //console.debug(settings.enableAllColorButtons, ownedSkins, cellColorList[key][0]);
+            }
 
             const colorButton = document.createElement("button");
             colorButton.style.backgroundColor = cellColorList[key][1];
@@ -877,7 +875,6 @@ function renderGermsfoxButton() {
         let germsfoxSettings = document.getElementById("germsfoxSettings");
         if (germsfoxSettings) {
             renderGeneralTabPane();
-            renderControlsTabPane();
             renderBlocklistTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
@@ -931,7 +928,8 @@ function renderGermsfoxSettings() {
     tabContent.id = "germsfoxSettingsTabsContent";
     tabContent.classList.add("tab-content");
 
-    const tabNames = ["General", "Controls", "Blocklist"];
+    // Germsfox's keybinds live in germs' own Controls pane - see renderControlsTabPane()
+    const tabNames = ["General", "Blocklist"];
 
     tabNames.forEach((name, index) => {
         const tabId = `germsfox-settings-${name.toLowerCase()}`;
@@ -989,24 +987,43 @@ function renderGermsfoxSettings() {
     menu.appendChild(overlay);
 
     renderGeneralTabPane();
-    renderControlsTabPane();
     renderBlocklistTabPane();
 
     return overlay;
 }
 
+/**
+ *  Germsfox's keybinds, as two sections at the end of germs' own Controls pane rather than a
+ *  tab of their own. Rebuilt in place, inside one container of ours, so a re-render (a rebind
+ *  that unbound another row, or a change synced from another tab) never touches germs' rows.
+ */
 function renderControlsTabPane() {
-    //console.debug("Rendering");
-    const pane = document.getElementById("germsfox-settings-controls");
+    const gamePane = document.getElementById("settings-controls");
+    if (!gamePane) return null;
+
+    let pane = document.getElementById("germsfoxGameControls");
+    if (!pane) {
+        pane = document.createElement("div");
+        pane.id = "germsfoxGameControls";
+        gamePane.appendChild(pane);
+    }
     pane.replaceChildren();
 
     const multiboxPill = createPill("Multibox");
-    const multiboxCheckbox = createKeyTester("multibox", "Switch Tabs");
+    const multiboxKeyTester = createKeyTester("multibox", "Switch Tabs");
 
     const togglePill = createPill("Toggle Settings");
 
-    const toggleCheckbox = createCheckbox("toggleSettings", "Toggle Names/Skins");
-    const toggleInput = toggleCheckbox.querySelector("#toggleSettings");
+    const toggleInput = document.createElement("input");
+    toggleInput.type = "checkbox";
+    toggleInput.id = "toggleSettings";
+    toggleInput.checked = settings.toggleSettings;
+    const toggleSwitch = document.createElement("label");
+    toggleSwitch.classList.add("switch");
+    const toggleSlider = document.createElement("span");
+    toggleSlider.classList.add("slider", "round");
+    toggleSwitch.append(toggleInput, toggleSlider);
+    const toggleRow = createGameControlRow("Toggle Names/Skins", toggleSwitch);
 
     const toggleNamesKeyTester = createKeyTester("toggleNames", "Toggle Names");
     const toggleNamesDropdown = createToggleDropdown("toggleNames", "Switch Between");
@@ -1018,10 +1035,10 @@ function renderControlsTabPane() {
 
     pane.append(
         multiboxPill,
-        multiboxCheckbox,
+        multiboxKeyTester,
 
         togglePill,
-        toggleCheckbox,
+        toggleRow,
         toggleNamesKeyTester,
         toggleNamesDropdown,
         toggleSkinsKeyTester,
@@ -1034,33 +1051,63 @@ function renderControlsTabPane() {
 
     // Would love it if this were animated
     function updateControlsTabPane() {
-        const clearfixes = pane.querySelectorAll(".clearfix");
-
         const toggleNamesLabel = toggleNamesKeyTester.querySelector(".col-md-6"); // The first column, whose textContent is the label
         const toggleSkinsLabel = toggleSkinsKeyTester.querySelector(".col-md-6");
-        const toggleNamesClearfix = clearfixes[clearfixes.length - 2];
-        const toggleSkinsClearfix = clearfixes[clearfixes.length - 1];
 
         if (settings.toggleSettings) {
             toggleNamesLabel.textContent = "Toggle Names";
             toggleSkinsLabel.textContent = "Toggle Skins";
-            toggleNamesClearfix.style.display = "block";
-            toggleSkinsClearfix.style.display = "block";
+            toggleNamesDropdown.style.display = "";
+            toggleSkinsDropdown.style.display = "";
         } else {
             toggleNamesLabel.textContent = "Cycle Names";
             toggleSkinsLabel.textContent = "Cycle Skins";
-            toggleNamesClearfix.style.display = "none";
-            toggleSkinsClearfix.style.display = "none";
+            toggleNamesDropdown.style.display = "none";
+            toggleSkinsDropdown.style.display = "none";
         }
     }
 
-    // This input is special in that it updates a few elements, so override onchange
+    // This input is special in that it updates a few elements
     toggleInput.onchange = async function () {
         await setSetting("toggleSettings", toggleInput.checked);
         updateControlsTabPane();
     };
 
     return pane;
+}
+
+/**
+ *  A row in germs' Controls pane: its label, and `controls` where a keybind box would go.
+ *  Cloned off one of germs' own keybind rows - the way bundle.js adds the Spectate and Old
+ *  Split Macros rows - so ours line up with theirs without having to know their classes.
+ */
+function createGameControlRow(labelText, controls) {
+    const template = document.getElementById("keyHide")?.closest(".row");
+    if (!template) return createSettingRow(labelText, controls);
+
+    const row = template.cloneNode(true);
+    row.querySelector(".col-md-6").textContent = labelText;
+    const group = row.querySelector(".input-group");
+    group.replaceChildren(...[controls].flat());
+    // The keybind rows pin their group to the width of a key box; anything else sizes itself
+    if (!(controls instanceof HTMLInputElement)) group.style.width = "";
+    return row;
+}
+
+/**
+ *  Germsfox settings that belong among germs' own. Ignore Party Invites sits at the end of UI
+ *  Options, beside Hide Chat and the profanity filter. The row is built the way germs builds
+ *  its toggles, but it is still a Germsfox setting, stored with the rest of ours.
+ */
+function renderGameSettingsAdditions() {
+    if (document.getElementById("ignoreInvites")) return;
+    const general = document.getElementById("settings-general");
+    if (!general) return;
+
+    const row = createCheckbox("ignoreInvites", "Ignore Party Invites");
+    const anchor = document.getElementById("disableProfanityFilter")?.closest(".clearfix");
+    if (anchor) anchor.after(row);
+    else general.appendChild(row);
 }
 
 function createToggleDropdown(key, text) {
@@ -1233,7 +1280,7 @@ function createKeyTester(key, text) {
         renderControlsTabPane();
     }
 
-    return createSettingRow(text, keyTester, { width: "100px" });
+    return createGameControlRow(text, keyTester);
 }
 
 
@@ -1249,8 +1296,8 @@ function renderGeneralTabPane() {
             chrome.runtime.getURL("/images/icon.png") : "res/logo.png?v=2";
         document.getElementById("menuLogo").src = src; 
     });
-    const generalInvitesCheckbox = createCheckbox("ignoreInvites", "Ignore Party Invites");
-
+    // Ignore Party Invites lives in germs' own settings - see renderGameSettingsAdditions()
+    const multiboxPill = createPill("Multibox");
     const multiboxEnabledCheckbox = createCheckbox("switcherEnabled", "Enable Multiboxing");
     const multiboxWindowedCheckbox = createCheckbox("switcherWindowed", "Windowed Multibox");
     // One of germs' settings rather than ours, so bundle.js can read it on every scroll tick
@@ -1274,21 +1321,11 @@ function renderGeneralTabPane() {
     const skinsPill = createPill("Custom Skins");
     const skinsDeleteButton = createDangerousButton(deleteAllCustomSkins, "Delete All Skins", "Delete");
 
-    const dangerPill = createPill("! DANGER ZONE !");
-    dangerPill.style.backgroundColor = "rgb(220, 53, 69)";
-    const dangerLabel = document.createElement('p');
-    dangerLabel.innerText = "These settings enable features which may have unintended effects and should only be used for experimental purposes.";
-    const dangerColorsEnabledCheckbox = createCheckbox("enableAllColorButtons", "Enable all cell colors");
-    dangerColorsEnabledCheckbox.getElementsByTagName("span")[0].classList.add("danger");
-    const dangerColorAlertsCheckbox = createCheckbox("enableColorLogoutAlerts", "Enable color logout alerts");
-    dangerColorAlertsCheckbox.getElementsByTagName("span")[0].classList.add("danger");
-    const dangerSkinsEnabledCheckbox = createCheckbox("enableOldSkinsButton", "Enable old skins button");
-    dangerSkinsEnabledCheckbox.getElementsByTagName("span")[0].classList.add("danger");
-
     pane.append(
         generalPill,
         disablePishiCheckbox,
-        generalInvitesCheckbox,
+
+        multiboxPill,
         multiboxEnabledCheckbox,
         multiboxWindowedCheckbox,
         syncZoomCheckbox,
@@ -1299,13 +1336,7 @@ function renderGeneralTabPane() {
         showDailyLeaderboardCheckbox,
 
         skinsPill,
-        skinsDeleteButton,
-
-        dangerPill,
-        dangerLabel,
-        dangerColorsEnabledCheckbox,
-        dangerColorAlertsCheckbox,
-        dangerSkinsEnabledCheckbox
+        skinsDeleteButton
     );
 
     return pane;
@@ -1326,7 +1357,7 @@ function renderBlocklistTabPane() {
         //ltgGif.src = "https://media1.tenor.com/m/pYh_Xp0IuloAAAAC/low-tier-god-ltg.gif";
 
         const message = `
-            I'LL BLOCK A BITCH.\n
+            I'LL BLOCK A BITCH\n
             ON GERMS.IO!`;
         const messageLabel = document.createElement("p");
         messageLabel.textContent = message;
@@ -1347,7 +1378,6 @@ function renderBlocklistTabPane() {
 
 function createPill(text) {
     const pill = document.createElement("span");
-    if (text === "! DANGER ZONE !") pill
     pill.classList.add("badge", "badge-pill", "badge-primary");
     pill.textContent = text;
     return pill;
@@ -1590,14 +1620,7 @@ async function renderCustomColorsMenu() {
             colorWarning.classList.add("cellColorWarning");
             colorWarning.appendChild(colorTooltip);
 
-            if (!settings.enableColorLogoutAlerts) {
-                colorDiv.setAttribute("onclick", `logout(); setSkin('premium/${skinName}')`);
-            } else {
-                // If you think this is disgusting, that's because it is. But it works!
-                const message =
-                    `You are about to be logged out!\\n\\nTo stay logged in, use an account that does not own the ${skinName} skin.`;
-                colorDiv.setAttribute("onclick", `if(confirm('${message}')){logout();}else{return;}setSkin('premium/${skinName}');`);
-            }
+            colorDiv.setAttribute("onclick", `logout(); setSkin('premium/${skinName}')`);
             colorDiv.appendChild(colorWarning);
         } else {
             colorDiv.setAttribute("onclick", `setSkin('premium/${skinName}')`);
@@ -1731,12 +1754,10 @@ function renderNick() {
         nickInput.parentNode.replaceChild(nickTextarea, nickInput);
         nickInput = document.getElementById("nick"); // set to the new element
 
-        if (!settings.enableOldSkinsButton) {
-            const skinsButton = document.getElementById("skin");
-            skinsButton.style.display = "none";
-            nickInput.style.width = "100%";
-            nickInput.style.marginLeft = 0;
-        }
+        const skinsButton = document.getElementById("skin");
+        skinsButton.style.display = "none";
+        nickInput.style.width = "100%";
+        nickInput.style.marginLeft = 0;
 
         // Prevent unintended tab switches
         nickInput.addEventListener('focus', () => {

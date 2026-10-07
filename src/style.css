@@ -870,12 +870,6 @@ input:focus + .slider.danger {
 #germsfox-settings-theme .badge {
     margin-bottom: 15px;
 }
-#germsfox-settings-controls {
-    overflow-y: scroll;
-    overflow-x: hidden;
-    text-align: center;
-    height: 100%;
-}
 #germsfox-settings-theme p {
     background-color: rgba(0, 0, 0, 0.2);
     border-radius: 6px;
@@ -883,41 +877,15 @@ input:focus + .slider.danger {
     margin: 0 16px 1rem 16px;
     font-size: 8pt;
 }
-#germsfox-settings-controls input[type="text"], textarea {
+/* What is left of the old Controls tab's rule. Its selector also caught every textarea on the
+ * page - the nickname box among them - so that half stays */
+textarea {
     background-color: rgba(0, 0, 0, 0.2);
     color: #fff;
     text-align: center;
     font-size: 20px;
     font-family: Ubuntu;
     font-weight: 700;
-}
-#germsfox-settings-controls .clearfix {
-    margin-left: 20px;
-    margin-right: 20px;
-}
-#germsfox-settings-controls .clearfix select {
-    float: right;
-    margin-top: 5px;
-}
-#germsfox-settings-controls .row {
-    width: 443px;
-    margin-bottom: 2px;
-}
-#germsfox-settings-controls .badge {
-    margin-bottom: 15px;
-}
-#germsfox-settings-controls::-webkit-scrollbar {
-    width: 5px;
-    background-color: transparent;
-    border-radius: 6px;
-}
-#germsfox-settings-controls::-webkit-scrollbar-thumb {
-    background-color: #2dfa83;
-    border-radius: 6px;
-}
-#germsfox-settings-controls::-webkit-scrollbar-track {
-    background-color: transparent;
-    border-bottom-right-radius: 6px;
 }
 #customCellColor {
     display: table;
@@ -1564,4 +1532,20 @@ ul.skinList.germsfoxGroupSkins {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+
+/* Germsfox's keybinds at the end of germs' Controls pane - see renderControlsTabPane() */
+/* Sized and centred like germs' own section pills in the Gameplay pane */
+#germsfoxGameControls .badge {
+    display: table;
+    margin: 18px auto 15px;
+}
+/* The "Switch Between" rows, styled as they were in the old Controls tab */
+#germsfoxGameControls .clearfix {
+    margin-left: 20px;
+    margin-right: 20px;
+}
+#germsfoxGameControls .clearfix select {
+    float: right;
+    margin-top: 5px;
 }

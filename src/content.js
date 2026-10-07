@@ -42,7 +42,7 @@ async function init() {
     germsfoxInfoAnchor.target = "_blank";
     germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
     const germsfoxInfoVersion = document.createElement("b");
-    germsfoxInfoVersion.innerText = await chrome.runtime.getVersion();
+    germsfoxInfoVersion.innerText = chrome.runtime.getManifest().version;
     germsfoxInfoVersion.id = "germsfoxVersion";
     germsfoxInfoAnchor.appendChild(germsfoxInfoVersion);
     germsfoxInfo.appendChild(germsfoxInfoAnchor);

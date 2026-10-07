@@ -7371,13 +7371,6 @@ function modules(ks) {
                 // without ever being eaten (a clear, or leaving the viewport for good)
                 this.repointAliveCell(node);
                 if (this.playerCells.size === 1 && this.playerCells.has(node)) {
-                    /**
-                     *  Splits still queued would otherwise go out into the next life, and worse,
-                     *  the new cell's own-cell packet would "confirm" a split left waiting from
-                     *  this one and release the next behind it. Only a disconnect or a server
-                     *  clear flushed them before - see clearNodes().
-                     */
-                    this.splits.flush();
                     if (this.settings.settings.deathFreecam) {
                         // Free means free - a member tracked earlier would otherwise keep the camera
                         this.clearSpectateTarget();

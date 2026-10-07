@@ -6,8 +6,13 @@
  *      await gfPerfProbe()                        // the lobby as it is
  *      await gfPerfProbe({ scenario: 'churn4k' }) // ~5.5k nodes, 7,500 spawns+eats a second
  *
- *  Scenarios: 'live', 'static2k', 'churn2k', 'churn4k', or an object of the same shape as the
- *  presets below. Every perf change should quote the same scenario before and after.
+ *  Scenarios: 'live', 'static2k', 'churn2k', 'churn4k', 'split200', or an object of the same
+ *  shape as the presets below. Every perf change should quote the same scenario before and after.
+ *
+ *  'split200' is the max split in a self-feed mode: one named, skinned player goes from one cell
+ *  to two hundred within a couple of ticks, flies apart, and merges back, every few seconds. That
+ *  cost is a spike, not a level - the means barely move - so it is reported separately as
+ *  `burst*`: frames inside a window after each burst begins, and the worst of them.
  *
  *  ---------------------------------------------------------------------------------------
  *  How it measures, and the traps it is built around
@@ -43,6 +48,8 @@ window.gfPerfProbe = async function gfPerfProbe({ scenario = 'live', ms = 8000, 
         static2k: { players: 200, food: 1000, ejected: 800, churn: 0 },
         churn2k: { players: 200, food: 1000, ejected: 800, churn: 100 },
         churn4k: { players: 200, food: 2000, ejected: 2000, churn: 300 },
+        split200: { players: 20, food: 1000, ejected: 200, churn: 10,
+            burst: { cells: 200, ticks: 2, every: 2500, life: 1200 } },
     };
     const cfg = typeof scenario === 'string' ? PRESETS[scenario] : scenario;
     if (cfg === undefined) throw new Error('Unknown scenario ' + scenario + ' - one of ' + Object.keys(PRESETS).join(', '));
@@ -115,7 +122,7 @@ window.gfPerfProbe = async function gfPerfProbe({ scenario = 'live', ms = 8000, 
             }
             return r;
         });
-        patch(g.network, 'handleNodes', timed(d => { if (on) packets.push(d); }));
+        patch(g.network, 'handleNodes', timed(d => { if (on) packets.push({ t: now(), d }); }));
 
         // Pinned dead centre: free spectate pans by the cursor's offset from the middle
         define(g, 'rawMouseX', { get: () => g.width / 2, set: () => {} });
@@ -144,6 +151,17 @@ window.gfPerfProbe = async function gfPerfProbe({ scenario = 'live', ms = 8000, 
         const mean = v => v.reduce((a, b) => a + b, 0) / (v.length || 1);
         const stat = k => { const v = frames.map(f => f[k] ?? 0); return `${mean(v).toFixed(3)} / p95 ${q(v, 0.95).toFixed(3)}`; };
         const span = frames.length > 1 ? frames[frames.length - 1].t0 - frames[0].t0 : 0;
+        const packetMs = packets.map(p => p.d);
+
+        /**
+         *  Frame to frame, start to start. Catches what the JS timings above cannot: a frame
+         *  whose own work was cheap but that waited on the GPU, a GC pause, or a long packet
+         *  handled between two frames. At 60Hz this reads ~16.7, and its max is the hitch a
+         *  player actually feels.
+         */
+        const gaps = [];
+        for (let i = 1; i < frames.length; i++) gaps.push(frames[i].t0 - frames[i - 1].t0);
+        const tail = v => v.length ? `${q(v, 0.99).toFixed(1)} / max ${Math.max(...v).toFixed(1)}` : null;
 
         Object.assign(result, {
             frames: frames.length,
@@ -164,8 +182,30 @@ window.gfPerfProbe = async function gfPerfProbe({ scenario = 'live', ms = 8000, 
             rebuiltFrames: +(frames.filter(f => f.rebuilt).length / (frames.length || 1)).toFixed(2),
             sortDirtyFrames: +(frames.filter(f => f.sortDirty).length / (frames.length || 1)).toFixed(2),
             packets: packets.length,
-            handleNodesMs: packets.length ? `${mean(packets).toFixed(3)} / p95 ${q(packets, 0.95).toFixed(3)}` : null,
+            handleNodesMs: packets.length ? `${mean(packetMs).toFixed(3)} / p95 ${q(packetMs, 0.95).toFixed(3)}` : null,
+            gapMs: gaps.length ? `${mean(gaps).toFixed(2)} / p99 ${tail(gaps)}` : null,
+            worstTotalMs: tail(frames.map(f => f.total)),
+            worstHandleNodesMs: tail(packetMs),
         });
+
+        // Frames and packets in the BURST_WINDOW after each burst began
+        const starts = (stress?.bursts ?? []).filter(t => t >= w0);
+        if (starts.length) {
+            const inBurst = t => starts.some(s => t >= s && t < s + BURST_WINDOW);
+            const bf = frames.filter(f => inBurst(f.t0));
+            const bg = [];
+            for (let i = 1; i < frames.length; i++) if (inBurst(frames[i].t0)) bg.push(frames[i].t0 - frames[i - 1].t0);
+            const bp = packets.filter(p => inBurst(p.t)).map(p => p.d);
+            Object.assign(result, {
+                bursts: starts.length,
+                burstFrames: bf.length,
+                burstTotalMs: `${mean(bf.map(f => f.total)).toFixed(3)} / ${tail(bf.map(f => f.total))}`,
+                burstLoopMs: `${mean(bf.map(f => f.loop ?? 0)).toFixed(3)} / ${tail(bf.map(f => f.loop ?? 0))}`,
+                burstRenderMs: `${mean(bf.map(f => f.render ?? 0)).toFixed(3)} / ${tail(bf.map(f => f.render ?? 0))}`,
+                burstGapMs: tail(bg),
+                burstHandleNodesMs: tail(bp),
+            });
+        }
     } finally {
         while (undo.length) {
             try { undo.pop()(); } catch (error) { console.error('[gfPerfProbe] restore failed', error); }
@@ -180,12 +220,21 @@ window.gfPerfProbe = async function gfPerfProbe({ scenario = 'live', ms = 8000, 
     return result;
 };
 
+// How long after a burst begins its frames count as burst frames: the split, the flight apart,
+// and the first frames of the new cells' labels and skins all land inside it
+const BURST_WINDOW = 500;
+
 /**
  *  A deterministic crowd, fed through the real packet handler at 25Hz: `players` cells of one
  *  owner random-walking, `food` static pellets, `ejected` blobs, and `churn` ejections per tick
  *  - each one eaten by a player a few ticks later, so the fade and the pool both run.
+ *
+ *  `burst`, if given, adds one more player who max-splits every `every` ms: `cells` pieces
+ *  arriving over `ticks` ticks, flying apart, then all eaten back into the first after `life` ms
+ *  - the merge is a churn spike of its own. Named and wearing a skin borrowed from whoever in
+ *  the real lobby has one, so name labels, skin holds and mass labels are all on the path.
  */
-function startStress(g, { players, food, ejected, churn }, seed) {
+function startStress(g, { players, food, ejected, churn, burst = null }, seed) {
     const BASE = 0x70000000;
     const OWNER = 0x7fff0001;
 
@@ -208,10 +257,13 @@ function startStress(g, { players, food, ejected, churn }, seed) {
             let flags = 2;                       // hasColor
             if (n.ejected) flags |= 32;
             if (n.parent != null) flags |= 64;
+            if (n.skin) flags |= 4;
             if (n.name) flags |= 8;
             u8(flags);
             if (n.parent != null) u32(n.parent);
             u8(n.r); u8(n.g); u8(n.b);
+            // The client drops the first character of a skin - see handleNodes()
+            if (n.skin) { for (const b of enc.encode('%' + n.skin)) u8(b); u8(0); }
             if (n.name) { for (const b of enc.encode(n.name)) u8(b); u8(0); }
         }
         u32(0);
@@ -243,6 +295,52 @@ function startStress(g, { players, food, ejected, churn }, seed) {
 
     send({ nodes: [...cells, ...pellets, ...blobs] });
 
+    // ---- the max-split player -------------------------------------------------------------------
+    const BURST_OWNER = 0x7fff0002;
+    const TICK = 40;
+    const bursts = [];
+    const borrowedSkin = [...g.nodes.values()].find(n => n.skin && n.id < BASE)?.skin ?? null;
+    const splitter = burst && { mother: null, pieces: [], tick: 0, merging: 0,
+        period: Math.max(1, Math.round(burst.every / TICK)), life: Math.round(burst.life / TICK) };
+    const piece = (x, y, size) => ({ id: id(), x, y, size: Math.max(30, size | 0), parent: BURST_OWNER,
+        name: 'max split', skin: borrowedSkin, r: 60, g: 140, b: 220, vx: 0, vy: 0 });
+
+    // Returns this tick's eats and changed nodes for the splitter
+    const burstTick = () => {
+        const sp = splitter, out = { eats: [], nodes: [] };
+        if (!sp.mother) sp.mother = piece(cx, cy, 1100);
+        const phase = sp.tick++ % sp.period;
+        const m = sp.mother;
+
+        if (phase === 0 && !sp.pieces.length) bursts.push(performance.now());
+        if (phase < burst.ticks) {
+            // Mass is kept: the mother shrinks to one piece's size as the rest appear
+            const each = Math.sqrt(1100 * 1100 / burst.cells);
+            const n = Math.ceil((burst.cells - 1) / burst.ticks);
+            for (let i = 0; i < n && sp.pieces.length < burst.cells - 1; i++) {
+                const a = rand() * Math.PI * 2, v = rnd(40, 160);
+                const p = piece(m.x, m.y, each);
+                p.vx = Math.cos(a) * v; p.vy = Math.sin(a) * v;
+                sp.pieces.push(p);
+            }
+            m.size = each | 0;
+        }
+        for (const p of sp.pieces) { p.x += p.vx; p.y += p.vy; p.vx *= 0.8; p.vy *= 0.8; }
+
+        // Merge back over two ticks, the mother growing as she goes
+        if (phase === sp.life && sp.pieces.length) {
+            const half = Math.ceil(sp.pieces.length / 2);
+            for (const p of sp.pieces.splice(0, half)) out.eats.push([m.id, p.id]);
+            sp.merging = 1;
+        } else if (sp.merging && sp.pieces.length) {
+            for (const p of sp.pieces.splice(0)) out.eats.push([m.id, p.id]);
+            sp.merging = 0;
+            m.size = 1100;
+        }
+        out.nodes.push(m, ...sp.pieces);
+        return out;
+    };
+
     const timer = setInterval(() => {
         for (const c of cells) { c.x += rnd(-60, 60); c.y += rnd(-60, 60); }
         const eats = [];
@@ -256,10 +354,12 @@ function startStress(g, { players, food, ejected, churn }, seed) {
         // New ejections slide for a few ticks, as real ones do
         const moving = [];
         for (const e of blobs) { if (e.age < 4) { e.x += rnd(-80, 80); e.y += rnd(-80, 80); moving.push(e); } e.age++; }
-        send({ eats, nodes: [...cells, ...moving] });
-    }, 40);
+        const split = splitter ? burstTick() : { eats: [], nodes: [] };
+        send({ eats: [...eats, ...split.eats], nodes: [...cells, ...moving, ...split.nodes] });
+    }, TICK);
 
     return {
+        bursts,
         stop() {
             clearInterval(timer);
             const fake = [...g.nodes.keys()].filter(k => k >= BASE);

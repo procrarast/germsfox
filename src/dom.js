@@ -469,7 +469,13 @@ async function renderCellPreviewCard() {
                     setSkin(event.target.src);
                     setSetting('setSkin', event.target.src);
                 } else { // Not a custom skin
-                    const completeSrc = `res/skins/${event.target.dataset.src.slice(10, -4)}.png`;
+                    /**
+                     *  The attribute, not .src, which the browser resolves to a full URL. germs
+                     *  used to lazy-load these from data-src and now sets src directly, and
+                     *  reading only data-src threw here - after this handler had already
+                     *  cancelled the click, so no free or premium skin could be picked at all.
+                     */
+                    const completeSrc = event.target.getAttribute("data-src") ?? event.target.getAttribute("src");
                     cellSkin.src = completeSrc;
                     cellSkin.style.display = 'block';
                     

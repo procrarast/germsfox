@@ -11,7 +11,7 @@ python3 util/outline.py     # after anything that moves code
 ```
 
 <!-- AUTO:STATS -->
-`bundle.js` is **9508** lines and holds **38** classes.
+`bundle.js` is **9517** lines and holds **38** classes.
 <!-- /AUTO:STATS -->
 
 ## Layout
@@ -81,7 +81,7 @@ cannot see its globals; they talk to it over `postMessage` through `bridge.js`.
 | `Network`               | 3932-4789 | 858  | -                      | Socket, verification handshake, every opcode handler, tick measurement          |
 | `Settings`              | 4842-5252 | 411  | -                      | The settings blob, defaults merge, and the side effects each change fans out    |
 | `Login`                 | 5253-5911 | 659  | -                      | Account, XP, shop, skin ownership                                               |
-| `Game`                  | 5913-8742 | 2830 | -                      | Everything else: the frame loop, input, node map, spectate, split keys          |
+| `Game`                  | 5913-8751 | 2839 | -                      | Everything else: the frame loop, input, node map, spectate, split keys          |
 <!-- /AUTO:CLASSES -->
 
 ## The frame
@@ -309,7 +309,7 @@ Things that have cost real debugging time here:
 | `PARTY_ARROW_ALPHA`           | 4823 | `0.85`                                           |
 | `PARTY_ARROW_HYSTERESIS`      | 4831 | `8`                                              |
 | `SETTINGS_NOT_SYNCED`         | 4833 | `new Set([`                                      |
-| `GERMSFOX_BRIDGE_CALLABLE`    | 8913 | `{`                                              |
+| `GERMSFOX_BRIDGE_CALLABLE`    | 8922 | `{`                                              |
 <!-- /AUTO:CONSTANTS -->
 
 ## Protocol

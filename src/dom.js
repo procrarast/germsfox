@@ -412,7 +412,10 @@ async function renderCellPreviewCard() {
             let inputValue = document.getElementById("loginCustomSkinText").value;
             inputValue = inputValue.replace(/\s/g, ''); // remove whitespace
 
-            if (/^https:\/\/i\.imgur\.com\/.*\.png$/.test(inputValue)) {
+            // The same test the custom skins list saves by (see CUSTOM_SKIN_URL in
+            // skingroups.js). This one used to take .png only, so a .jpeg or .gif link was saved
+            // and sent to the game but never reached the preview
+            if (CUSTOM_SKIN_URL.test(inputValue)) {
                 console.debug("Input looks good, value is " + inputValue);
                 setSetting('setSkin', inputValue);
                 // Cleared so the germsfox:alive listener applies the new skin on the next

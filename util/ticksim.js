@@ -1,88 +1,110 @@
 /**
  *  How many splits does a macro ACTUALLY produce?  Run with:  node util/ticksim.js
  *
- *  Drives the real SplitScheduler (see splitharness.js) against the simulated server, over
- *  every tick phase and many slip draws, and reports the distribution of splits performed and
- *  when the last one's confirmation arrived (the moment the player can see it happened).
+ *  Packet timings come from the real queue code (splitharness.js). This adds the one server
+ *  rule that matters: a tick takes at most one split and collapses anything else that arrived
+ *  since the previous tick. That rule is the premise the whole pacing design rests on - see
+ *  the SPLIT_JITTER_MARGIN comment, which records it being observed.
  *
- *  The model is only worth anything if it reproduces what was measured live, so section 1
- *  replays the schedules the live trials used - the old paced 58ms 3x and the trimmed 16x
- *  blanket - beside the live numbers. If those stop agreeing, fix the model before believing
- *  anything in section 2.
+ *  The client cannot control the tick phase, so the honest question is what the distribution
+ *  over phases looks like, not what one lucky alignment gives.
  */
-const { world, clock, LIVE_SLIP, C } = require('./splitharness.js');
+const { fresh, advance, clock, TICK, SPLIT_RUSH_COPIES, SPLIT_SPACING } = require('./splitharness.js');
 
-const PHASES = 40, SEEDS = 60;
+// Distinct ticks receiving at least one packet = splits the server actually performs.
+const splitsFor = (times, phase) => {
+    const t0 = times[0];
+    const hit = new Set();
+    for (const t of times) hit.add(Math.ceil((t - t0 - phase) / TICK));
+    return hit.size;
+};
 
-function distribution(fn) {
-    const counts = {}, times = [];
-    let n = 0;
-    for (let p = 0; p < PHASES; p++) {
-        for (let seed = 1; seed <= SEEDS; seed++) {
-            const { splits, time } = fn(p * 40 / PHASES + 0.37, seed);
-            counts[splits] = (counts[splits] || 0) + 1;
-            if (time != null) times.push(time);
-            n++;
-        }
+const distribution = (times) => {
+    const counts = {};
+    let total = 0;
+    for (let phase = 0; phase < TICK; phase += 0.05) {
+        const n = splitsFor(times, phase);
+        counts[n] = (counts[n] || 0) + 1;
+        total++;
     }
-    times.sort((a, b) => a - b);
-    const pct = Object.entries(counts).sort((a, b) => a[0] - b[0])
-        .map(([k, v]) => `${k}: ${(100 * v / n).toFixed(0).padStart(3)}%`).join('   ');
-    return pct + (times.length ? `     median ${Math.round(times[times.length >> 1])}ms` : '');
-}
+    return Object.entries(counts).sort((a, b) => a[0] - b[0])
+        .map(([n, c]) => `${n} splits: ${(100 * c / total).toFixed(0)}%`).join('   ');
+};
 
-/** Sends an open-loop schedule straight at the server, as the live trials did. */
-function openLoop(offsets, { slip, phase, seed }) {
-    const w = world({ slip, phase, seed });
-    w.run(1000);
-    const t0 = clock.now;
-    for (const t of offsets) {
-        w.run(t0 + t - clock.now);
-        w.game.network.send();
-    }
-    w.run(1000);
-    return { splits: w.server.splitTicks.length };
-}
+const press = (mode, cells, count, rush) => {
+    const g = fresh(mode, cells);
+    g.queueSplits(count, rush);
+    advance(clock.now + 5000);
+    return g.sentAt;
+};
 
-const paced = (n) => Array.from({ length: n }, (_, i) => i * 58);
-const trimmedBlanket = (n) => Array.from({ length: (n - 1) * 3 + 1 }, (_, i) => i * 40 / 3);
+const report = (label, times) => {
+    console.log(`  ${label}  ${String(times.length).padStart(2)} packets, span ` +
+                `${(times[times.length-1]-times[0]).toFixed(0).padStart(3)}ms`);
+    console.log(`     -> ${distribution(times)}\n`);
+};
 
-console.log('\n1. The model against what was measured live (slip: a tick late 17%, two 6%)\n');
-console.log('   old paced 3x (58ms)   model  ' + distribution((phase, seed) => openLoop(paced(3), { slip: LIVE_SLIP, phase, seed })));
-console.log('                         live   2:  39%   3:  61%                 (23 presses)');
-console.log('   16x trimmed blanket   model  ' + distribution((phase, seed) => openLoop(trimmedBlanket(4), { slip: LIVE_SLIP, phase, seed })));
-console.log('                         live   3:  14%   4:  73%   5:  14%       (22 presses)');
+console.log(`\ntick ${TICK}ms   paced spacing ${SPLIT_SPACING}ms   rush copies ${SPLIT_RUSH_COPIES}\n`);
+console.log('A press asks for N splits. What the server performs, over all tick phases:\n');
+
+// cap 200, 1 cell: 4 splits reach 16, nowhere near capping, so this stays paced
+report('4x paced   (Self Feed, 1 cell, no rush flag)', press('Self Feed', 1, 4, false));
+// the 16x key: rush forced by MAX_SPLIT_MODES, still far short of the cap
+report('4x RUSHED  (Self Feed 16x, 1 cell)          ', press('Self Feed', 1, 4, true));
+// 32 cells: 4 splits reach 512 >= 200, so here the surplus really is free
+report('4x RUSHED  (Self Feed 16x, 32 cells: CAPS)  ', press('Self Feed', 32, 4, true));
+report('3x RUSHED  (1 cell)                         ', press('Self Feed', 1, 3, true));
+report('2x RUSHED  (1 cell)                         ', press('Self Feed', 1, 2, true));
 
 /**
- *  A press through the real scheduler, optionally after `learn` earlier 16x presses on the
- *  same line.
+ *  A run of P packets spans (P-1)*s, and the ticks that can consume it are those in
+ *  (0, span + TICK]. That count is pinned to N for every phase only when span + TICK == N*TICK,
+ *  i.e. span == (N-1)*TICK. The blanket currently runs a further (TICK - TICK/COPIES) past
+ *  that, which is the whole of the overshoot.
  */
-function press(count, rush, { slip, phase, seed, learn = 0 }) {
-    const w = world({ slip, phase, seed });
-    for (let i = 0; i < learn; i++) { w.server.cells = 1; w.splits.queue(4, true); w.run(600); }
-    w.server.splitTicks.length = 0;
-    w.server.reportedAt.length = 0;
-    w.server.cells = 1;
-    w.run(1000);
-    const t0 = clock.now;
-    w.splits.queue(count, rush);
-    w.run(2000);
-    const reports = w.server.reportedAt;
-    return { splits: w.server.splitTicks.length, time: reports.length >= count ? reports[count - 1] - t0 : null };
-}
+console.log('If the blanket ended on the last tick it must cover, instead of short of the next:\n');
+const trimmed = (count) => {
+    const s = TICK / SPLIT_RUSH_COPIES;
+    return Array.from({ length: (count - 1) * SPLIT_RUSH_COPIES + 1 }, (_, i) => i * s);
+};
+const full = (count) => {
+    const s = TICK / SPLIT_RUSH_COPIES;
+    return Array.from({ length: count * SPLIT_RUSH_COPIES }, (_, i) => i * s);
+};
+for (const count of [2, 3, 4]) report(`${count}x rushed, trimmed                        `, trimmed(count));
 
-const LINES = [
-    ['clean line', { one: 0, two: 0 }],
-    ['live slip, 17% / 6%', LIVE_SLIP],
-    ['bad line, 30% / 12%', { one: 0.30, two: 0.12 }],
-];
-for (const [label, slip] of LINES) {
-    console.log(`\n2. SplitScheduler, ${label}\n`);
-    console.log('   2x exact              ' + distribution((phase, seed) => press(2, false, { slip, phase, seed })));
-    console.log('   3x exact              ' + distribution((phase, seed) => press(3, false, { slip, phase, seed })));
-    console.log('   16x blanket           ' + distribution((phase, seed) => press(4, true, { slip, phase, seed })));
-    console.log(`   16x, line learned     ` + distribution((phase, seed) => press(4, true, { slip, phase, seed, learn: 8 })));
+/**
+ *  ...but the above assumes packets land exactly when sent, and they do not. A nominal spacing
+ *  S reaches the server at roughly S-14ms .. S+9ms (see SPLIT_JITTER_MARGIN). That matters
+ *  asymmetrically: the full blanket has three packets covering every boundary it cares about,
+ *  while a trimmed run's two end ticks hold a single packet each - and a single packet pushed
+ *  across a boundary is a split LOST, not merely moved.
+ *
+ *  Overshooting is free once genuinely at the cap; undershooting never is. So this is the
+ *  number that decides whether trimming is safe to apply unconditionally.
+ */
+/**
+ *  Caveat: this draws jitter independently per packet, which is pessimistic. These ride one
+ *  ordered WebSocket (so, TCP) connection, where a delay mostly shifts the whole burst - and a
+ *  shared shift only changes the phase, which the sweep above already covers. Only the
+ *  *differential* jitter between packets 13ms apart stretches the span, and that is far smaller
+ *  than the end-to-end spread this uses. Read the undershoot column as a worst case, not an
+ *  estimate; the measured span in the page drifts by well under a millisecond.
+ */
+const JITTER_LO = -14, JITTER_HI = 9, DRAWS = 4000;
+const withJitter = (times) => times.map(t => t + JITTER_LO + Math.random() * (JITTER_HI - JITTER_LO));
+const jitterDist = (times) => {
+    const counts = {};
+    for (let i = 0; i < DRAWS; i++) {
+        const n = splitsFor(withJitter(times).sort((a, b) => a - b), Math.random() * TICK);
+        counts[n] = (counts[n] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => a[0] - b[0])
+        .map(([n, c]) => `${n}: ${(100 * c / DRAWS).toFixed(0)}%`).join('   ');
+};
+console.log(`With per-packet jitter of ${JITTER_LO}..+${JITTER_HI}ms, ${DRAWS} draws:\n`);
+for (const count of [2, 3, 4]) {
+    console.log(`  ${count}x asked`);
+    console.log(`     full blanket (today) -> ${jitterDist(full(count))}`);
+    console.log(`     trimmed              -> ${jitterDist(trimmed(count))}\n`);
 }
-console.log(`\n   ("line learned": 8 earlier 16x presses first.)`);
-console.log('   Section 1 shows this model gets the open-loop blanket\'s odds wrong, so read the 16x rows as');
-console.log('   a check that the adaptation engages and in which direction - not as a forecast.\n');

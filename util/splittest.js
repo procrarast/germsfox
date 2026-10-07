@@ -1,281 +1,231 @@
 /**
- *  Behaviour tests for SplitScheduler, driving the REAL source from bundle.js against a fake
- *  clock and a simulated server (see splitharness.js). Run with:  node util/splittest.js
+ *  Behaviour tests for the split queue, driving the REAL source from bundle.js against a fake
+ *  clock (see splitharness.js). Run with:  node util/splittest.js
  */
-const { world, clock, LIVE_SLIP, C } = require('./splitharness.js');
+const { fresh, advance, clock, Net, feedTicks, SPLIT_QUEUE_MAX, SPLIT_RUSH_COPIES, SPLIT_SPACING, TICK } = require('./splitharness.js');
+const RUSH_SPACING = TICK / SPLIT_RUSH_COPIES;
+// A rushed run short of the cap is trimmed so it covers exactly `count` ticks.
+const TRIM = (c) => (c - 1) * SPLIT_RUSH_COPIES + 1;
+const now = () => clock.now;
 
+// ---- assertions -------------------------------------------------------------------------
 let failures = 0;
 function check(name, cond, detail) {
-    if (cond) console.log(`  ok   ${name}`);
+    if (cond) { console.log(`  ok   ${name}`); }
     else { console.log(`  FAIL ${name}${detail ? ' -> ' + detail : ''}`); failures++; }
 }
-const gaps = (times) => times.slice(1).map((t, i) => t - times[i]);
-const near = (a, b) => Math.abs(a - b) < 1e-6;
-const sweep = (fn, { phases = 40, seeds = 1 } = {}) => {
-    const out = [];
-    for (let p = 0; p < phases; p++) for (let seed = 1; seed <= seeds; seed++) out.push(fn(p + 0.37, seed));
-    return out;
-};
+// Gaps between consecutive packets, rounded - the fake clock is exact so these are exact.
+const gaps = (g) => g.sentAt.slice(1).map((t, i) => Math.round(t - g.sentAt[i]));
 
-// ---------------------------------------------------------------------------------------
-console.log('\n1. exact splits (Space, 2x, 3x) are closed-loop');
+
+console.log(`\nspacing: paced=${SPLIT_SPACING}ms  rush=${RUSH_SPACING.toFixed(1)}ms  cap=${SPLIT_QUEUE_MAX}\n`);
+
+// --- 1. the reported bug: rushed 4x then paced 3x, pressed together ----------------------
+console.log('1. rushed 4x + paced 3x (the reported bug)');
 {
-    const w = world();
-    w.run(500);
-    const t0 = clock.now;
-    w.splits.queue(1);
-    check('an idle single split goes out immediately', w.server.sent.length === 1 && w.server.sent[0] === t0);
-}
-{
-    const w = world();
-    w.run(500);
-    w.splits.queue(3);
-    check('3x sends only its first split up front', w.server.sent.length === 1);
-    w.run(40);
-    check('...and nothing more before the server has confirmed it', w.server.sent.length === 1,
-        `${w.server.sent.length} sent`);
-    w.run(2000);
-    check('3x sends exactly three packets', w.server.sent.length === 3, `${w.server.sent.length}`);
-    check('3x performs exactly three splits', w.server.splitTicks.length === 3, `${w.server.splitTicks.length}`);
-    const ticks = w.server.splitTicks;
-    check('no two splits share a tick', new Set(ticks).size === ticks.length, JSON.stringify(ticks));
-}
-{
-    const counts = sweep((phase, seed) => {
-        const w = world({ phase, seed, slip: LIVE_SLIP });
-        w.run(500); w.splits.queue(3); w.run(3000);
-        return w.server.splitTicks.length;
-    }, { seeds: 50 });
-    check('3x is exactly three at every phase under the live slip (2,000 draws)',
-        counts.every(n => n === 3), JSON.stringify(counts.filter(n => n !== 3).slice(0, 5)));
-}
-{
-    const counts = sweep((phase, seed) => {
-        const w = world({ phase, seed, slip: { one: 0.3, two: 0.12 } });
-        w.run(500); w.splits.queue(2); w.run(3000);
-        return w.server.splitTicks.length;
-    }, { seeds: 50 });
-    check('2x is exactly two on a line twice as bad as the live one',
-        counts.every(n => n === 2), JSON.stringify(counts.filter(n => n !== 2).slice(0, 5)));
-}
-{
-    // 16 own-cell packets in one tick are one split, not sixteen confirmations
-    const w = world({ cells: 8 });
-    w.run(500);
-    w.splits.queue(2);
-    w.run(2000);
-    check('a split into many cells confirms once (8 -> 32 cells is 2 splits)',
-        w.server.splitTicks.length === 2 && w.server.cells === 32, `${w.server.splitTicks.length}, ${w.server.cells} cells`);
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);      // 16x key in Self Feed -> rushed
+    g.queueSplits(3, false);     // 3x macro, same instant
+    check('queue holds 7 logical splits, not 8 and not 4', g.queuedSplits === 7, `got ${g.queuedSplits}`);
+    advance(now() + 5000);
+    const expected = TRIM(4) + 3;
+    check(`sends ${expected} packets (${TRIM(4)} trimmed rush copies + 3 paced)`, g.sentAt.length === expected, `got ${g.sentAt.length}`);
+
+    const gg = gaps(g);
+    const rushGaps = gg.slice(0, TRIM(4) - 1);
+    const boundary = gg[TRIM(4) - 1];
+    const pacedGaps = gg.slice(TRIM(4));
+    check('rush copies stay at tick/3', rushGaps.every(x => x === Math.round(RUSH_SPACING)), JSON.stringify(rushGaps));
+    check('boundary into the paced run takes a full splitSpacing', boundary === SPLIT_SPACING, `got ${boundary}`);
+    check('paced splits keep splitSpacing, not the rush cadence',
+        pacedGaps.every(x => x === SPLIT_SPACING), JSON.stringify(pacedGaps));
 }
 
-// ---------------------------------------------------------------------------------------
-console.log('\n2. an exact split that cannot happen is given up on, never re-sent');
+// --- 2. reverse order: paced 3x then rushed 4x -------------------------------------------
+console.log('\n2. paced 3x + rushed 4x (reverse order)');
 {
-    // Cells too small to divide: the server takes each packet and performs nothing
-    const w = world({ frozen: true });
-    w.run(500);
-    w.splits.queue(3);
-    w.run(3000);
-    check('with nothing able to split, 3x still sends exactly three packets', w.server.sent.length === 3, `${w.server.sent.length}`);
-    check('...one confirm window apart', gaps(w.server.sent).every(g => near(g, w.splits.confirmWindow)),
-        JSON.stringify(gaps(w.server.sent)));
-    check('...and the queue empties rather than hanging', w.splits.queued === 0 && !w.splits.awaiting);
-    w.splits.queue(1);
-    check('a press afterwards goes out at once', w.server.sent.length === 4 && w.server.sent[3] === clock.now);
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(3, false);
+    // An idle queue releases immediately, so one of the three is already on the wire and off
+    // the queue by the time the second press lands - 2 left + 4 rushed = 6 still queued.
+    check('first of the 3 is already gone', g.sentAt.length === 1, `got ${g.sentAt.length}`);
+    g.queueSplits(4, true);
+    check('queue holds the remaining 6 logical splits', g.queuedSplits === 6, `got ${g.queuedSplits}`);
+    check('queue never exceeds the ceiling', g.queuedSplits <= SPLIT_QUEUE_MAX);
+    advance(now() + 5000);
+    check(`sends 3 + ${TRIM(4)} packets`, g.sentAt.length === 3 + TRIM(4), `got ${g.sentAt.length}`);
+    const gg = gaps(g);
+    check('the 3 paced splits are not dragged into the rush cadence',
+        gg.slice(0, 2).every(x => x === SPLIT_SPACING), JSON.stringify(gg.slice(0, 2)));
+    check('rush run runs at tick/3 once it starts',
+        gg.slice(3).every(x => x === Math.round(RUSH_SPACING)), JSON.stringify(gg.slice(3)));
 }
 
-// ---------------------------------------------------------------------------------------
-console.log('\n3. the line is learned from lone splits');
+// --- 3. chained rush must stay continuous ------------------------------------------------
+console.log('\n3. rushed 4x + rushed 4x (the Self Feed chain)');
 {
-    const w = world({ up: 28, down: 29 });
-    check('latency starts at the default', w.splits.latency === C.SPLIT_LATENCY_DEFAULT);
-    for (let i = 0; i < 30; i++) { w.run(123); w.splits.queue(1); w.run(300); }
-    check('latency converges on the send-to-confirmation floor (57ms)',
-        w.splits.latency >= 57 && w.splits.latency < 58, `${w.splits.latency.toFixed(2)}`);
-    check('confirm window follows it', Math.abs(w.splits.confirmWindow - (w.splits.latency + (C.SPLIT_SLIP_TICKS + 1) * 40 + 10)) < 1e-9);
-    check('a clean line reads a slip rate of zero', w.splits.slipRate === 0, `${w.splits.slipRate}`);
-    check(`only the last ${C.SPLIT_SAMPLE_WINDOW} are kept`, w.splits.samples.length === C.SPLIT_SAMPLE_WINDOW);
-}
-{
-    const w = world({ slip: { one: 0.3, two: 0 }, seed: 7 });
-    for (let i = 0; i < 60; i++) { w.run(97); w.splits.queue(1); w.run(300); }
-    const rate = w.splits.slipRate;
-    check('a line slipping 30% reads roughly that', rate > 0.12 && rate < 0.5, `${rate.toFixed(2)}`);
-    w.splits.forgetNetwork();
-    check('a new connection forgets it', w.splits.samples.length === 0 && w.splits.latency === C.SPLIT_LATENCY_DEFAULT);
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);
+    g.queueSplits(4, true);
+    check('fills the queue to exactly 8', g.queuedSplits === SPLIT_QUEUE_MAX, `got ${g.queuedSplits}`);
+    advance(now() + 5000);
+    check(`sends 2 x ${TRIM(4)} packets`, g.sentAt.length === 2 * TRIM(4), `got ${g.sentAt.length}`);
+    check('rush -> rush boundary stays blanketed (no paced stall)',
+        gaps(g).every(x => x === Math.round(RUSH_SPACING)), JSON.stringify(gaps(g)));
 }
 
-// ---------------------------------------------------------------------------------------
-console.log('\n4. 16x blankets for speed');
-const TRIM = (ticks) => (ticks - 1) * C.SPLIT_RUSH_COPIES + 1;
+// --- 4. the cap -------------------------------------------------------------------------
+console.log('\n4. the 8-split ceiling');
 {
-    const w = world();
-    w.run(500);
-    w.splits.queue(4, true);
-    w.run(2000);
-    check(`16x sends ${TRIM(4)} packets (trimmed blanket)`, w.server.sent.length === TRIM(4), `${w.server.sent.length}`);
-    check('a third of a tick apart', gaps(w.server.sent).every(g => near(g, 40 / 3)), JSON.stringify(gaps(w.server.sent)));
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);
+    g.queueSplits(4, true);
+    g.queueSplits(4, true);          // third press: no room
+    check('a press past the cap adds nothing', g.queuedSplits === SPLIT_QUEUE_MAX, `got ${g.queuedSplits}`);
+    advance(now() + 6000);
+    check(`still only 2 x ${TRIM(4)} packets`, g.sentAt.length === 2 * TRIM(4), `got ${g.sentAt.length}`);
 }
 {
-    const counts = sweep((phase) => {
-        const w = world({ phase });
-        w.run(500); w.splits.queue(4, true); w.run(2000);
-        return w.server.splitTicks.length;
-    });
-    check('on a clean line it is exactly four at every phase', counts.every(n => n === 4), JSON.stringify(counts));
+    const g = fresh('FFA', 1);
+    let peak = 0;
+    for (let i = 0; i < 20; i++) { g.queueSplits(1); peak = Math.max(peak, g.queuedSplits); }
+    check('queued never exceeds 8 at any point', peak === SPLIT_QUEUE_MAX, `peak ${peak}`);
+    advance(now() + 3000);
+    // 20 presses collapse to the one that went out instantly plus a full queue behind it. The
+    // ceiling is on splits waiting, not on splits ever sent, so 9 is the right total.
+    check('held key sends 1 immediate + 8 queued, and no more',
+        g.sentAt.length === SPLIT_QUEUE_MAX + 1, `got ${g.sentAt.length}`);
+    check('held key splits are all paced', gaps(g).every(x => x === SPLIT_SPACING), JSON.stringify(gaps(g)));
 }
 {
-    const w = world({ cells: 32, cap: 200 });
-    w.run(500);
-    w.splits.queue(4, true);
-    w.run(2000);
-    check('bound for the cap it keeps the full blanket', w.server.sent.length === 4 * C.SPLIT_RUSH_COPIES, `${w.server.sent.length}`);
-}
-{
-    const w = world({ cells: 32, cap: 200 });
-    w.run(500);
-    w.splits.queue(3);
-    check('a 3x that will reach the cap blankets too', w.splits.runs.length === 0 || w.splits.runs[0].blanket);
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(6, false);         // one fires instantly, 5 left queued
+    g.queueSplits(4, true);          // room is 3, so the 4x is clamped to 3
+    check('partial press is clamped, not dropped', g.queuedSplits === SPLIT_QUEUE_MAX, `got ${g.queuedSplits}`);
+    check('clamped run is still rushed', g.splitQueue[g.splitQueue.length - 1].copies > 1);
+    advance(now() + 6000);
+    check(`clamped rush sends 6 paced + ${TRIM(3)}`, g.sentAt.length === 6 + TRIM(3), `got ${g.sentAt.length}`);
 }
 
-// ---------------------------------------------------------------------------------------
-console.log('\n5. 16x makes up the splits it loses');
-// Lone splits first, as ordinary Space presses would, so the latency floor is learned
-const learn = (w) => {
-    for (let i = 0; i < 10; i++) { w.run(113); w.splits.queue(1); w.run(300); }
-};
-const press16 = (opts = {}, { cells = 1, stall = null } = {}) => {
-    const w = world({ ...opts, cap: opts.cap || 1e9 });
-    w.server.skipOff = true;
-    learn(w);
-    w.server.skipOff = false;
-    w.server.splitsDone = 0; w.server.skipped = 0;
-    w.server.splitTicks.length = 0;
-    w.server.cells = cells;
-    w.run(500);
-    const before = w.server.sent.length, t0 = clock.now;
-    if (stall) w.server.stall = { from: t0 + stall[0], to: t0 + stall[1] };
-    w.splits.queue(4, true);
-    w.run(1500);
-    return { w, packets: w.server.sent.length - before, splits: w.server.splitTicks.length };
-};
+// --- 5. never shrinks the queue (the min() bug) ------------------------------------------
+console.log('\n5. a later press never destroys queued splits');
 {
-    const counts = sweep((phase) => press16({ phase }).splits);
-    check('a clean 16x is exactly four at every phase', counts.every(c => c === 4), JSON.stringify(counts));
-    const { w, packets } = press16({});
-    check('...and adds nothing', packets === TRIM(4) && w.splits.extensions === 0, `${packets} packets, ${w.splits.extensions} added`);
-}
-for (const drift of [39.9, 40.1]) {
-    // The client's estimate of the tick drifts during the press - live it read 39.9-40.1 - so
-    // copies laid out at one period are measured at another
-    const counts = sweep((phase) => {
-        const w = world({ phase });
-        w.run(500); w.splits.queue(4, true);
-        w.run(30); w.game.network.tickPeriod = drift;
-        w.run(1500);
-        return `${w.server.splitTicks.length}/${w.splits.extensions}`;
-    });
-    check(`the tick estimate moving to ${drift}ms mid-press adds nothing to a clean 16x`,
-        counts.every(c => c === '4/0'), JSON.stringify(counts));
-}
-for (const n of [1, 2]) {
-    // The nth split-bearing tick runs late: its copies collide with the next tick's
-    const counts = sweep((phase) => press16({ phase, skip: (k) => k === n }).splits);
-    check(`a late tick mid-run (split ${n + 1}) is made up - four at every phase`,
-        counts.every(c => c === 4), JSON.stringify(counts));
-}
-{
-    const counts = sweep((phase) => press16({ phase, skip: (k) => k === 3 }).splits);
-    check('a late last tick loses nothing and is not made up - four at every phase',
-        counts.every(c => c === 4), JSON.stringify(counts));
-}
-{
-    const counts = sweep((phase) => press16({ phase, skip: (k) => k === 1 || k === 2 }).splits);
-    check('two late ticks in one press are both made up', counts.every(c => c === 4), JSON.stringify(counts));
-}
-{
-    // The live failure: the line holds the first 90ms of copies and delivers them in one burst
-    const counts = sweep((phase) => press16({ phase }, { stall: [0, 90] }).splits);
-    check('a stall at the start of the press is made up - at least four at every phase',
-        counts.every(c => c >= 4), JSON.stringify(counts));
-    check('...and usually exactly four', counts.filter(c => c === 4).length >= counts.length * 0.75,
-        JSON.stringify(counts));
-}
-{
-    const { packets } = press16({ cap: 2 });
-    check(`a 16x that cannot finish stops after ${C.SPLIT_RUSH_EXTEND_MAX} extra ticks`,
-        packets <= TRIM(4) + C.SPLIT_RUSH_EXTEND_MAX * C.SPLIT_RUSH_COPIES, `${packets}`);
-}
-{
-    const { w } = press16({ cap: 200 }, { cells: 32 });
-    check('a press bound for the cap is not watched', w.splits.extensions === 0 && !w.splits.watch);
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);
+    const before = g.queuedSplits;
+    const packetsBefore = g.splitQueue.reduce((a, r) => a + r.left, 0);
+    g.queueSplits(3, false);
+    const packetsAfter = g.splitQueue.reduce((a, r) => a + r.left, 0);
+    check('logical count only grows', g.queuedSplits >= before, `${before} -> ${g.queuedSplits}`);
+    check('no rush copies destroyed', packetsAfter > packetsBefore, `${packetsBefore} -> ${packetsAfter}`);
 }
 
-// ---------------------------------------------------------------------------------------
-console.log('\n6. the queue');
+// --- 6. single press and idle-queue latency ----------------------------------------------
+console.log('\n6. single press behaviour');
 {
-    const w = world({ cap: 1e9 });
-    w.run(500);
-    w.splits.queue(4, true);
-    w.splits.queue(4, true);
-    check('two 16x fill it to exactly eight', w.splits.queued === C.SPLIT_QUEUE_MAX, `${w.splits.queued}`);
-    w.splits.queue(4, true);
-    check('a third adds nothing', w.splits.queued === C.SPLIT_QUEUE_MAX, `${w.splits.queued}`);
-    w.run(3000);
-    check('chained blankets stay continuous, a third of a tick apart', gaps(w.server.sent).every(g => near(g, 40 / 3)),
-        JSON.stringify(gaps(w.server.sent)));
-}
-{
-    const w = world();
-    w.run(500);
-    for (let i = 0; i < 20; i++) w.splits.queue(1);
-    check('a held key queues at most eight behind the one in flight', w.splits.queued === C.SPLIT_QUEUE_MAX, `${w.splits.queued}`);
-    w.run(5000);
-    check('...and sends nine in all, each after the last was confirmed',
-        w.server.sent.length === C.SPLIT_QUEUE_MAX + 1 && w.server.splitTicks.length === C.SPLIT_QUEUE_MAX + 1,
-        `${w.server.sent.length} sent, ${w.server.splitTicks.length} splits`);
-}
-{
-    const w = world();
-    w.run(500);
-    w.splits.queue(6);        // one goes out, five wait
-    w.splits.queue(4, true);  // room for three
-    check('a press that only partly fits is clamped, not dropped', w.splits.queued === C.SPLIT_QUEUE_MAX, `${w.splits.queued}`);
-}
-{
-    const w = world();
-    w.run(500);
-    w.splits.queue(4, true);
-    w.splits.queue(1);
-    w.run(3000);
-    const s = w.server.sent;
-    const last = TRIM(4) - 1;
-    check('an exact split after a blanket waits a whole tick', near(s[last + 1] - s[last], 40),
-        `${(s[last + 1] - s[last]).toFixed(2)}ms`);
-    check('...so the 16x and the split both land', w.server.splitTicks.length === 5, `${w.server.splitTicks.length}`);
-}
-{
-    const w = world();
-    w.run(500);
-    w.splits.queue(3);
-    w.splits.queue(4, true);
-    w.run(3000);
-    check('a blanket queued behind an exact run waits for it, then all seven land',
-        w.server.splitTicks.length === 7, `${w.server.splitTicks.length}`);
-}
-{
-    const w = world();
-    w.run(500);
-    w.splits.queue(3);
-    w.splits.queue(4, true);
-    w.run(20);
-    const sent = w.server.sent.length;
-    w.splits.flush();
-    w.run(3000);
-    check('flush stops everything - nothing fires into the next life', w.server.sent.length === sent,
-        `${sent} -> ${w.server.sent.length}`);
-    check('...and leaves nothing waiting', w.splits.queued === 0 && !w.splits.awaiting && !w.splits.watch);
+    const g = fresh('FFA', 1);
+    g.queueSplits(1);
+    check('a lone press fires immediately, no pacing latency', g.sentAt.length === 1 && g.sentAt[0] === 1000,
+        JSON.stringify(g.sentAt));
+    check('a single split is never rushed', g.splitQueue.length === 0 && g.lastSplitRush === false);
 }
 
-console.log(failures ? `\n${failures} FAILED\n` : '\nall checks passed\n');
+// --- 7. splitsWillCap still auto-rushes, and flush clears everything ----------------------
+console.log('\n7. auto-rush and flush');
+{
+    const g = fresh('FFA', 8);       // cap 16, 8 cells: 2 splits -> 32 >= 16, will cap
+    g.queueSplits(2);
+    check('auto-rush fires without the rush flag', g.splitQueue[0].copies > 1);
+}
+{
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);
+    g.queueSplits(4, true);
+    advance(now() + 50);
+    g.flushSplits();
+    const sent = g.sentAt.length;
+    advance(now() + 5000);
+    check('flush drops the whole queue', g.queuedSplits === 0);
+    check('nothing fires after a flush', g.sentAt.length === sent, `${sent} -> ${g.sentAt.length}`);
+    check('flush clears the rush latch', g.lastSplitRush === false);
+}
+
+// --- 8. a rushed run covers exactly `count` ticks -----------------------------------------
+console.log('\n8. blanket length pins the split count');
+{
+    // 1 cell, cap 200: 4 splits reach 16, so this rushes on intent without being near the cap
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);
+    check(`uncapped rush is trimmed to ${TRIM(4)} packets`, g.splitQueue[0].left + 1 === TRIM(4),
+        `got ${g.splitQueue[0].left + 1}`);
+    advance(now() + 3000);
+    const span = g.sentAt[g.sentAt.length - 1] - g.sentAt[0];
+    // Consuming ticks are those in (0, span + TICK]; pinned to N only when span === (N-1)*TICK
+    check('span is exactly 3 ticks, so 4 ticks consume it at every phase',
+        Math.abs(span - 3 * TICK) < 0.001, `span ${span.toFixed(1)}ms`);
+}
+{
+    // 32 cells: 4 splits reach 512 >= 200, so overshoot is free and the blanket stays full
+    const g = fresh('Self Feed', 32);
+    g.queueSplits(4, true);
+    check(`capped rush keeps the full ${4 * SPLIT_RUSH_COPIES} packets`,
+        g.splitQueue[0].left + 1 === 4 * SPLIT_RUSH_COPIES, `got ${g.splitQueue[0].left + 1}`);
+}
+{
+    // Trimmed runs do not divide evenly into splits, so the ceiling must not under-count them
+    const g = fresh('Self Feed', 1);
+    g.queueSplits(4, true);
+    g.queueSplits(4, true);
+    check('two trimmed 4x still fill the queue to exactly 8, not 9',
+        g.queuedSplits === SPLIT_QUEUE_MAX, `got ${g.queuedSplits}`);
+    g.queueSplits(4, true);
+    advance(now() + 4000);
+    check('a third press past the ceiling still adds nothing',
+        g.sentAt.length === 2 * TRIM(4), `got ${g.sentAt.length}`);
+}
+
+// --- 9. the margin is measured, and only ever widens ---------------------------------------
+console.log('\n9. split margin adapts to the line, downward never');
+{
+    // us.germs.io measured at 2.05ms arrival SD over 839 packets - a clean line
+    // Asserted on the margin, not the absolute spacing: tickPeriod is an EMA of a jittered
+    // signal, so it wanders a few hundredths even when the rate is exactly 40.
+    const MARGIN = SPLIT_SPACING - TICK;
+    const SEEDS = Array.from({ length: 25 }, (_, i) => i + 1);
+    const worst = (fn) => SEEDS.map(fn).sort((a, b) => b - a)[0];
+
+    // us.germs.io measured at 2.05ms arrival SD over 839 packets - a clean line
+    for (const sd of [0, 2.05]) {
+        const off = worst(seed => Math.abs(feedTicks(new Net(), { sd, seed }).splitSpacing
+                                         - feedTicks(new Net(), { sd, seed }).tickPeriod - MARGIN));
+        check(`arrival SD ${sd}ms leaves the margin at the tuned ${MARGIN}ms, all ${SEEDS.length} seeds`,
+            off < 0.01, `worst deviation ${off.toFixed(3)}`);
+    }
+    const narrowest = SEEDS.map(seed => feedTicks(new Net(), { sd: 6, seed }).splitSpacing)
+        .sort((a, b) => a - b)[0];
+    check('three times the jitter widens the margin, every seed',
+        narrowest > SPLIT_SPACING + 4, `narrowest ${narrowest.toFixed(1)}`);
+    const widest = worst(seed => feedTicks(new Net(), { sd: 12, seed }).splitSpacing);
+    check('and it still stops at SPLIT_SPACING_MAX', widest <= 90.001, `got ${widest.toFixed(1)}`);
+
+    // The rate estimate has to survive the jitter it is measuring. Tolerance is set from the
+    // estimator's actual spread across seeds, not from a guess - it was 0.5ms, which flaked 20%.
+    const rateErr = worst(seed => Math.abs(feedTicks(new Net(), { sd: 6, seed }).tickPeriod - TICK));
+    check('tickPeriod still lands on the real rate under heavy jitter, every seed',
+        rateErr < 1.5, `worst error ${rateErr.toFixed(2)}ms`);
+}
+{
+    // A stall must not drag the phase estimate a slot sideways
+    const worstStall = Array.from({ length: 25 }, (_, i) => {
+        const n = feedTicks(new Net(), { sd: 2, seed: i + 1 });
+        const before = n.splitSpacing;
+        clock.now += 500; n.noteServerTick();      // one long hiccup
+        feedTicks(n, { sd: 2, ticks: 200, seed: i + 100 });
+        return Math.abs(n.splitSpacing - before);
+    }).sort((a, b) => b - a)[0];
+    check('a 500ms stall does not poison the margin, every seed',
+        worstStall < 2, `worst shift ${worstStall.toFixed(2)}ms`);
+}
+
+console.log(failures ? `\n${failures} FAILURE(S)\n` : '\nall checks passed\n');
 process.exit(failures ? 1 : 0);

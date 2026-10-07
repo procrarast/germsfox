@@ -60,12 +60,21 @@ async function init() {
     renderPlayerMenu();
     renderUpdateNotice();
 
+    /**
+     *  Every one of these acts once per press. Held, the OS repeats keydown about thirty times
+     *  a second, and each repeat used to act again: the toggles flipped a setting - a save, a
+     *  pass over every cell, and a storage event into every other germs tab - on every repeat,
+     *  and the switcher flipped tabs at the repeat rate - or, with one tab open, could open
+     *  several new ones before the first had even registered, each running a whole game.
+     *  Repeats are still prevented, so a held Tab does not fall through to the browser's
+     *  focus cycling.
+     */
     document.addEventListener('keydown', (event) => {
         if (usingInput) return;
         switch (event.code) {
             case settings.controls.multibox[0]:
                 event.preventDefault();
-                if (settings.switcherEnabled === false) break;
+                if (event.repeat || settings.switcherEnabled === false) break;
                 if (settings.switcherWindowed) {
                     //console.debug("Switching windows!");
                     chrome.runtime.sendMessage({ action: "switchWindows"});
@@ -83,20 +92,24 @@ async function init() {
              */
             case settings.controls.toggleNames[0]:
                 event.preventDefault();
+                if (event.repeat) break;
                 germsfoxCall('cycleDisplayPreference', 'showNames',
                     settings.toggleSettings ? settings.toggleNames : null);
                 break;
             case settings.controls.toggleSkins[0]:
                 event.preventDefault();
+                if (event.repeat) break;
                 germsfoxCall('cycleDisplayPreference', 'showSkins',
                     settings.toggleSettings ? settings.toggleSkins : null);
                 break;
             case settings.controls.toggleMass[0]:
                 event.preventDefault();
+                if (event.repeat) break;
                 germsfoxCall('toggleSetting', 'showMass');
                 break;
             case settings.controls.toggleFood[0]:
                 event.preventDefault();
+                if (event.repeat) break;
                 germsfoxCall('toggleSetting', 'hideFood');
                 break;
         }

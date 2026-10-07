@@ -6455,17 +6455,24 @@ function modules(ks) {
                     const target = this.playerCells.size > 0 ? this.mouse : this.leadCamera();
 
                     /**
-                     *  Held inside the map. Past the edge the server is being asked for a
-                     *  direction it can never satisfy: a cell already against the bottom-right
-                     *  wall with the cursor further out diagonally gets pulled along whichever
-                     *  wall the overshoot leans on instead of into the corner. Clamped per axis,
-                     *  so the corner is reachable, and copied rather than clamped in place -
-                     *  alive, `target` is this.mouse, and the cursor is not the thing at fault.
+                     *  Held inside the map while linesplitting, and only then for the cursor.
+                     *  Past the edge the server is being asked for a direction it can never
+                     *  satisfy: a cell already against the bottom-right wall with the cursor
+                     *  further out diagonally gets pulled along whichever wall the overshoot
+                     *  leans on instead of into the corner. Clamped per axis, so the corner is
+                     *  reachable, and copied rather than clamped in place - alive, `target` is
+                     *  this.mouse, and the cursor is not the thing at fault. Outside a linesplit
+                     *  the cursor goes out as it is.
+                     *
+                     *  Spectating is always held in: that target is the predicted camera, which
+                     *  predict() extends by its drift with no regard for the edge, and a view
+                     *  requested off the map is nodes the player at the wall never receives.
                      */
-                    const position = {
+                    const clamp = this.linesplit || target !== this.mouse;
+                    const position = clamp ? {
                         x: Math.min(Math.max(target.x, this.border[0]), this.border[1]),
                         y: Math.min(Math.max(target.y, this.border[2]), this.border[3]),
-                    };
+                    } : { x: target.x, y: target.y };
 
                     /**
                      *  A non-finite position is dropped rather than sent, because the filter
@@ -6497,9 +6504,9 @@ function modules(ks) {
             }
 
             /**
-             *  The camera one upstream trip from now, clamped to the map the same way the pan
-             *  itself is - predicting past the border would ask for a view the camera can never
-             *  actually reach.
+             *  The camera one upstream trip from now. Not clamped here - sendMouse() holds it
+             *  inside the map, since predicting past the border would ask for a view the camera
+             *  can never actually reach.
              */
             /**
              *  How far ahead of itself the camera has to aim for the view to be centred by the

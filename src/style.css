@@ -1262,10 +1262,11 @@ textarea {
     width: 85px;
     height: 85px;
     box-sizing: border-box;
-    border: 3px solid rgba(255, 255, 255, 0.4);
+    /* As thick as a skin's ring (germs' ul.skinList li img: 5px) */
+    border: 5px solid rgba(255, 255, 255, 0.4);
     border-radius: 16px;
     background-color: rgba(0, 0, 0, 0.35);
-    padding: 8px;
+    padding: 6px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);

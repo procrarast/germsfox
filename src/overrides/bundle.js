@@ -1139,6 +1139,19 @@ function modules(ks) {
          */
         const SPLIT_RUSH_COPIES = 3;
 
+        /**
+         *  Modes where the 16x key is only ever pressed to reach the cell cap.
+         *
+         *  Everywhere else the queue waits for splitsWillCap() to prove overshoot is free
+         *  before it stops pacing. In a feed mode that proof arrives too late to be useful: it
+         *  reads playerCells, which trails the server by a round trip, so the first press of a
+         *  max split still looks like it starts from one cell and gets paced - and at any real
+         *  ping the second press often does too. Both then run at one split per splitSpacing
+         *  rather than one per tick, which is the whole of the "max split is slow" complaint.
+         *
+         *  Here the intent is not in doubt, so the key skips the check.
+         */
+        const MAX_SPLIT_MODE = 'Self Feed';
         const SPLIT_SPACING_MIN = 45;
         const SPLIT_SPACING_MAX = 90;
 
@@ -7230,13 +7243,8 @@ function modules(ks) {
                             break;
                         }
 
-                        /**
-                         *  16x is the only key whose intent is known on press, so it never waits
-                         *  for splitsWillCap() - that reads playerCells, which trails the server
-                         *  and paces the first press. Was Self Feed only, which made one key
-                         *  feel different by mode for no visible reason.
-                         */
-                        this.queueSplits(count, count === 4);
+                        // Only the 16x key has an intent known up front - see MAX_SPLIT_MODE
+                        this.queueSplits(count, count === 4 && this.network.mode === MAX_SPLIT_MODE);
                         break;
                     }
                     }
@@ -7314,8 +7322,7 @@ function modules(ks) {
 
             /**
              *  `rush` forces the unpaced path for a run whose intent is known up front, rather
-             *  than waiting for the cell count to show it is about to cap. Only the 16x key
-             *  sets it - see its case in onKeyDown().
+             *  than waiting for the cell count to show it is about to cap - see MAX_SPLIT_MODE.
              */
             queueSplits(count, rush = false) {
                 /**
@@ -7372,12 +7379,12 @@ function modules(ks) {
                  *  tick it actually has to cover pins the count instead, at the same speed,
                  *  because the run still finishes on the same tick.
                  *
-                 *  Kept full only when the extra tick is free: the player asked to fill the cap
-                 *  (`rush`) *and* the run reaches it (`capped`). Either alone over-splits - an
-                 *  untrimmed run spans count*tick - tick/3, landing in count + 1 ticks for two
-                 *  thirds of phases. Trimmed it spans count - 1 ticks exactly.
+                 *  Only short of the cap, though. Past it the surplus is discarded anyway, and
+                 *  a trimmed run's end ticks carry one packet each rather than three, so jitter
+                 *  can drop one and lose a split - which is the one outcome that costs anything
+                 *  when the whole point of the press was to reach the cap.
                  */
-                const packets = rushing && !(rush && capped) ? (count - 1) * copies + 1 : count * copies;
+                const packets = rushing && !capped ? (count - 1) * copies + 1 : count * copies;
 
                 /**
                  *  perSplit rather than copies, because a trimmed run's packets no longer

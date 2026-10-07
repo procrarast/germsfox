@@ -11,7 +11,7 @@ python3 util/outline.py     # after anything that moves code
 ```
 
 <!-- AUTO:STATS -->
-`bundle.js` is **9330** lines and holds **37** classes.
+`bundle.js` is **9337** lines and holds **37** classes.
 <!-- /AUTO:STATS -->
 
 ## Layout
@@ -49,38 +49,38 @@ cannot see its globals; they talk to it over `postMessage` through `bridge.js`.
 | `Chat`                  | 246-563   | 318  | -                      | Chat log, emotes, stickers, the /wahbas command                               |
 | `GameUI`                | 648-1066  | 419  | -                      | In-game HUD: debug panel, leaderboard list, minimap, party text               |
 | `PartyMember`           | 1072-1091 | 20   | -                      | One party member's minimap dot and position                                   |
-| `Camera`                | 1292-1442 | 151  | -                      | Position, zoom, frame-rate independent smoothing, cull bounds, spectate drift |
-| `TextureCache`          | 1613-1708 | 96   | -                      | Refcounted texture store, freed 10s after refs hit 0                          |
-| `NameCache`             | 1710-1753 | 44   | `TextureCache`         | Name-label textures, keyed by name + parent                                   |
-| `SkinCache`             | 1799-1838 | 40   | `TextureCache`         | Skin resources; get() returns a SkinResource, not a texture                   |
-| `SkinResource`          | 1909-1960 | 52   | -                      | Loads a skin, clips it to a disc, classifies whether it is opaque             |
-| `Renderer`              | 2192-2678 | 487  | -                      | Base per-node display object: cull, interpolate, fade corpses, pool           |
-| `SpriteRenderer`        | 2685-2788 | 104  | `Renderer`             | Sprite-backed renderer; body texture, skin sprite, rim swap                   |
-| `PlayerSpriteRenderer`  | 2794-2814 | 21   | `SpriteRenderer`       | Adds name and skin handling on top of SpriteRenderer                          |
-| `CellSpriteRenderer`    | 2820-2846 | 27   | `PlayerSpriteRenderer` | Player cells: border, mass label, opacity                                     |
-| `VirusSpriteRenderer`   | 2848-2852 | 5    | `PlayerSpriteRenderer` | Virus texture and size                                                        |
-| `EjectedSpriteRenderer` | 2854-2892 | 39   | `SpriteRenderer`       | Ejected mass: one tinted food-shape sprite, player-themed                     |
-| `PelletRenderer`        | 2916-3010 | 95   | `Renderer`             | Food pellets as particles in pelletLayer; does nothing at rest                |
-| `Node`                  | 3019-3163 | 145  | -                      | Server state for one entity: position, size, colour, eaten                    |
-| `FoodNode`              | 3173-3196 | 24   | `Node`                 | Food and ejected mass; pellet shape; ejected takes the player theme           |
-| `CellNode`              | 3198-3201 | 4    | `Node`                 | A player cell                                                                 |
-| `VirusNode`             | 3203-3208 | 6    | `Node`                 | A virus                                                                       |
-| `Pool`                  | 3213-3353 | 141  | -                      | Per-type node/renderer recycling, with ceilings and peak tracking             |
-| `PingWriter`            | 3378-3386 | 9    | -                      | Packet: keepalive                                                             |
-| `ProtocolWriter`        | 3387-3397 | 11   | -                      | Packet: protocol + Cloudflare token (verification handshake)                  |
-| `LoginWriter`           | 3398-3407 | 10   | -                      | Packet: account uuid                                                          |
-| `SpectateWriter`        | 3408-3416 | 9    | -                      | Packet: begin spectating                                                      |
-| `NameWriter`            | 3417-3426 | 10   | -                      | Packet: nickname (spawn)                                                      |
-| `ChatWriter`            | 3427-3437 | 11   | -                      | Packet: chat message                                                          |
-| `MouseWriter`           | 3438-3448 | 11   | -                      | Packet: cursor/view position, sent every 40ms                                 |
-| `SplitWriter`           | 3449-3462 | 14   | -                      | Packet: split                                                                 |
-| `EjectWriter`           | 3463-3471 | 9    | -                      | Packet: eject mass                                                            |
-| `PartyWriter`           | 3472-3484 | 13   | -                      | Packet: party create/join/leave                                               |
-| `BinaryWriter`          | 3496-3573 | 78   | -                      | Builds outgoing packets                                                       |
-| `Network`               | 3594-4488 | 895  | -                      | Socket, verification handshake, every opcode handler, tick measurement        |
-| `Settings`              | 4541-4951 | 411  | -                      | The settings blob, defaults merge, and the side effects each change fans out  |
-| `Login`                 | 4952-5610 | 659  | -                      | Account, XP, shop, skin ownership                                             |
-| `Game`                  | 5612-8571 | 2960 | -                      | Everything else: the frame loop, input, node map, spectate, split keys        |
+| `Camera`                | 1305-1455 | 151  | -                      | Position, zoom, frame-rate independent smoothing, cull bounds, spectate drift |
+| `TextureCache`          | 1626-1721 | 96   | -                      | Refcounted texture store, freed 10s after refs hit 0                          |
+| `NameCache`             | 1723-1766 | 44   | `TextureCache`         | Name-label textures, keyed by name + parent                                   |
+| `SkinCache`             | 1812-1851 | 40   | `TextureCache`         | Skin resources; get() returns a SkinResource, not a texture                   |
+| `SkinResource`          | 1922-1973 | 52   | -                      | Loads a skin, clips it to a disc, classifies whether it is opaque             |
+| `Renderer`              | 2205-2691 | 487  | -                      | Base per-node display object: cull, interpolate, fade corpses, pool           |
+| `SpriteRenderer`        | 2698-2801 | 104  | `Renderer`             | Sprite-backed renderer; body texture, skin sprite, rim swap                   |
+| `PlayerSpriteRenderer`  | 2807-2827 | 21   | `SpriteRenderer`       | Adds name and skin handling on top of SpriteRenderer                          |
+| `CellSpriteRenderer`    | 2833-2859 | 27   | `PlayerSpriteRenderer` | Player cells: border, mass label, opacity                                     |
+| `VirusSpriteRenderer`   | 2861-2865 | 5    | `PlayerSpriteRenderer` | Virus texture and size                                                        |
+| `EjectedSpriteRenderer` | 2867-2905 | 39   | `SpriteRenderer`       | Ejected mass: one tinted food-shape sprite, player-themed                     |
+| `PelletRenderer`        | 2929-3023 | 95   | `Renderer`             | Food pellets as particles in pelletLayer; does nothing at rest                |
+| `Node`                  | 3032-3176 | 145  | -                      | Server state for one entity: position, size, colour, eaten                    |
+| `FoodNode`              | 3186-3209 | 24   | `Node`                 | Food and ejected mass; pellet shape; ejected takes the player theme           |
+| `CellNode`              | 3211-3214 | 4    | `Node`                 | A player cell                                                                 |
+| `VirusNode`             | 3216-3221 | 6    | `Node`                 | A virus                                                                       |
+| `Pool`                  | 3226-3366 | 141  | -                      | Per-type node/renderer recycling, with ceilings and peak tracking             |
+| `PingWriter`            | 3391-3399 | 9    | -                      | Packet: keepalive                                                             |
+| `ProtocolWriter`        | 3400-3410 | 11   | -                      | Packet: protocol + Cloudflare token (verification handshake)                  |
+| `LoginWriter`           | 3411-3420 | 10   | -                      | Packet: account uuid                                                          |
+| `SpectateWriter`        | 3421-3429 | 9    | -                      | Packet: begin spectating                                                      |
+| `NameWriter`            | 3430-3439 | 10   | -                      | Packet: nickname (spawn)                                                      |
+| `ChatWriter`            | 3440-3450 | 11   | -                      | Packet: chat message                                                          |
+| `MouseWriter`           | 3451-3461 | 11   | -                      | Packet: cursor/view position, sent every 40ms                                 |
+| `SplitWriter`           | 3462-3475 | 14   | -                      | Packet: split                                                                 |
+| `EjectWriter`           | 3476-3484 | 9    | -                      | Packet: eject mass                                                            |
+| `PartyWriter`           | 3485-3497 | 13   | -                      | Packet: party create/join/leave                                               |
+| `BinaryWriter`          | 3509-3586 | 78   | -                      | Builds outgoing packets                                                       |
+| `Network`               | 3607-4501 | 895  | -                      | Socket, verification handshake, every opcode handler, tick measurement        |
+| `Settings`              | 4554-4964 | 411  | -                      | The settings blob, defaults merge, and the side effects each change fans out  |
+| `Login`                 | 4965-5623 | 659  | -                      | Account, XP, shop, skin ownership                                             |
+| `Game`                  | 5625-8578 | 2954 | -                      | Everything else: the frame loop, input, node map, spectate, split keys        |
 <!-- /AUTO:CLASSES -->
 
 ## The frame
@@ -250,53 +250,54 @@ Things that have cost real debugging time here:
 | `SPLIT_JITTER_MARGIN`         | 1113 | `18`                                             |
 | `SPLIT_QUEUE_MAX`             | 1124 | `8`                                              |
 | `SPLIT_RUSH_COPIES`           | 1140 | `3`                                              |
-| `SPLIT_SPACING_MIN`           | 1142 | `45`                                             |
-| `SPLIT_SPACING_MAX`           | 1143 | `90`                                             |
-| `SERVER_TICK_ESTIMATE`        | 1152 | `40`                                             |
-| `TICK_COALESCE_MS`            | 1153 | `10`                                             |
-| `TICK_STALL_MS`               | 1154 | `100`                                            |
-| `TICK_EMA`                    | 1155 | `0.05`                                           |
-| `TICK_PHASE_EMA`              | 1168 | `0.1`                                            |
-| `TICK_JITTER_EMA`             | 1169 | `0.02`                                           |
-| `JITTER_ABS_TO_GAP_SD`        | 1179 | `1.2533 * Math.SQRT2`                            |
-| `SPLIT_JITTER_SIGMAS`         | 1190 | `4`                                              |
-| `UNIFORM_BATCH_RENDERABLES`   | 1212 | `8192`                                           |
-| `ZOOM_STEP`                   | 1242 | `0.9`                                            |
-| `ZOOM_SENSITIVITY_RANGE`      | 1243 | `4`                                              |
-| `SPECTATE_CURVE`              | 1245 | `1.25`                                           |
-| `FREE_SPEC_SPEED`             | 1252 | `20`                                             |
-| `MOUSE_SEND_PERIOD`           | 1258 | `40`                                             |
-| `GF_DIAG`                     | 1268 | `{`                                              |
-| `MS_PER_DELTA`                | 1280 | `1000 / 60`                                      |
-| `ZOOM_SYNC_DEBOUNCE`          | 1287 | `150`                                            |
-| `ZOOM_MIN`                    | 1289 | `0.01`                                           |
-| `ZOOM_MAX`                    | 1290 | `5`                                              |
-| `MASS_FONT`                   | 1762 | `'GermsfoxMass'`                                 |
-| `DEBUG_LABELS`                | 1763 | `['Mass:', 'Score:', 'Cells:', 'FPS:', 'PING...` |
-| `MASS_FONT_SIZE`              | 1765 | `75;       // atlas size, and the rendered s...` |
-| `MASS_FONT_SIZE_FULL`         | 1766 | `60;  // unshortened values are longer, so t...` |
-| `SKIN_OPACITY_PROBE`          | 1849 | `64`                                             |
-| `SKIN_OPACITY_MIN_ALPHA`      | 1860 | `224`                                            |
-| `COLOR_PRESETS`               | 1969 | `{`                                              |
-| `THEME_SLOTS`                 | 1979 | `{`                                              |
-| `LOD_SCALE`                   | 2039 | `25`                                             |
-| `CONVERGE_EPSILON`            | 2042 | `0.01`                                           |
-| `EATEN_FADE_DEPTH`            | 2050 | `0.383`                                          |
-| `EATEN_FADE_TIME`             | 2065 | `0.956`                                          |
-| `PARKED_Z_INDEX`              | 2074 | `-1e9`                                           |
-| `CELL_COMPACT_THRESHOLD`      | 2084 | `384`                                            |
-| `LINESPLIT_RING_TEXTURE_SIZE` | 2152 | `256`                                            |
-| `LINESPLIT_RING_THICKNESS`    | 2153 | `0.03;  // of the texture's width`               |
-| `LINESPLIT_RING_SCALE`        | 2154 | `1.08;      // outer edge, as a multiple of ...` |
-| `PELLET_KIND`                 | 3211 | `'pellet'`                                       |
-| `WRITER_CHUNK`                | 3494 | `1024`                                           |
-| `DISPLAY_PREFERENCES`         | 4511 | `['all', 'party', 'self', 'none']`               |
-| `PARTY_ARROW_SIZE`            | 4520 | `52;      // on-screen pixels along the arro...` |
-| `PARTY_ARROW_MARGIN`          | 4521 | `34;    // how far the tip sits in from the ...` |
-| `PARTY_ARROW_ALPHA`           | 4522 | `0.85`                                           |
-| `PARTY_ARROW_HYSTERESIS`      | 4530 | `8`                                              |
-| `SETTINGS_NOT_SYNCED`         | 4532 | `new Set([`                                      |
-| `GERMSFOX_BRIDGE_CALLABLE`    | 8736 | `{`                                              |
+| `MAX_SPLIT_MODE`              | 1154 | `'Self Feed'`                                    |
+| `SPLIT_SPACING_MIN`           | 1155 | `45`                                             |
+| `SPLIT_SPACING_MAX`           | 1156 | `90`                                             |
+| `SERVER_TICK_ESTIMATE`        | 1165 | `40`                                             |
+| `TICK_COALESCE_MS`            | 1166 | `10`                                             |
+| `TICK_STALL_MS`               | 1167 | `100`                                            |
+| `TICK_EMA`                    | 1168 | `0.05`                                           |
+| `TICK_PHASE_EMA`              | 1181 | `0.1`                                            |
+| `TICK_JITTER_EMA`             | 1182 | `0.02`                                           |
+| `JITTER_ABS_TO_GAP_SD`        | 1192 | `1.2533 * Math.SQRT2`                            |
+| `SPLIT_JITTER_SIGMAS`         | 1203 | `4`                                              |
+| `UNIFORM_BATCH_RENDERABLES`   | 1225 | `8192`                                           |
+| `ZOOM_STEP`                   | 1255 | `0.9`                                            |
+| `ZOOM_SENSITIVITY_RANGE`      | 1256 | `4`                                              |
+| `SPECTATE_CURVE`              | 1258 | `1.25`                                           |
+| `FREE_SPEC_SPEED`             | 1265 | `20`                                             |
+| `MOUSE_SEND_PERIOD`           | 1271 | `40`                                             |
+| `GF_DIAG`                     | 1281 | `{`                                              |
+| `MS_PER_DELTA`                | 1293 | `1000 / 60`                                      |
+| `ZOOM_SYNC_DEBOUNCE`          | 1300 | `150`                                            |
+| `ZOOM_MIN`                    | 1302 | `0.01`                                           |
+| `ZOOM_MAX`                    | 1303 | `5`                                              |
+| `MASS_FONT`                   | 1775 | `'GermsfoxMass'`                                 |
+| `DEBUG_LABELS`                | 1776 | `['Mass:', 'Score:', 'Cells:', 'FPS:', 'PING...` |
+| `MASS_FONT_SIZE`              | 1778 | `75;       // atlas size, and the rendered s...` |
+| `MASS_FONT_SIZE_FULL`         | 1779 | `60;  // unshortened values are longer, so t...` |
+| `SKIN_OPACITY_PROBE`          | 1862 | `64`                                             |
+| `SKIN_OPACITY_MIN_ALPHA`      | 1873 | `224`                                            |
+| `COLOR_PRESETS`               | 1982 | `{`                                              |
+| `THEME_SLOTS`                 | 1992 | `{`                                              |
+| `LOD_SCALE`                   | 2052 | `25`                                             |
+| `CONVERGE_EPSILON`            | 2055 | `0.01`                                           |
+| `EATEN_FADE_DEPTH`            | 2063 | `0.383`                                          |
+| `EATEN_FADE_TIME`             | 2078 | `0.956`                                          |
+| `PARKED_Z_INDEX`              | 2087 | `-1e9`                                           |
+| `CELL_COMPACT_THRESHOLD`      | 2097 | `384`                                            |
+| `LINESPLIT_RING_TEXTURE_SIZE` | 2165 | `256`                                            |
+| `LINESPLIT_RING_THICKNESS`    | 2166 | `0.03;  // of the texture's width`               |
+| `LINESPLIT_RING_SCALE`        | 2167 | `1.08;      // outer edge, as a multiple of ...` |
+| `PELLET_KIND`                 | 3224 | `'pellet'`                                       |
+| `WRITER_CHUNK`                | 3507 | `1024`                                           |
+| `DISPLAY_PREFERENCES`         | 4524 | `['all', 'party', 'self', 'none']`               |
+| `PARTY_ARROW_SIZE`            | 4533 | `52;      // on-screen pixels along the arro...` |
+| `PARTY_ARROW_MARGIN`          | 4534 | `34;    // how far the tip sits in from the ...` |
+| `PARTY_ARROW_ALPHA`           | 4535 | `0.85`                                           |
+| `PARTY_ARROW_HYSTERESIS`      | 4543 | `8`                                              |
+| `SETTINGS_NOT_SYNCED`         | 4545 | `new Set([`                                      |
+| `GERMSFOX_BRIDGE_CALLABLE`    | 8743 | `{`                                              |
 <!-- /AUTO:CONSTANTS -->
 
 ## Protocol

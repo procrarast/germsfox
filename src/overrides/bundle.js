@@ -6024,7 +6024,21 @@ function modules(ks) {
                     gcActive: false,
                     preference: (this.settings.settings.webGPU ? 'webgpu' : "webgl"),
                     canvas: this.canvas,
-                    antialias: true,
+                    /**
+                     *  Off, because there is nothing here for it to smooth. Every cell, pellet,
+                     *  skin and label is a sprite whose texture already carries its own soft
+                     *  edge, and the only vector shapes - the sector grid and the map border -
+                     *  are axis-aligned rectangles. Side by side at the border, with a cell and
+                     *  a name crossing it, the two looked the same.
+                     *
+                     *  What it cost was a 4x multisampled copy of the whole screen, drawn into
+                     *  and resolved every frame. Switched live on WebGPU at 2880x1566, three
+                     *  interleaved pairs: 4.3-4.6ms submit-to-done with it, 3.1-3.25ms without,
+                     *  and of that ~2.3ms is the measurement's own floor (an empty submit) -
+                     *  so it was most of the GPU's actual work. That was an Apple GPU, whose
+                     *  tile memory makes multisampling unusually cheap; elsewhere it costs more.
+                     */
+                    antialias: false,
                     resolution: window.devicePixelRatio,
                     powerPreference: 'high-performance',
                     backgroundColor: 0x333439,

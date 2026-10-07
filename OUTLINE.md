@@ -11,7 +11,7 @@ python3 util/outline.py     # after anything that moves code
 ```
 
 <!-- AUTO:STATS -->
-`bundle.js` is **9574** lines and holds **38** classes.
+`bundle.js` is **9584** lines and holds **38** classes.
 <!-- /AUTO:STATS -->
 
 ## Layout

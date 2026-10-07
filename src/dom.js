@@ -993,9 +993,14 @@ function renderGermsfoxSettings() {
 }
 
 /**
- *  Germsfox's keybinds, as two sections at the end of germs' own Controls pane rather than a
- *  tab of their own. Rebuilt in place, inside one container of ours, so a re-render (a rebind
- *  that unbound another row, or a change synced from another tab) never touches germs' rows.
+ *  Germsfox's keybinds, as two sections in germs' own Controls pane rather than a tab of their
+ *  own. Rebuilt in place, inside one container of ours, so a re-render (a rebind that unbound
+ *  another row, or a change synced from another tab) never rebuilds germs' rows.
+ *
+ *  The pane as a whole reads as sections: a General pill over germs' keybinds with Old Split
+ *  Macros last among them, then ours, then Reset Controls at the very end. germs' rows are
+ *  moved rather than recreated, so the handlers bundle.js bound to them stay on them, and the
+ *  arrangement is reapplied on every render so nothing can drift out of it.
  */
 function renderControlsTabPane() {
     const gamePane = document.getElementById("settings-controls");
@@ -1009,10 +1014,24 @@ function renderControlsTabPane() {
     }
     pane.replaceChildren();
 
+    let generalPill = document.getElementById("germsfoxControlsGeneral");
+    if (!generalPill) {
+        generalPill = createPill("General");
+        generalPill.id = "germsfoxControlsGeneral";
+        generalPill.classList.add("germsfoxControlsPill");
+    }
+    gamePane.prepend(generalPill);
+
+    const oldSplitMacrosRow = document.getElementById("oldSplitMacros")?.closest(".row");
+    if (oldSplitMacrosRow) pane.before(oldSplitMacrosRow);
+
+    const resetRow = gamePane.querySelector("input.btn-danger")?.closest(".row");
+    if (resetRow) gamePane.appendChild(resetRow);
+
     const multiboxPill = createPill("Multibox");
     const multiboxKeyTester = createKeyTester("multibox", "Switch Tabs");
 
-    const togglePill = createPill("Toggle Settings");
+    const togglePill = createPill("Ingame Toggles");
 
     const toggleInput = document.createElement("input");
     toggleInput.type = "checkbox";
@@ -1089,8 +1108,9 @@ function createGameControlRow(labelText, controls) {
     row.querySelector(".col-md-6").textContent = labelText;
     const group = row.querySelector(".input-group");
     group.replaceChildren(...[controls].flat());
-    // The keybind rows pin their group to the width of a key box; anything else sizes itself
-    if (!(controls instanceof HTMLInputElement)) group.style.width = "";
+    // Anything that is not a key box keeps the key box's width and sits at its right end, so
+    // every row's control ends on the same edge
+    if (!(controls instanceof HTMLInputElement)) group.style.justifyContent = "flex-end";
     return row;
 }
 

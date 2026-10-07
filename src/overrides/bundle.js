@@ -9422,27 +9422,37 @@ function modules(ks) {
             })();
 
             /**
-             *  Puts the Old Split Macros switch in germs' Controls pane, under Reset Controls.
+             *  Puts the Old Split Macros switch in germs' Controls pane, last among the
+             *  keybinds - the end of the General section the extension heads that pane with.
              *
              *  Cloned off a keybind row for the same reason the Spectate row is - it picks up
              *  whatever that pane's rows are made of - with the keybind box swapped for the
              *  switch markup the General pane uses, so it reads as a toggle while still lining
              *  up with the bindings above it.
+             *
+             *  Placed after the last keybind row rather than relative to Reset Controls: the
+             *  extension moves Reset to the bottom of the pane, and may well have done so
+             *  before this runs - anchoring on "the first row" then put this second. Only
+             *  direct rows count, so the extension's own rows, inside a container of theirs,
+             *  are never taken for the last keybind.
              */
             (function ensureOldSplitMacroRow() {
                 const pane = document.getElementById('settings-controls');
                 if (!pane || document.getElementById('oldSplitMacros')) return;
 
                 const template = document.getElementById('keyHide')?.closest('.row');
-                const resetRow = pane.querySelector('.row');
-                if (!template || !resetRow) return;
+                const keybindRows = [...pane.querySelectorAll(":scope > .row")]
+                    .filter(row => row.querySelector("input[type='text']"));
+                const lastKeybind = keybindRows[keybindRows.length - 1];
+                if (!template || !lastKeybind) return;
 
                 const row = template.cloneNode(true);
                 row.querySelector('.col-md-6').textContent = 'Old Split Macros';
 
                 const container = row.querySelector('.input-group');
-                // The keybind rows pin their group to the width of a key box; a switch sizes itself
-                container.style.width = '';
+                // Keeps the key box's width and sits at its right end, so the switch's right
+                // edge lines up with the boxes above and below it
+                container.style.justifyContent = 'flex-end';
                 container.innerHTML = `
                     <label class="switch">
                         <input type="checkbox" id="oldSplitMacros">
@@ -9454,7 +9464,7 @@ function modules(ks) {
                 input.checked = !!instance.settings.settings.oldSplitMacros;
                 input.addEventListener('change', () => instance.changeSetting('oldSplitMacros', input.checked));
 
-                resetRow.insertAdjacentElement('afterend', row);
+                lastKeybind.insertAdjacentElement('afterend', row);
             })();
 
             $("#settings-controls input[type='text']").on('click focus', function() {

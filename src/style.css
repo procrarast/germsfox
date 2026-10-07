@@ -1536,14 +1536,23 @@ ul.skinList.germsfoxGroupSkins {
 
 /* Germsfox's keybinds at the end of germs' Controls pane - see renderControlsTabPane() */
 /* Sized and centred like germs' own section pills in the Gameplay pane */
-#germsfoxGameControls .badge {
+#germsfoxGameControls .badge, .germsfoxControlsPill {
     display: table;
     margin: 18px auto 15px;
 }
+.germsfoxControlsPill {
+    margin-top: 0;
+}
+/* Reset Controls, last, a little apart from the sections above it */
+#settings-controls > #germsfoxGameControls + .row {
+    margin-top: 18px;
+}
 /* The "Switch Between" rows, styled as they were in the old Controls tab */
+/* The right margin is what lands the second dropdown's right edge on the key boxes' - 16px
+ * further in than the old Controls tab's 20px, measured against #keyFeed */
 #germsfoxGameControls .clearfix {
     margin-left: 20px;
-    margin-right: 20px;
+    margin-right: 36px;
 }
 #germsfoxGameControls .clearfix select {
     float: right;

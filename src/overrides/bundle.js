@@ -7610,6 +7610,11 @@ function modules(ks) {
 
                 this.heldSplitTimer = setTimeout(() => {
                     const legacy = this.settings.settings.oldSplitMacros;
+                    // Floored like feeding is, so a bad tick measurement cannot become a flood
+                    const period = legacy
+                        ? Math.max(FEED_PERIOD_MIN, this.network.tickPeriod)
+                        : HELD_SPLIT_POLL;
+
                     this.heldSplitTimer = setInterval(() => {
                         // Dead or between lives: a split now would go out into the next one
                         if (!this.aliveCell) return;
@@ -7618,7 +7623,7 @@ function modules(ks) {
                         } else if (this.splits.queued === 0) {
                             this.splits.queue(1);
                         }
-                    }, legacy ? this.network.tickPeriod : HELD_SPLIT_POLL);
+                    }, period);
                 }, HELD_SPLIT_DELAY);
             }
 

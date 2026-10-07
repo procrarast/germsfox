@@ -2488,8 +2488,14 @@ function modules(ks) {
          *  thickness on screen whatever the mass.
          */
         const LINESPLIT_RING_TEXTURE_SIZE = 256;
-        const LINESPLIT_RING_THICKNESS = 0.03;  // of the texture's width
-        const LINESPLIT_RING_SCALE = 1.08;      // outer edge, as a multiple of the cell's radius
+        /**
+         *  Laid over the cell's own border rather than around it. The cell texture draws that
+         *  border from 244.5 to 255 of its 256px radius, so the ring's outer edge is 255/256 of
+         *  the radius and it is the border's 10.5px thick - over the full 512px width, since
+         *  this one is measured against the ring texture's width.
+         */
+        const LINESPLIT_RING_THICKNESS = 10.5 / 512;  // of the texture's width
+        const LINESPLIT_RING_SCALE = 255 / 256;       // outer edge, as a multiple of the cell's radius
 
         let linesplitRing = null;
 
@@ -6392,8 +6398,12 @@ function modules(ks) {
                  *  on the mouse send interval while this runs per frame, so a corpse can still
                  *  be standing here - and its renderer may already have been pooled onto some
                  *  other node, which would put the ring on a stranger.
+                 *
+                 *  And it has to still be in the node map: a server clear pools every node
+                 *  without eating any of them, which left the ring standing where the cell had
+                 *  been until the next spawn picked a new one.
                  */
-                if (!cell || cell.eaten) {
+                if (!cell || cell.eaten || this.nodes.get(cell.id) !== cell) {
                     if (this.linesplitRing) this.linesplitRing.visible = false;
                     return;
                 }

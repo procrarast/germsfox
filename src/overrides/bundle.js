@@ -1051,7 +1051,7 @@ function modules(ks) {
                 return ~~this.score;
             }
             getFPSValue() {
-                const FPS = ~~this.game.ticker?.FPS;
+                const FPS = Math.round(this.game.averageFPS());
                 if (FPS <= 15) return [String(FPS), '#ff0000'];
                 if (FPS <= 30) return [String(FPS), 'yellow'];
                 return [String(FPS), '#00ff00'];
@@ -1616,6 +1616,9 @@ function modules(ks) {
 
         // PIXI normalises tick.deltaTime against 60Hz, so this is what one unit of delta buys
         const MS_PER_DELTA = 1000 / 60;
+
+        // The window the debug panel's FPS is averaged over - see Game.averageFPS()
+        const FPS_WINDOW_MS = 1000;
 
         /**
          *  How long the zoom has to settle before it is written to the synced settings blob.
@@ -5924,6 +5927,9 @@ function modules(ks) {
                 this.startTime = performance.now();
                 this.delta = 1;
                 this.frames = 1;
+                // Start times of the frames inside FPS_WINDOW_MS, oldest from frameHead on
+                this.frameTimes = [];
+                this.frameHead = 0;
                 // No round trip has been measured yet - and undefined here poisons anything
                 // that does arithmetic with it, see leadCamera()
                 this.ping = 0;
@@ -6556,8 +6562,36 @@ function modules(ks) {
                 return this.camera.predict(this.leadMs());
             }
 
+            /**
+             *  Frames rendered over the last FPS_WINDOW_MS, for the debug panel.
+             *
+             *  PIXI's ticker.FPS is one frame's delta inverted, so a single hitch or a single
+             *  fast frame swung the number on every repaint. Counting the frames that started
+             *  in the last second is the average over that second. Trimmed against now rather
+             *  than the last frame, so a stall reads as the drop it is instead of holding the
+             *  rate from before it.
+             */
+            averageFPS() {
+                this.dropOldFrames(performance.now());
+                return (this.frameTimes.length - this.frameHead) * 1000 / FPS_WINDOW_MS;
+            }
+
+            // Moves the head past frames older than the window; compacted now and then rather
+            // than shifted per frame, which would be a copy of the whole array every time
+            dropOldFrames(now) {
+                const times = this.frameTimes;
+                const cutoff = now - FPS_WINDOW_MS;
+                while (this.frameHead < times.length && times[this.frameHead] <= cutoff) this.frameHead++;
+                if (this.frameHead > 256) {
+                    times.splice(0, this.frameHead);
+                    this.frameHead = 0;
+                }
+            }
+
             render(tick) {
                 this.updateTime = performance.now();
+                this.frameTimes.push(this.updateTime);
+                this.dropOldFrames(this.updateTime);
 
                 this.delta = Math.min(1, Math.max(0, tick.deltaTime));
                 // How many 60Hz frames this one was worth, deliberately NOT clamped - the camera

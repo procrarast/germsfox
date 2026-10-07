@@ -273,7 +273,8 @@ function tryAddingSkin(skin) {
     // I just passed my entire storage.js source to my custom skins array and it broke the delete button 
     // and it's impossible to delete without manual intervention
     // Therefore I will be replacing the previous skin.includes("https://i.imgur.com/") condition  
-    if (/^https:\/\/i\.imgur\.com\/[^/]+$/.test(skin) && !settings.customSkins.includes(skin)) {
+    // Against every saved skin, folders included - see customSkinUrls() in skinfolders.js
+    if (/^https:\/\/i\.imgur\.com\/[^/]+$/.test(skin) && !customSkinUrls().includes(skin)) {
         settings.customSkins.unshift(skin);
         chrome.storage.local.set({ "customSkins": settings.customSkins });
         console.debug("Added skin", skin);
@@ -285,9 +286,29 @@ function tryAddingSkin(skin) {
 }
 
 function storeSkins(request) {
-    for (const skin of request.skins) {
-        if (tryAddingSkin(skin)) console.debug("Imported skin " + skin);
+    importCustomSkins(request.skins);
+}
+
+/**
+ *  Adds a list of skins as an export writes it. Loose skins are URL strings, as in every file
+ *  saved before folders existed, and go in one at a time through tryAddingSkin() the way they
+ *  always have. Folders - { name, skins } - come in whole, keeping only skins not already
+ *  saved; one with nothing new left in it is skipped. See normalizeCustomSkins().
+ */
+function importCustomSkins(raw) {
+    if (!Array.isArray(raw)) return;
+    for (const entry of raw) {
+        if (isSkinFolder(entry)) {
+            const [folder] = normalizeCustomSkins([entry], customSkinUrls());
+            if (!folder) continue;
+            settings.customSkins.unshift(folder);
+            saveCustomSkins();
+            console.log(`Imported folder ${folder.name} (${folder.skins.length})`);
+        } else if (tryAddingSkin(String(entry))) {
+            console.log("Imported skin " + entry);
+        }
     }
+    if (document.getElementById("customSkin")) renderCustomSkinsMenu();
 }
 
 function importSkinsFromFile(files) {
@@ -299,10 +320,7 @@ function importSkinsFromFile(files) {
             const reader = new FileReader();
             reader.onload = () => {
                 try {
-                    const skins = JSON.parse(reader.result); // JSON is just a single array lol
-                    for (const skin of skins) {
-                        if (tryAddingSkin(skin)) console.log("Imported skin " + skin);
-                    }
+                    importCustomSkins(JSON.parse(reader.result));
                 } catch (error) {
                     console.error("JSON parse failed:", error);
                 }

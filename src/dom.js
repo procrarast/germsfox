@@ -425,6 +425,11 @@ async function renderCellPreviewCard() {
     cellSkinButton.appendChild(cellSkinLabel);
 
     async function skinsListClicked(event) {
+        // Folders, their names and the open folder view handle their own clicks - see
+        // skinfolders.js. A skin image inside the folder view still comes through here, so
+        // picking one there wears it exactly the way picking one outside a folder does.
+        if (event.target.closest("[data-germsfox-click]") && event.target.tagName !== "IMG") return;
+
         if (event.target.innerText === "Apply") {
             let inputValue = document.getElementById("loginCustomSkinText").value;
             inputValue = inputValue.replace(/\s/g, ''); // remove whitespace
@@ -446,30 +451,6 @@ async function renderCellPreviewCard() {
             return; // Let the game handle default behavior
         } 
         
-        if (event.target.id === "deleteButton") {
-            // If you're deleting the skin you're wearing, you have to set it to 'None' due to the 
-            // limitations of the setSkin() function which requires a button to set skins
-            if (event.target.previousElementSibling.src === settings.setSkin) {
-                //console.debug("You're wearing the skin you deleted! Setting your skin to 'None'...");
-                setSetting("setSkin", "None");
-                setSkin("None");
-                cellSkin.style.display = "none";
-                cellSkinButton.style.removeProperty("background-image");
-                setSkin(settings.setColor); // If you have a color, set it
-
-                // Would the skin you're equipping override your cell color?
-                const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setColor);
-                if (cellColor && match) {
-                    // Set preview color to your skin
-                    setPreviewColor(cellColorList[match[0]][1]);
-                } else {
-                    // If not, set preview color to your set color
-                    //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                    setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
-                }
-            }
-            return; // Continue with default deleteButton behavior
-        }
 
         event.preventDefault();
         event.stopPropagation();
@@ -1810,104 +1791,6 @@ function renderNick() {
     }
 }
 
-function renderCustomSkinsMenu() {
-    //console.debug("Rendering custom skins menu");
-
-    let customSkinsContainer = document.getElementById("customSkin");
-
-    const oldSkinList = customSkinsContainer.querySelector("#customSkinList");
-    if (oldSkinList) oldSkinList.remove();
-
-    let applySkinButton = customSkinsContainer.querySelector(".btn-info");
-    applySkinButton.removeEventListener('click', submitCustomSkin); // For multiple renders
-    applySkinButton.addEventListener('click', submitCustomSkin);
-
-    let customSkinsTable = document.createElement("div");
-    customSkinsTable.id = "customSkinList";
-
-    if (settings.customSkins.length === 0) {
-        console.debug("No custom skins found");
-        let warning = document.createElement('p');
-        warning.textContent = `You have no Imgur skins saved!`;
-        customSkinsTable.appendChild(warning);
-        customSkinsTable.style.width = "100%";
-        customSkinsContainer.appendChild(customSkinsTable);
-        return customSkinsTable;
-    }
-    // create a new element to be displayed for each skin in customSkins
-    //console.debug("Creating elements for " + settings.customSkins.length + " skins");
-    for (i = 0; i < settings.customSkins.length; i++) {
-        customSkinsTable.appendChild(createSkinLi(settings.customSkins[i]));
-    }
-
-    customSkinsContainer.appendChild(customSkinsTable);
-
-    // right click to display a delete button
-    customSkinsTable.addEventListener("contextmenu", function (event) {
-        //console.debug("Context menu opened");
-        tryRemoveDeleteButton();
-
-        const imgSrc = event.target.src;
-        if (imgSrc?.startsWith("https://i.imgur.com/")) {
-            //console.debug("Context menu opened for skin " + event.target.src);
-            event.preventDefault();
-            // creates a delete button at the top right of the image 
-            event.target.parentNode.appendChild(createDeleteButton(imgSrc));
-        }
-    });
-
-    function createDeleteButton(imgSrc) {
-        console.debug(`Creating delete button for skin ${imgSrc}`);
-
-        tryRemoveDeleteButton();
-
-        /*const deleteButtonHTML = `
-        <button type="button" id="deleteButton" class="btn"><b>Delete</b></button>
-        `;*/
-        const deleteButton = document.createElement("button");
-        deleteButton.type = "button";
-        deleteButton.id = "deleteButton";
-        deleteButton.classList.add("btn");
-        deleteButton.textContent = "Delete";
-
-        deleteButton.addEventListener('click', () => {
-            deleteButton.remove();
-            settings.customSkins.splice(settings.customSkins.indexOf(imgSrc), 1); // assuming it always exists
-            chrome.storage.local.set({ "customSkins": settings.customSkins });
-            console.log(`Deleted ${imgSrc}`);
-            renderCustomSkinsMenu(); // Would rather do a parentNode.remove() but it won't work, so just re-render the whole thing
-        });
-
-        const skinsCard = document.getElementById("skinsCard");
-        skinsCard.addEventListener('click', () => {
-            tryRemoveDeleteButton();
-        }, { once: true });
-
-        return deleteButton;
-    }
-
-    function tryRemoveDeleteButton() {
-        // Trying to remove delete button
-        let deleteButton = customSkinsTable.querySelector("#deleteButton");
-
-        if (deleteButton) {
-            deleteButton.remove();
-            return true;
-        } return false;
-    }
-}
-
-
-function submitCustomSkin() {
-    const customSkinInput = document.getElementById("loginCustomSkinText");
-    const inputValue = customSkinInput.value;
-    if (tryAddingSkin(inputValue)) {
-        renderCustomSkinsMenu();
-    }
-    customSkinInput.value = ""; // clear the input box
-}
-
-
 function renderEmotesPanel() {
     const chatContainer = document.getElementById("chat");
 
@@ -1992,21 +1875,6 @@ function renderEmotesPanel() {
     chatContainer.append(emotesButton, emotesPanel);
 }
 
-function createSkinLi(url) {
-    let skinLi = document.createElement("li");
-    skinLi.id = "skinSkin";
-
-    let skinImg = document.createElement("img");
-    // setSkin() provided by germ
-    skinImg.setAttribute("onclick", `setSkin('${url}')`);
-    skinImg.loading = "lazy";
-    skinImg.style.width = 84;
-    skinImg.style.height = 85;
-    skinImg.src = url;
-
-    skinLi.appendChild(skinImg);
-    return skinLi;
-}
 
 /**
  *  Applies the blocklist to messages already on screen, in every tab. Block and unblock each

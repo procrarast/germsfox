@@ -28,6 +28,7 @@
                 "src/bridge.js",
                 "src/dom.js",
                 "src/storage.js",
+                "src/skinfolders.js",
                 "src/content.js"
             ]
         }

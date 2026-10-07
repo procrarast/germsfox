@@ -616,23 +616,6 @@ ul.skinList li {
     color: white;
     transition: color 0.3s ease-in-out;
 }
-#deleteButton {
-    color: white; 
-    background-color: #dc3545; 
-    border-color: #dc3545; 
-    border-radius: 4px;
-    box-shadow: 0 0 8px black;
-    margin: 2px;
-    padding: 2px 24px; 
-    font-size: 12px;
-    top: 0px;
-    left: 0px;
-    transition: all 0.3s ease-in-out;
-}
-#deleteButton:hover {
-    background-color: #ad2a37;
-    border-color: #ad2a37;
-}
 #addBlockButton {
     margin-top: 0px; 
     margin-right: 60px; 
@@ -998,10 +981,11 @@ input:focus + .slider.danger {
 }
 
 /* Skin rings in the skins menu take the cell preview's colour - see setPreviewColor() in
- * dom.js. The #skinContainer prefix outranks germs' own `ul.skinList li img` white border,
- * which wins a tie against extension CSS in Chrome. */
+ * dom.js - darkened the way a cell's own border is, by the same 20% black the Cell Color
+ * buttons' inset ring uses. The #skinContainer prefix outranks germs' own
+ * `ul.skinList li img` white border, which wins a tie against extension CSS in Chrome. */
 #skinContainer ul.skinList li img {
-    border-color: var(--germsfoxCellColor, #fff);
+    border-color: color-mix(in srgb, var(--germsfoxCellColor, #fff) 80%, black);
 }
 #nick::-webkit-scrollbar {
     width: 5px;
@@ -1299,4 +1283,243 @@ input:focus + .slider.danger {
     line-height: 14px;
     border-radius: 50%;
     cursor: pointer;
+}
+
+/* ---- custom skin folders - see skinfolders.js ---------------------------------------- */
+
+/* A folder takes one skin's place - 85px, like a skin image - but as a rounded square with a
+ * plain border, so it reads as a container rather than another cell. Holds a 3x3 grid of its
+ * first nine skins */
+.germsfoxFolderPreview {
+    width: 85px;
+    height: 85px;
+    box-sizing: border-box;
+    border: 5px solid rgba(255, 255, 255, 0.18);
+    border-radius: 16px;
+    background-color: rgba(0, 0, 0, 0.35);
+    padding: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+    cursor: pointer;
+    transform: scale(1);
+    transition: 0.5s;
+}
+.germsfoxFolderPreview:hover {
+    transform: scale(1.1);
+    transition: 0.3s;
+}
+.germsfoxFolderTile {
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* The name sits under the folder exactly like a skin's name; clicking it renames */
+ul.skinList li p.germsfoxFolderName {
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+}
+.germsfoxFolderRename {
+    width: 85px;
+    padding: 1px 3px;
+    border: none;
+    border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font: inherit;
+    text-align: center;
+    outline: 1px solid #007bff;
+}
+
+/* ---- dragging ---- */
+.germsfoxDraggingSkin, .germsfoxDraggingSkin * {
+    cursor: grabbing !important;
+    user-select: none !important;
+}
+#customSkinList li.germsfoxDragging, .germsfoxFolderSkins li.germsfoxDragging {
+    opacity: 0.3;
+}
+#germsfoxSkinGhost {
+    position: fixed;
+    z-index: 1002;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 4px solid color-mix(in srgb, var(--germsfoxCellColor, #fff) 80%, black);
+    background-size: cover;
+    background-position: center;
+    box-shadow: rgba(0, 0, 0, 0.5) 0 4px 12px;
+    opacity: 0.9;
+    pointer-events: none;
+}
+#germsfoxSkinGhost.germsfoxGhostFolder {
+    border: none;
+    background: none;
+}
+#germsfoxSkinGhost .germsfoxFolderPreview {
+    width: 64px;
+    height: 64px;
+    padding: 4px;
+    border-width: 4px;
+    border-radius: 12px;
+}
+#germsfoxDropLine {
+    display: none;
+    position: fixed;
+    z-index: 1001;
+    width: 4px;
+    border-radius: 2px;
+    pointer-events: none;
+    box-shadow: 0 0 6px rgba(0, 123, 255, 0.8);
+}
+/* What a drop in the middle of a skin or folder would make, drawn where it would appear */
+#germsfoxMergePreview {
+    position: fixed;
+    z-index: 1001;
+    pointer-events: none;
+    box-shadow: 0 0 0 3px #007bff;
+    transform: scale(1.08);
+}
+
+/* ---- the folder view ---- */
+#germsfoxFolderView {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.55);
+    border-radius: 6px;
+}
+#germsfoxFolderView.germsfoxDropOut {
+    background-color: rgba(0, 123, 255, 0.25);
+}
+.germsfoxFolderPanel {
+    width: 86%;
+    max-height: 86%;
+    overflow-y: auto;
+    padding: 10px 14px 6px;
+    border-radius: 14px;
+    background-color: rgb(52, 58, 64);
+    box-shadow: rgba(0, 0, 0, 0.45) 0 0 18px 2px;
+    scrollbar-width: thin;
+}
+.germsfoxFolderHeader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-bottom: 4px;
+}
+p.germsfoxFolderTitle {
+    margin: 0;
+    font-family: Ubuntu, Roboto, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.germsfoxFolderTitle .germsfoxFolderRename {
+    width: 220px;
+    font-size: 18px;
+}
+.germsfoxFolderClose {
+    position: absolute;
+    right: 0;
+    top: 2px;
+    cursor: pointer;
+    opacity: 0.7;
+}
+.germsfoxFolderClose:hover {
+    opacity: 1;
+}
+ul.skinList.germsfoxFolderSkins {
+    display: flow-root;
+    margin: 0;
+}
+
+/* ---- the right-click menu, after the game's own #userMenu ---- */
+#germsfoxSkinMenu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 100px;
+    max-width: 220px;
+    white-space: nowrap;
+    background: rgb(34, 34, 34);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    box-shadow: rgba(0, 0, 0, 0.4) 0 0 5px 0;
+    font-family: Ubuntu, Roboto, sans-serif;
+}
+#germsfoxSkinMenu > ul {
+    margin: 2px 0;
+    padding: 0;
+    list-style-type: none;
+    overflow: hidden;
+}
+#germsfoxSkinMenu > ul li {
+    position: relative;
+    margin: 0;
+    padding: 5px;
+}
+#germsfoxSkinMenu > ul li p {
+    margin: 0 5px 0 33px;
+    color: rgb(222, 222, 222);
+    font-size: 14px;
+    text-shadow: rgb(0, 0, 0) 0 0 3px;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+#germsfoxSkinMenu > ul li i {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0 4px;
+    color: #fff;
+    pointer-events: none;
+}
+#germsfoxSkinMenu hr {
+    margin: 5px 0;
+    border-color: rgb(102, 102, 102);
+}
+/* Just the skin (or folder), centred - there is no name to sit beside it */
+#germsfoxSkinMenu > ul li.germsfoxSkinMenuHeader {
+    display: flex;
+    justify-content: center;
+    padding: 6px 5px 2px;
+}
+.germsfoxSkinMenuIcon {
+    width: 44px;
+    height: 44px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--germsfoxCellColor, rgb(51, 51, 51)) 80%, black);
+    background-color: var(--germsfoxCellColor, rgb(51, 51, 51));
+    background-size: cover;
+    background-position: center;
+}
+.germsfoxSkinMenuIcon.germsfoxFolderPreview {
+    padding: 3px;
+    gap: 1px;
+    border: 3px solid rgba(255, 255, 255, 0.18);
+    border-radius: 9px;
+    background-color: rgba(0, 0, 0, 0.35);
+    cursor: default;
+    transform: none;
+}
+.germsfoxSkinMenuItem:hover {
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.3);
+}
+.germsfoxSkinMenuDanger i {
+    color: #ff6b6b !important;
 }

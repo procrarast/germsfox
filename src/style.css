@@ -973,9 +973,9 @@ textarea {
     border-color: color-mix(in srgb, var(--germsfoxCellColor, #fff) 80%, black);
     /* Thinner than germs' 5px, and the same as a group's border */
     border-width: 4px;
-    /* germs paints white behind every skin, which filled in the see-through parts of skins
-     * with transparent backgrounds */
-    background-color: transparent;
+    /* germs paints white behind every skin. The cell's own fill colour instead, so a skin's
+     * see-through parts look the way they do on the cell in-game - and None is just the cell */
+    background-color: var(--germsfoxCellColor, #fff);
 }
 #nick::-webkit-scrollbar {
     width: 5px;

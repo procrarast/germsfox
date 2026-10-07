@@ -574,14 +574,31 @@
     height: auto;
     margin: 0 0 2.5px 1.5px;
 }
-/* Stickers section within the same panel - bigger tiles than the emotes above, since sticker
- * previews (and the stickers themselves in chat) are meant to read larger. */
-#germsfoxStickersList li {
-    width: 45px;
-    height: 45px;
+/* Stickers section within the same panel: a two-column grid of square tiles, each sticker
+ * scaled to fit its tile whatever its shape. Prefixed with #germsfoxEmotes because the emote
+ * rules above (#germsfoxEmotes ul li) otherwise outrank these - which is what kept sticker
+ * tiles at the emotes' 25px, with tall and wide stickers spilling out of them. */
+#germsfoxEmotes #germsfoxStickersList {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    margin: 2px 4px 4px 3px;
 }
-#germsfoxStickersList li img {
-    width: 40px;
+#germsfoxEmotes #germsfoxStickersList li {
+    width: auto;
+    height: auto;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+#germsfoxEmotes #germsfoxStickersList li img {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    object-fit: contain;
 }
 #germsfoxEmotes::-webkit-scrollbar-thumb {
     background-color: #2dfa83;

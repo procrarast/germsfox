@@ -5,11 +5,6 @@
 
 console.debug("Running dom.js");
 
-/**
- *  Resolves a skin as the game itself does: a custom skin is already a full imgur URL, and
- *  anything else names one of the game's own under res/skins. Relative is correct - this panel
- *  lives in the germs.io document, so it resolves against the game's own assets.
- */
 function dailyLeaderboardSkinURL(skin) {
     if (typeof skin !== "string" || skin === "") return null;
     if (/^https:\/\/i\.imgur\.com\/[A-Za-z0-9]{1,32}(\.(png|jpe?g|gif))?$/.test(skin)) return skin;
@@ -17,11 +12,6 @@ function dailyLeaderboardSkinURL(skin) {
     return "res/skins/" + (skin.endsWith(".png") ? skin : skin + ".png");
 }
 
-/**
- *  The top entry's marker: their cell, coloured and skinned as the server gave it, standing in
- *  for the gold crown. Falls back to the crown when the entry predates appearance data or was
- *  submitted with no live cell to read it from.
- */
 function dailyLeaderboardCrown(rank) {
     const crown = document.createElement("i");
     crown.classList.add("fas", "fa-crown", "lbCrown", "lbCrown-" + rank);
@@ -29,8 +19,6 @@ function dailyLeaderboardCrown(rank) {
 }
 
 function dailyLeaderboardCell(entry) {
-    // Entries from before appearance data existed, or submitted with no live cell to read it
-    // off, still get the crown they always had
     if (typeof entry.color !== "number") return dailyLeaderboardCrown(1);
 
     const cell = document.createElement("span");
@@ -41,8 +29,6 @@ function dailyLeaderboardCell(entry) {
 
     const skinURL = dailyLeaderboardSkinURL(entry.skin);
     if (skinURL) {
-        // Assigned as a property rather than built into a style string, so the URL cannot
-        // escape the url() it sits in even if it ever got past both validators
         cell.style.backgroundImage = `url("${encodeURI(skinURL)}")`;
         cell.style.borderColor = rgb;
     }
@@ -99,12 +85,9 @@ function renderDailyLeaderboardPanel() {
             const li = document.createElement("li");
             li.className = i === 0 ? "germsfoxDailyLeaderboardFirst" : "germsfoxDailyLeaderboardOther";
 
-            // The leader gets their own cell in place of the gold crown, the way the native
-            // leaderboard draws you among the top ten. Everyone else keeps a crown.
+            // The leader gets their skin displayed
             const rank = i === 0 ? dailyLeaderboardCell(entry) : dailyLeaderboardCrown(i + 1);
 
-            // name and mass stack vertically so short names still get the full row width
-            // instead of sharing it with a same-line mass value (was causing needless ellipsis)
             const text = document.createElement("div");
             text.className = "germsfoxDailyLeaderboardText";
 
@@ -123,22 +106,12 @@ function renderDailyLeaderboardPanel() {
         return true;
     }
 
-    // Right after page load, the game mode often isn't established yet - retry quickly a few
-    // times rather than silently waiting out the full steady-state interval below, which made
-    // this look like it was doing nothing until the player happened to die minutes later.
-    (async () => {
-        for (let attempt = 0; attempt < 10; attempt++) {
-            if (await refresh()) break;
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-        // 2x bundle.js's 30s score-submission interval - long enough not to hammer the server
-        // with ~50 concurrent players each polling, short enough that a new high score shows up
-        // reasonably quickly. Daily leaderboard, not live game state, so this doesn't need to be tight.
-        setInterval(refresh, 60000);
-    })();
+    // In case the game connected before this script loaded. If it hasn't yet, bundle.js
+    // announces the mode on its first connect, which the listener below picks up
+    refresh();
+    setInterval(refresh, 60000);
 
-    // Switching modes shows the *previous* mode's leaderboard until the next 60s poll otherwise
-    // - clear immediately so stale data is never shown for the wrong mode, then refetch now.
+    // Clear immediately so data is never shown for the wrong mode
     document.addEventListener('germsfox:modeChange', () => {
         list.replaceChildren();
         panel.style.display = "none";
@@ -146,63 +119,40 @@ function renderDailyLeaderboardPanel() {
     });
 }
 
-/**
- *  Appends text to an element, turning `backtick`-delimited spans into <code> and bare
- *  http(s) URLs into links that open in a new tab.
- *
- *  Assembled from text nodes and elements rather than innerHTML for the same reason the title
- *  is: nothing the copy says can turn into markup. An odd number of backticks leaves the
- *  trailing span marked up as code, which is visible enough in the notice itself to be worth
- *  no handling of its own.
- */
+// Enrich the update notification by making links clickable and
+// turning backticked text into monospace code blocks.
 function appendUpdateText(parent, text) {
+    const url = /https?:\/\/\S*[^\s.,!?;:)]/g;
+
     text.split("`").forEach((chunk, index) => {
-        if (index % 2 === 0) {
-            if (chunk) appendLinkedText(parent, chunk);
+        if (!chunk) return; // Skip empty chunks
+
+        if (index % 2 === 1) {
+            const code = document.createElement("code");
+            code.className = "germsfoxUpdateCode";
+            code.textContent = chunk;
+            parent.append(code);
             return;
         }
 
-        const code = document.createElement("code");
-        code.className = "germsfoxUpdateCode";
-        code.textContent = chunk;
-        parent.append(code);
+        let last = 0;
+        for (const match of chunk.matchAll(url)) {
+            if (match.index > last) parent.append(chunk.slice(last, match.index));
+
+            const link = document.createElement("a");
+            link.href = match[0];
+            link.textContent = match[0];
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            parent.append(link);
+
+            last = match.index + match[0].length;
+        }
+        if (last < chunk.length) parent.append(chunk.slice(last));
     });
 }
 
-/**
- *  Appends plain text with any URL in it made into a link. A URL ends at whitespace, and
- *  trailing punctuation is left out of it, so the full stop after one at the end of a
- *  sentence stays text instead of breaking the link.
- */
-function appendLinkedText(parent, text) {
-    const url = /https?:\/\/\S*[^\s.,!?;:)]/g;
-    let last = 0;
-    for (const match of text.matchAll(url)) {
-        if (match.index > last) parent.append(text.slice(last, match.index));
-
-        const link = document.createElement("a");
-        link.href = match[0];
-        link.textContent = match[0];
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        parent.append(link);
-
-        last = match.index + match[0].length;
-    }
-    if (last < text.length) parent.append(text.slice(last));
-}
-
-/**
- *  One-time notice after an update, in the game's own card style.
- *
- *  Built from the same pieces the game's settings panel uses - a .card inside a dimmed
- *  full-screen layer, closed by an `i.fas.fa-times` - and parented to #menu rather than to
- *  <body>, so it shows and hides with the menu the way every other panel does instead of
- *  needing its own visibility rules.
- *
- *  The version comes from the manifest rather than a constant here, so there is one place to
- *  bump it and this can never disagree with what the extension actually is.
- */
+// One-time notice after an update
 function renderUpdateNotice() {
     const menu = document.getElementById("menu");
     if (!menu) return;
@@ -216,16 +166,13 @@ function renderUpdateNotice() {
     const card = document.createElement("div");
     card.className = "card";
     card.id = "germsfoxUpdateCard";
-    // Same scale the game gives its own menu cards in onResize(). Copied once, like
-    // #germsfoxSettingsContainer - it does not follow a later resize
+    // Match menu size, resizes don't track. That's fine for a one time thing
     card.style.transform = document.getElementById("settingsContainer")?.style.transform ?? "";
 
     const close = document.createElement("i");
     close.className = "fas fa-times";
     close.id = "germsfoxUpdateClose";
 
-    // The toolbar button's icon, taken from the 38px source so it stays crisp when the
-    // stylesheet scales it down on a high-DPI display
     const titleIcon = document.createElement("img");
     titleIcon.className = "germsfoxUpdateIcon";
     titleIcon.src = chrome.runtime.getURL("images/gsDuhFox-38.png");
@@ -233,52 +180,31 @@ function renderUpdateNotice() {
 
     const title = document.createElement("h4");
     title.id = "germsfoxUpdateTitle";
-    // append() rather than innerHTML: the version is interpolated into this, and a text node
-    // cannot become markup no matter what it holds
     title.append(titleIcon, `Germsfox ${version}`);
 
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
     appendUpdateText(body,
-        "Lots of changes this time around.\n\n" +
-        "- Support for Firefox has been restored. You can find the Firefox addon at https://pishi.dev/germsfox.\n" +
-        "- The custom skins menu now can be organized into groups, and you can move skins around as you wish. I don't feel like adding this for veteran/free/premium skins though\n" +
-        "- Added back a linesplitting cell's indicative border. Not sure how to articulate this\n" +
-        "- Split macros have once again been slightly tweaked. Fixed a bug that caused someone to lag by pressing and holding a keybind (allegedly)\n\n" +
-        "- While spectating, right-click any player and click \"Follow\" to follow them\n" +
-        "- Ejected mass now inherits your Player Cells theme color\n" +
-        "- The game should run noticeably smoother. I had antialiasing (useless for sprite graphics!) enabled from some experiments a long time ago, costing a ton of rendering time\n" +
-        "- Fixed Imgur skins sometimes not applying\n\n" +
-        "I hope you enjoy. Thank you for balling."
+        "Small update to patch some holes in the last one. Sorry if you got caught by the import thing not working.\n\n" +
+        " - Import button just straight up did not work\n" +
+        " - Selecting a random cell color turns the preview gray again\n\n" +
+        "Plus, the animation algorithm was made smoother with Unity's SmoothDamp algorithm. You may find that the game feels kinda sticky. That's my fault. You'll probably wanna lower the animation delay if that's the case, it takes getting used to after playing such a rough ballgame for so long.\n" +
+        "Enjoly."
     );
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";
-    signoffEmote.src = chrome.runtime.getURL("images/emotes/pcStare.png");
+    signoffEmote.src = "https://germs.io/res/emotes/gsLove.png";
     signoffEmote.alt = "";
 
     const signoff = document.createElement("div");
     signoff.id = "germsfoxUpdateSignoff";
     signoff.append("~pc ", signoffEmote);
 
-    /**
-     *  The body sits in its own inset panel, the way the settings card holds everything below
-     *  its title in #settingsTabsContent. The tab-content class is carried for structural
-     *  parity with that markup - it is inert on its own, so the look comes from our own rule.
-     */
     const content = document.createElement("div");
     content.id = "germsfoxUpdateContent";
     content.className = "tab-content";
     content.append(body, signoff);
-
-    /**
-     *  Long notes scroll inside the panel rather than growing the card past the window, which
-     *  pushed the title and the close button off the top. Measured against the window in the
-     *  card's own units, since the card is scaled up by the transform copied above - like it,
-     *  set once and not following a resize.
-     */
-    const scale = Number(/scale\(([\d.]+)/.exec(card.style.transform)?.[1]) || 1;
-    content.style.maxHeight = `${Math.max(150, window.innerHeight * 0.8 / scale - 90)}px`;
 
     card.append(close, title, content);
     overlay.appendChild(card);
@@ -290,17 +216,7 @@ function renderUpdateNotice() {
         overlay.classList.remove("germsfoxUpdateVisible");
         overlay.addEventListener("transitionend", () => overlay.remove(), { once: true });
 
-        /**
-         *  Recorded here rather than when the notice is built, so that only a notice somebody
-         *  actually closed counts as seen.
-         *
-         *  Marking it on show looks equivalent and is not: the first build of this shipped
-         *  while style.css was still a revision behind, so the panel was appended with none of
-         *  its positioning, rendered as an invisible block inside a flex container, and marked
-         *  itself seen on the way past. One silent failure then suppressed it forever. Anything
-         *  that can go wrong between here and the screen should cost a repeat showing, not the
-         *  notice itself.
-         */
+        // Now that the user closed it themselves, make sure they don't see it again
         setSetting("lastSeenVersion", version);
     };
 
@@ -309,30 +225,12 @@ function renderUpdateNotice() {
     overlay.addEventListener("click", event => { if (event.target === overlay) dismiss(); });
     document.addEventListener("keydown", onKey);
 
-    /**
-     *  Reading offsetWidth forces the 0 opacity to be computed before the class changes it, so
-     *  the transition has a value to animate away from instead of the two landing in one style
-     *  recalculation and the fade being skipped.
-     *
-     *  Deliberately not requestAnimationFrame, which is the usual way to do this: it does not
-     *  fire in a background tab, and the extension loading into one is exactly the ordinary
-     *  case here - the notice would sit at opacity 0 until the tab was focused.
-     */
+    // Read offsetWidth to give animations an initial state
+    // Not rAF so it can fire in a background tab
     void overlay.offsetWidth;
     overlay.classList.add("germsfoxUpdateVisible");
 }
 
-/**
- *  What "Random" shows in the cell preview, and so the skins menu's rings and fill too. Grey
- *  rather than a colour of its own: the server rolls the real one at spawn.
- */
-const randomPreviewColor = "rgb(200, 200, 200)";
-
-/**
- *  The one place the cell preview's colour is set. Also published as --germsfoxCellColor, which
- *  the skins menu draws its skin rings in - see style.css - so the rings always match the cell
- *  you are looking at, whether that is your own colour, Random's grey or a skin's.
- */
 function setPreviewColor(color) {
     const cellColor = document.getElementById("cellColor");
     if (cellColor) cellColor.style.backgroundColor = color;
@@ -377,7 +275,7 @@ async function renderCellPreviewCard() {
     previewCard.style.padding = "11px 13px";
     previewCard.style.overflow = "none";
     previewCard.style.flexDirection = "row";
-    
+
     const cellPanel = document.createElement("div");
     cellPanel.id = "cellPanel";
 
@@ -388,7 +286,7 @@ async function renderCellPreviewCard() {
     const cellSkinButton = document.createElement("button");
     cellSkinButton.id = "cellSkinButton";
     cellSkinButton.style.backgroundImage = `url("${settings.setSkin}")`;
-    
+
     const cellSkinLabel = document.createElement("p");
     cellSkinLabel.innerText = "Skin";
     cellSkinButton.appendChild(cellSkinLabel);
@@ -422,7 +320,7 @@ async function renderCellPreviewCard() {
             } else { console.debug("Input is no good, value is " + inputValue); }
             return; // Let the game handle default behavior
         } 
-        
+
 
         event.preventDefault();
         event.stopPropagation();
@@ -463,16 +361,11 @@ async function renderCellPreviewCard() {
                     setSkin(event.target.src);
                     setSetting('setSkin', event.target.src);
                 } else { // Not a custom skin
-                    /**
-                     *  The attribute, not .src, which the browser resolves to a full URL. germs
-                     *  used to lazy-load these from data-src and now sets src directly, and
-                     *  reading only data-src threw here - after this handler had already
-                     *  cancelled the click, so no free or premium skin could be picked at all.
-                     */
+                    // Germs used to lazy load these with the data-src attribute but lazyload.js is obselete
                     const completeSrc = event.target.getAttribute("data-src") ?? event.target.getAttribute("src");
                     cellSkin.src = completeSrc;
                     cellSkin.style.display = 'block';
-                    
+
                     // Would the skin you're about to equip override your cell color?
                     const match = Object.entries(cellColorList).find(([_, val]) => val[0] === completeSrc.slice(18, -4));
                     if (match) {
@@ -482,7 +375,7 @@ async function renderCellPreviewCard() {
                         // If not, set preview color to your set color
                         //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
                         console.debug(settings.setColor);
-                        setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
+                        setPreviewColor(settings.setColor === "None" ? "rgb(200, 200, 200)" : cellColorList[settings.setColor][1]);
                     }
 
                     skinsCard.style.display = 'none';
@@ -541,7 +434,7 @@ async function renderCellPreviewCard() {
     // Locked buttons (up, down, color picker, blocker if you dont have locked)
     const lockedButtons = document.createElement("div");
     lockedButtons.id = "lockedButtons";
-    
+
     const lockedBlocker = document.createElement("div");
     lockedBlocker.classList.add("colorBlocker");
     lockedButtons.appendChild(lockedBlocker);
@@ -568,8 +461,7 @@ async function renderCellPreviewCard() {
         const lockedPosSelect = document.getElementById("lockedNamePositionSelect");
         if (lockedPosSelect) {
             lockedPosSelect.value = next;
-            // Not a workaround for calling bundle.js logic (that's the germsfoxCall above) -
-            // this is our own updatePreview()'s "change" listener, which is what actually moves
+            // Fires our own updatePreview()'s "change" listener, which is what actually moves
             // the cell preview's name text to match. Setting .value alone doesn't fire it.
             lockedPosSelect.dispatchEvent(new Event('change'));
         }
@@ -589,7 +481,7 @@ async function renderCellPreviewCard() {
 
     lockedPosButtons.append(lockedUpButton, lockedDownButton);
     lockedButtons.append(lockedLabel, lockedPosButtons);
-    
+
     // When you change accounts, update the preview
     const loginDiv = document.getElementById("login");
     const loginObserver = new MutationObserver(() => updatePreview());
@@ -605,7 +497,7 @@ async function renderCellPreviewCard() {
 
     updatePreview();
     previewCard.append(cellContainer, cellPanel);
-    cellPanel.append(cellSkinButton, buttonsContainer, lockedButtons);//TODO: skin select, locked color, locked position
+    cellPanel.append(cellSkinButton, buttonsContainer, lockedButtons);
     cellNameContainer.appendChild(cellName);
     cellContainer.append(cellColor, cellSkin, cellNameContainer, );
 
@@ -640,9 +532,9 @@ async function renderCellPreviewCard() {
                 // Set color to your skin
                 setPreviewColor(cellColorList[match[0]][1]);
             } else {
-                // If not, set color to gray
+                // If not, set color to gray. Random has no colour to show: the server rolls it at spawn
                 //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                setPreviewColor(randomPreviewColor);
+                setPreviewColor("rgb(200, 200, 200)");
             }
             setSetting('setColor', 'None');
         };
@@ -671,7 +563,7 @@ async function renderCellPreviewCard() {
                     } else {
                         // If not, set color to gray
                         //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-                        setPreviewColor(randomPreviewColor);
+                        setPreviewColor("rgb(200, 200, 200)");
                     }
                     setSetting('setColor', 'None');
                 }
@@ -703,6 +595,7 @@ async function renderCellPreviewCard() {
         }
         return buttonsContainer;
     }
+
     async function updatePreview() { // Triggered on login/logout
         const state = await germsfoxGetState();
         const ownedSkins = state ? state.ownedSkins : [];
@@ -717,7 +610,7 @@ async function renderCellPreviewCard() {
             // Locked color may not be updated yet. If so, colorObserver will update it later.
             cellName.style.color = colorDiv.style.background;
             cellName.className = "locked";
-            
+
             // Position
             const positionSelect = document.getElementById("lockedNamePositionSelect");
             if (positionSelect && !positionListenerAttached) {
@@ -761,7 +654,7 @@ async function renderCellPreviewCard() {
             settings.setColor = 'None'; // To avoid async. Wish I handled settings differently
             setSetting('setColor', 'None');
         }
-        
+
         // TODO Please break this code out into its own function. It's referenced 4 or 5 times. I have to go to bed
         // It's useful when setting either a color skin (Scenery, Griffin, etc) or setting your color while you could have such a skin on
         // Would the skin you have on override your cell color?
@@ -772,9 +665,9 @@ async function renderCellPreviewCard() {
         } else {
             // If not, set color to your color
             //console.debug(settings.setSkin.slice(18, -4) + " was not a match.");
-            setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
+            setPreviewColor(settings.setColor === "None" ? "rgb(200, 200, 200)" : cellColorList[settings.setColor][1]);
         }
-        
+
         // Color picker
         let lockedColorPicker = document.getElementById("lockedNameColorPicker");
         const fakeColorPicker = document.getElementById("fakeColorPicker");
@@ -798,7 +691,7 @@ async function renderCellPreviewCard() {
         if (document.querySelectorAll("#lockedNameColorPicker").length > 1) {
             lockedButtons.querySelector("#lockedNameColorPicker").remove(); // The first one is the 'dead' one
         }
-        
+
         // Preview skin
         // Do you own the skin you have in storage? If so, display it in the preview
         const hasCustomSkin = !!(state && state.hasCustomSkin);
@@ -1071,11 +964,7 @@ function renderControlsTabPane() {
     return pane;
 }
 
-/**
- *  A row in germs' Controls pane: its label, and `controls` where a keybind box would go.
- *  Cloned off one of germs' own keybind rows - the way bundle.js adds the Spectate and Old
- *  Split Macros rows - so ours line up with theirs without having to know their classes.
- */
+// A row in germs' Controls pane: its label, and `controls` where a keybind box would go.
 function createGameControlRow(labelText, controls) {
     const template = document.getElementById("keyHide")?.closest(".row");
     if (!template) return createSettingRow(labelText, controls);
@@ -1147,7 +1036,6 @@ function createToggleDropdown(key, text) {
     return clearfix;
 }
 
-
 // Return dropdown select
 // onchange() is defined afterwards
 function createDropdown(id) {
@@ -1170,7 +1058,6 @@ function createDropdown(id) {
     return select;
 }
 
-// Creates a scary red button
 /**
  *  The row every settings control sits in: a label on the left, the control on the right.
  *
@@ -1219,18 +1106,17 @@ function createRowButton(buttonText, variant) {
     return button;
 }
 
-const ROW_BUTTON_STYLE = { marginBottom: "15px" };
 
 function createButton(onClick, labelText, buttonText) {
     const button = createRowButton(buttonText);
     button.onclick = onClick;
-    return createSettingRow(labelText, button, ROW_BUTTON_STYLE);
+    return createSettingRow(labelText, button, { marginBottom: "15px" });
 }
 
 function createDangerousButton(onClick, labelText, buttonText) {
     const button = createRowButton(buttonText, "btn-danger");
     button.onclick = onClick;
-    return createSettingRow(labelText, button, ROW_BUTTON_STYLE);
+    return createSettingRow(labelText, button, { marginBottom: "15px" });
 }
 
 // Return a div .row with a key (as in "keyboard") tester for settings.key
@@ -1268,11 +1154,6 @@ function createKeyTester(key, text) {
             await setControlsSetting(key, [event.code, prettyEventKey], event.keyCode ?? event.which);
         }
 
-        /**
-         *  Rebuilt rather than patched, because taking this key may have unbound some other row
-         *  and there is no telling which from here - see unbindDuplicateControls(). Blurred
-         *  first: this replaces the very input the event is being handled on.
-         */
         renderControlsTabPane();
     }
 
@@ -1454,19 +1335,7 @@ function createColorPicker(key, labelText) {
     return colorPickerRow;
 }
 
-
-
-
-// Return a div .row with a key (as in "keyboard") tester for settings.key
-
-// Return a div .clearfix 
-/**
- *  One value out of germs' own settings blob.
- *
- *  Parsed on each read rather than cached: bundle.js rewrites the whole blob whenever anything
- *  changes, including from another tab, so a cached copy here would go stale the moment the
- *  game or a sibling tab touched it.
- */
+// Retrieve a germs setting, as opposed to a germsfox setting
 function getGameSetting(key) {
     try {
         return JSON.parse(localStorage.getItem("settings") || "{}")[key];
@@ -1491,13 +1360,7 @@ function createCheckbox(key, text, store = "germsfox") {
     checkbox.id = key;
     checkbox.type = "checkbox";
 
-    /**
-     *  `store` picks which settings this row belongs to. "germsfox" is chrome.storage, read
-     *  from our own `settings` object. "game" is germs' own blob in the page's localStorage,
-     *  which bundle.js owns - read straight out of there (a content script shares the page's
-     *  localStorage) and written through the bridge, so setItem() runs whatever side effect
-     *  the setting has and saves it in the one place that syncs between tabs.
-     */
+    // `store` can be overridden if you need to get specifically a germs setting
     if (store === "game") {
         checkbox.checked = !!getGameSetting(key);
         checkbox.onchange = function () {
@@ -1767,7 +1630,7 @@ function renderNick() {
             const cellName = document.getElementById("cellName");
             if (cellName) {
                 const nickname = e.target.value.trim();
-                
+
                 const rem = 2.75 - 1.375 * (nickname.length / 25);
                 cellName.style.fontSize = rem.toFixed(3) + "rem";
                 cellName.textContent = nickname;

@@ -1069,6 +1069,35 @@ function modules(ks) {
             return a + (b - a) * t;
         }
 
+        // The velocity smoothDamp() leaves behind, read straight after each call. Returned
+        // through here rather than as a pair so the per-node, per-frame path allocates nothing
+        let smoothDampVelocity = 0;
+
+        /**
+         *  A critically damped spring toward `target` - Unity's SmoothDamp, after Game
+         *  Programming Gems 4. Unlike a per-frame lerp it carries velocity from one frame to the
+         *  next, so a fresh target 40ms later bends the motion instead of restarting it: no
+         *  burst of speed on every packet followed by a stall waiting for the next. Reaches the
+         *  target in roughly `smoothTime`, and is frame-rate independent. Both times in ms.
+         */
+        function smoothDamp(current, target, velocity, smoothTime, dt) {
+            smoothTime = Math.max(1, smoothTime);
+            const omega = 2 / smoothTime;
+            const x = omega * dt;
+            const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+            const change = current - target;
+            const temp = (velocity + omega * change) * dt;
+            let result = target + (change + temp) * decay;
+            smoothDampVelocity = (velocity - omega * temp) * decay;
+
+            // Never carried past the target: stop on it rather than swing back
+            if ((target - current > 0) === (result > target)) {
+                result = target;
+                smoothDampVelocity = 0;
+            }
+            return result;
+        }
+
         class PartyMember {
             constructor(game, id, mass, x, y, name) {
                 this.game = game;
@@ -2581,6 +2610,8 @@ function modules(ks) {
                 this.eatenFromSize = -1; // no glide under way - see glideIntoHunter()
                 this.hidden = false; // set by settings that suppress a whole node type, e.g. hideFood
                 this.animationDelay = this.game.animationDelay;
+                // smoothDamp() velocities, per ms - a pooled renderer must not inherit any
+                this.vx = this.vy = this.vsize = 0;
                 // Already parented if this renderer came back out of the pool - clean() parks
                 // roots in place rather than detaching them
                 if (this.root.parent !== this.game.cellContainer) {
@@ -2656,9 +2687,8 @@ function modules(ks) {
              */
 
             tick() {
-                this.delta = Math.max(0, (Math.min(1,
-                    (this.game.updateTime - this.lastUpdate) / this.animationDelay
-                )));
+                const dt = Math.max(0, this.game.updateTime - this.lastUpdate);
+                this.delta = Math.min(1, dt / this.animationDelay);
 
                 this.lastUpdate = this.game.updateTime;
 
@@ -2687,6 +2717,7 @@ function modules(ks) {
                     this.x = this.node.x;
                     this.y = this.node.y;
                     this.size = this.node.size;
+                    this.vx = this.vy = this.vsize = 0;
 
                     // Corpses still have to retire off screen, or they pile up in the node map
                     // for as long as the camera looks away
@@ -2734,17 +2765,26 @@ function modules(ks) {
 
                     if (this.fadeEaten()) return false;
                 } else {
-                    this.x = lerp(this.x, this.node.x, this.delta);
-                    this.y = lerp(this.y, this.node.y, this.delta);
+                    this.x = smoothDamp(this.x, this.node.x, this.vx, this.animationDelay, dt);
+                    this.vx = smoothDampVelocity;
+                    this.y = smoothDamp(this.y, this.node.y, this.vy, this.animationDelay, dt);
+                    this.vy = smoothDampVelocity;
                 }
 
                 // Update renderer size (not node size!) - a glide sets its own
-                if (!gliding) this.size = lerp(this.size, this.node.size, this.delta);
+                if (this.node.eaten) {
+                    if (!gliding) this.size = lerp(this.size, this.node.size, this.delta);
+                } else {
+                    this.size = smoothDamp(this.size, this.node.size, this.vsize, this.animationDelay, dt);
+                    this.vsize = smoothDampVelocity;
+                }
 
                 // Let lerp snap so it doesn't have to keep recalculating if it has reached its destination
-                if (Math.abs(this.x - this.node.x) < CONVERGE_EPSILON) this.x = this.node.x;
-                if (Math.abs(this.y - this.node.y) < CONVERGE_EPSILON) this.y = this.node.y;
-                if (Math.abs(this.size - this.node.size) < CONVERGE_EPSILON) this.size = this.node.size;
+                // Velocity goes with it, or a cell snapped onto a target it was still moving
+                // toward would coast straight back off it
+                if (Math.abs(this.x - this.node.x) < CONVERGE_EPSILON) { this.x = this.node.x; this.vx = 0; }
+                if (Math.abs(this.y - this.node.y) < CONVERGE_EPSILON) { this.y = this.node.y; this.vy = 0; }
+                if (Math.abs(this.size - this.node.size) < CONVERGE_EPSILON) { this.size = this.node.size; this.vsize = 0; }
 
                 const zIndex = (this.size | 0) + zOrderTiebreak(this.node.id);
                 if (zIndex !== this.root.zIndex) this.root.zIndex = zIndex;
@@ -4011,9 +4051,13 @@ function modules(ks) {
                 const previousServer = this.server;
                 this.mode = found[0];
                 this.game.syncHotSettings();   // the autosplit cap is per mode
-                if (this.mode !== previousMode) {
-                    // Lets the daily leaderboard panel clear its (now wrong-mode) display and
-                    // refetch immediately, instead of showing stale data until its next poll.
+                // Lets the daily leaderboard panel clear its (now wrong-mode) display and
+                // refetch immediately, instead of showing stale data until its next poll.
+                // Compared against the last mode announced rather than previousMode, so the
+                // first connect announces too - mode is seeded from lastMode, and the panel
+                // would otherwise never hear about the mode it starts in.
+                if (this.mode !== this.announcedMode) {
+                    this.announcedMode = this.mode;
                     window.postMessage({ __germsfox: true, type: 'modeChange', mode: this.mode }, '*');
                 }
                 this.server = entry.name;

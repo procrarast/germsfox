@@ -631,7 +631,7 @@ function forgetWornCustomSkin(url) {
     document.getElementById("cellSkinButton")?.style.removeProperty("background-image");
 
     if (settings.setColor !== "None") setSkin(settings.setColor);
-    setPreviewColor(settings.setColor === "None" ? randomPreviewColor : cellColorList[settings.setColor][1]);
+    setPreviewColor(settings.setColor === "None" ? "rgb(200, 200, 200)" : cellColorList[settings.setColor][1]);
 }
 
 /*

@@ -1232,7 +1232,9 @@ textarea {
     padding: 10px;
     color: #fff;
     font-size: 16px;
-    /* max-height is set from the window size in renderUpdateNotice() */
+    /* Long notes scroll here rather than growing the card off the screen. The card is scaled
+     * with the menu, so a fixed height still fits whatever the window size */
+    max-height: 360px;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.3) transparent;

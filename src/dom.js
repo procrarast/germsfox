@@ -323,24 +323,15 @@ function renderUpdateNotice() {
 }
 
 /**
- *  A random cell colour the way Ogar picks one for a player: one channel full, one nearly off,
- *  one anywhere, in a shuffled order. This is what "Random" shows in the cell preview - the
- *  server rolls its own at spawn, so it is a preview of the kind of colour you will get rather
- *  than the exact one.
+ *  What "Random" shows in the cell preview, and so the skins menu's rings and fill too. Grey
+ *  rather than a colour of its own: the server rolls the real one at spawn.
  */
-function ogarRandomColor() {
-    const colorRGB = [0xFF, 0x07, (Math.random() * 256) >> 0];
-    colorRGB.sort(() => 0.5 - Math.random());
-    return `rgb(${colorRGB[0]}, ${colorRGB[2]}, ${colorRGB[1]})`;
-}
-
-// Rolled once a page, and again on every click of the Random button
-let randomPreviewColor = ogarRandomColor();
+const randomPreviewColor = "rgb(200, 200, 200)";
 
 /**
  *  The one place the cell preview's colour is set. Also published as --germsfoxCellColor, which
  *  the skins menu draws its skin rings in - see style.css - so the rings always match the cell
- *  you are looking at, whether that is your own colour, a random roll or a skin's.
+ *  you are looking at, whether that is your own colour, Random's grey or a skin's.
  */
 function setPreviewColor(color) {
     const cellColor = document.getElementById("cellColor");
@@ -642,8 +633,6 @@ async function renderCellPreviewCard() {
         randomColorButton.style.color = "rgba(0, 0, 0, 0.5)";
         randomColorButton.onclick = () => {
             console.debug("Set color to none");
-            // A new roll every click, just for the fun of watching it change
-            randomPreviewColor = ogarRandomColor();
             setSkin(settings.setSkin); // perhaps heavy handed? what condition would prevent duplicate setSkin calls
             // Would the skin you have on override your cell color?
             const match = Object.entries(cellColorList).find(([_, val]) => val[0] === settings.setSkin.slice(18, -4));

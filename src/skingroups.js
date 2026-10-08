@@ -248,6 +248,9 @@ function addSkinFileButtons(applySkinButton) {
     fileInput.type = "file";
     fileInput.accept = "application/json";
     fileInput.style.display = "none";
+    // Import opens the picker with a click on this input, which skinsListClicked would cancel
+    // like any other - see the buttons below
+    fileInput.dataset.germsfoxClick = "";
     fileInput.addEventListener("change", () => {
         importSkinsFromFile(fileInput.files);
         fileInput.value = ""; // so the same file can be picked again

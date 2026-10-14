@@ -191,6 +191,8 @@ function renderUpdateNotice() {
         "Plus, the animation algorithm was made smoother with Unity's SmoothDamp algorithm. You may find that the game feels kinda sticky. That's my fault. You'll probably wanna lower the animation delay if that's the case, it takes getting used to after playing such a rough ballgame for so long.\n" +
         "Enjoly."
     );
+    // After every version's message, so it never needs writing into one
+    appendUpdateText(body, "\n\nChangelog: https://pishi.dev/germsfox/changelog/");
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";

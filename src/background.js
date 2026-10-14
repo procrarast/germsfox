@@ -61,7 +61,7 @@ async function submitScore(request) {
     const clientId = await getLeaderboardClientId();
 
     try {
-        await fetch(`${LEADERBOARD_API}/submit.php`, {
+        await fetch(`${LEADERBOARD_API}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -81,7 +81,7 @@ async function submitScore(request) {
 
 async function getDailyLeaderboard(request) {
     try {
-        const response = await fetch(`${LEADERBOARD_API}/daily.php?mode=${encodeURIComponent(request.mode)}`);
+        const response = await fetch(`${LEADERBOARD_API}/daily?mode=${encodeURIComponent(request.mode)}`);
         if (!response.ok) return null;
         return await response.json();
     } catch (error) {

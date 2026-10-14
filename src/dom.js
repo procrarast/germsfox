@@ -185,18 +185,15 @@ function renderUpdateNotice() {
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
     appendUpdateText(body,
-        "Small update to patch some holes in the last one. Sorry if you got caught by the import thing not working.\n\n" +
-        " - Import button just straight up did not work\n" +
-        " - Selecting a random cell color turns the preview gray again\n\n" +
-        "Plus, the animation algorithm was made smoother with Unity's SmoothDamp algorithm. You may find that the game feels kinda sticky. That's my fault. You'll probably wanna lower the animation delay if that's the case, it takes getting used to after playing such a rough ballgame for so long.\n" +
-        "Enjoly."
+        "Added a changelog to my website and fixed some issues people were having with certain keybinds."
     );
     // After every version's message, so it never needs writing into one
     appendUpdateText(body, "\n\nChangelog: https://pishi.dev/germsfox/changelog/");
+    appendUpdateText(body, "\n(You can also click the Germsfox version in the main menu!)");
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";
-    signoffEmote.src = "https://germs.io/res/emotes/gsLove.png";
+    signoffEmote.src = chrome.runtime.getURL("images/emotes/catnodwashingmachine.gif");
     signoffEmote.alt = "";
 
     const signoff = document.createElement("div");

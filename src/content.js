@@ -45,7 +45,7 @@ async function init() {
     germsfoxInfoAnchor.id = "germsfoxInfo";
     germsfoxInfoAnchor.classList.add("nodrag");
     germsfoxInfoAnchor.innerText = "Germsfox: ";
-    germsfoxInfoAnchor.href = "https://pishi.dev/germsfox";
+    germsfoxInfoAnchor.href = "https://pishi.dev/germsfox/changelog/";
     germsfoxInfoAnchor.target = "_blank";
     germsfoxInfoAnchor.addEventListener("click", event => event.stopPropagation());
     const germsfoxInfoVersion = document.createElement("b");

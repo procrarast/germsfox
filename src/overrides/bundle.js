@@ -4865,6 +4865,14 @@ function modules(ks) {
         const DISPLAY_PREFERENCES = ['all', 'party', 'self', 'none'];
 
         /**
+         *  Keys onKeyDown() handles itself, ahead of every binding: Enter opens chat, Escape the
+         *  menu, the up and down arrows zoom. A control bound to one never fired, and a Germsfox
+         *  one fired as well as the built-in, so neither half takes them. storage.js keeps the
+         *  same list by event.code for its own half.
+         */
+        const RESERVED_KEY_CODES = new Set([13, 27, 38, 40]);
+
+        /**
          *  Edge arrows pointing at party members who are off screen.
          *
          *  The texture is germs' own arrow, 256px and white, so it takes a tint cleanly and
@@ -4981,6 +4989,7 @@ function modules(ks) {
                         this.save();
                     }
                 }
+                if (this.dropBadControls()) this.save();
                 for (var key in this.default.customTheme) {
                     if (this.settings.customTheme.hasOwnProperty(key) == false) {
                         this.settings.customTheme[key] = this.default.customTheme[key];
@@ -5288,11 +5297,38 @@ function modules(ks) {
                 if (controlsChanged) this.refreshControlInputs();
             }
 
+            /**
+             *  Unbinds what a stored profile should never have held: a reserved key, or a key a
+             *  control earlier in the list already has. Duplicates got in through the rebind
+             *  bugs fixed alongside this; the first holder keeps the key, as onKeyDown()'s switch
+             *  already let it. Duplicates against Germsfox's own bindings are cleared on that
+             *  side - see reconcileControls() in storage.js. Returns whether anything changed.
+             */
+            dropBadControls() {
+                const seen = new Set();
+                let changed = false;
+                for (const key in this.settings.controls) {
+                    const keyCode = this.settings.controls[key][0];
+                    if (!keyCode) continue;
+                    if (RESERVED_KEY_CODES.has(keyCode) || seen.has(keyCode)) {
+                        this.settings.controls[key] = [0, ''];
+                        changed = true;
+                        continue;
+                    }
+                    seen.add(keyCode);
+                }
+                return changed;
+            }
+
             resetControls() {
-                this.settings.controls = this.default.controls;
+                // A copy: the defaults object itself used to become the live controls, so the
+                // next rebind wrote into it and a second reset brought that rebind back
+                this.settings.controls = structuredClone(this.default.controls);
                 this.game.controls = this.settings.controls;
                 this.save();
                 this.ready();
+                // Reset Controls covers the whole pane, Germsfox's rows included
+                window.postMessage({ __germsfox: true, type: 'resetControls' }, '*');
             }
             save() {
                 const saveSettings = { ...this.settings };
@@ -9523,50 +9559,41 @@ function modules(ks) {
                 $(this).select();
             });
             $("#settings-controls input[type='text']").on('keydown', function(vF) {
+                /**
+                 *  Germsfox's key boxes live in this pane too, and are usually already in it
+                 *  when this binds, so this handler lands on them as well. On one of those it
+                 *  ran first and blurred the box, which took Germsfox's own handler off before
+                 *  it could fire: the box showed the new key, nothing was saved, the press fell
+                 *  through to the game as if it were played, and the key was posted out as one
+                 *  of germs' - clearing whatever Germsfox binding already had it.
+                 */
+                const boundControl = $(this).attr('id').slice(3);
+                if (!instance.controls.hasOwnProperty(boundControl)) return;
+
+                // Refused rather than bound - see RESERVED_KEY_CODES. Escape still closes the
+                // settings, through onKeyDown()
+                if (RESERVED_KEY_CODES.has(vF.which)) {
+                    $(this).blur();
+                    return;
+                }
+
                 if (vF.which == 32)
                     vF.key = 'Space';
                 var vG = vF.key.capitalize();
-                switch ($(this).attr('id')) {
-                case 'keyFeed':
-                    instance.controls.Feed = [vF.which, vG];
-                    break;
-                case 'keySplit':
-                    instance.controls.Split = [vF.which, vG];
-                    break;
-                case 'keyDouble':
-                    instance.controls.Double = [vF.which, vG];
-                    break;
-                case 'keyTriple':
-                    instance.controls.Triple = [vF.which, vG];
-                    break;
-                case 'key16x':
-                    instance.controls['16x'] = [vF.which, vG];
-                    break;
-                case 'keyFreeze':
-                    instance.controls.Freeze = [vF.which, vG];
-                    break;
-                case 'keyVertical':
-                    instance.controls.Vertical = [vF.which, vG];
-                    break;
-                case 'keyHide':
-                    instance.controls.Hide = [vF.which, vG];
-                    break;
-                case 'keySpectate':
-                    instance.controls.Spectate = [vF.which, vG];
-                    break;
-                }
 
                 /**
                  *  A key may only be bound to one thing. This half clears its own bindings and
                  *  posts the key out for the germsfox half to clear its own - they are in
                  *  different JS worlds, so the bridge is the only way across. jQuery does not
                  *  copy `code` onto its event wrapper, so it is read off the native one.
+                 *
+                 *  `code` rides along as a third slot nothing here reads. Germsfox stores its
+                 *  bindings by code, not keyCode, and this is what lets it match one of these
+                 *  against its own when a page loads - see reconcileControls() in storage.js.
                  */
-                const boundControl = $(this).attr('id').slice(3);
                 const nativeKeyEvent = vF.originalEvent || vF;
-                if (instance.controls.hasOwnProperty(boundControl)) {
-                    instance.unbindGermsKey(vF.which, nativeKeyEvent.code, boundControl);
-                }
+                instance.controls[boundControl] = [vF.which, vG, nativeKeyEvent.code || ''];
+                instance.unbindGermsKey(vF.which, nativeKeyEvent.code, boundControl);
                 window.postMessage({
                     __germsfox: true,
                     type: 'keybind',

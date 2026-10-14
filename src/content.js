@@ -19,6 +19,13 @@ init();
 async function init() {
     settings = await getSettings();
     germsSettings = await getGermsSettings();
+
+    const unbound = reconcileControls();
+    if (unbound.length) {
+        console.debug(`Unbound ${unbound.join(", ")} - reserved, or bound twice`);
+        await chrome.storage.local.set({ controls: settings.controls });
+    }
+
     await loadEmoteLists();   // renderEmotesPanel() and the chat observer both need it
 
     if (!settings.disablePishi) {
@@ -73,6 +80,15 @@ async function init() {
      */
     document.addEventListener('keydown', (event) => {
         if (usingInput) return;
+        /**
+         *  Typing, not playing. usingInput covers chat and our own key boxes, but nothing else
+         *  sets it - germs' key boxes included - so pressing N into Feed to rebind it toggled
+         *  names as well, and the nick box did the same to whatever was typed into it. The
+         *  target still says where the key went after a handler on it has blurred it.
+         */
+        const target = event.target;
+        if (target.isContentEditable || target.tagName === "TEXTAREA"
+            || (target.tagName === "INPUT" && target.type === "text")) return;
         switch (event.code) {
             case settings.controls.multibox[0]:
                 event.preventDefault();
@@ -203,6 +219,14 @@ async function init() {
         if (!cleared.length) return;
 
         console.debug(`Unbound ${cleared.join(", ")} - reused by germs' own controls`);
+        await chrome.storage.local.set({ controls: settings.controls });
+        renderControlsTabPane();
+    });
+
+    // germs' Reset Controls, which covers our rows as well as its own. The two sets of defaults
+    // share no key, so there is nothing to unbind on either side.
+    document.addEventListener('germsfox:resetControls', async () => {
+        settings.controls = structuredClone(DEFAULT_CONTROLS);
         await chrome.storage.local.set({ controls: settings.controls });
         renderControlsTabPane();
     });

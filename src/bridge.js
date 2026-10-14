@@ -50,6 +50,10 @@ window.addEventListener('message', (event) => {
         document.dispatchEvent(new CustomEvent('germsfox:keybind', {
             detail: { code: data.code, keyCode: data.keyCode },
         }));
+    } else if (data.type === 'resetControls') {
+        // Unsolicited push from bundle.js's Settings.resetControls(): germs' Reset Controls
+        // resets Germsfox's bindings too
+        document.dispatchEvent(new CustomEvent('germsfox:resetControls'));
     } else if (data.type === 'modeChange') {
         // Unsolicited push from bundle.js's Network.connect(). Re-dispatched as a plain DOM
         // event (rather than every interested script adding its own 'message' listener) so

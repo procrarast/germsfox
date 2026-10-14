@@ -1147,6 +1147,10 @@ function createKeyTester(key, text) {
             keyTester.value = "";
             keyTester.blur();
             await setControlsSetting(key, ["", ""]);
+        } else if (RESERVED_CODES.has(event.code)) {
+            // germs acts on these itself whatever is bound to them - refused, not bound
+            keyTester.blur();
+            return;
         } else {
             let prettyEventKey = event.key.charAt(0).toUpperCase() + event.key.slice(1);
             if (prettyEventKey === " ") prettyEventKey = "Space"; // There may be more edge cases to prettify

@@ -218,6 +218,55 @@ function unbindDuplicateControls(exceptKey, code) {
 }
 
 /**
+ *  Keys germs handles itself ahead of every binding - Enter, Escape and the up and down arrows -
+ *  by event.code. RESERVED_KEY_CODES in bundle.js is the same list by keyCode, for its half.
+ *  Escape is not offered as a binding anyway: in a key box it unbinds.
+ */
+const RESERVED_CODES = new Set(["Enter", "NumpadEnter", "Escape", "ArrowUp", "ArrowDown"]);
+
+/**
+ *  Unbinds every germsfox binding a page should not have loaded with, and returns the ones it
+ *  cleared: a reserved key, a key another germsfox binding earlier in the list already has, or
+ *  a key one of germs' own controls has. Duplicates got in through rebind bugs since fixed, and
+ *  nothing went back over what was already stored.
+ *
+ *  Against germs' controls germs keeps the key - its are the gameplay ones. They are read
+ *  straight from its localStorage blob, which this world shares, so no bridge round trip and
+ *  no wait on bundle.js. germs stores keyCode where this side stores code; a binding made since
+ *  carries its code as a third slot, and an older one is matched on its printed name instead,
+ *  case-blind because the two halves prettify names slightly differently.
+ */
+function reconcileControls() {
+    let germsControls = [];
+    try {
+        germsControls = Object.values(JSON.parse(localStorage.getItem("settings") || "{}").controls ?? {});
+    } catch (error) {
+        console.warn("Could not read germs' controls: " + error);
+    }
+
+    const takenByGerms = ([code, label]) => germsControls.some(([keyCode, germsLabel, germsCode]) => {
+        if (!keyCode) return false;
+        if (germsCode) return germsCode === code;
+        return !!label && germsLabel?.toLowerCase() === label.toLowerCase();
+    });
+
+    const seen = new Set();
+    const cleared = [];
+    for (const controlKey in settings.controls) {
+        const binding = settings.controls[controlKey];
+        if (!binding[0]) continue;
+        if (RESERVED_CODES.has(binding[0]) || seen.has(binding[0]) || takenByGerms(binding)) {
+            settings.controls[controlKey] = ["", ""];
+            cleared.push(controlKey);
+            continue;
+        }
+        seen.add(binding[0]);
+    }
+
+    return cleared;
+}
+
+/**
  *  Same as above, except it sets settings.controls[key] since the original settings API design
  *  was flat. `keyCode` is not stored - it is only passed on to bundle.js, whose own controls are
  *  keyed by it rather than by event.code.

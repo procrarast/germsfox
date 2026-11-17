@@ -12,6 +12,7 @@ console.debug("Running bridge.js");
 
 let germsfoxRequestId = 0;
 const germsfoxPendingStateRequests = new Map();
+const germsfoxPendingRequests = new Map();
 
 window.addEventListener('message', (event) => {
     if (event.source !== window) return;
@@ -24,6 +25,17 @@ window.addEventListener('message', (event) => {
             germsfoxPendingStateRequests.delete(data.requestId);
             resolve(data.state);
         }
+    } else if (data.type === 'response') {
+        const pending = germsfoxPendingRequests.get(data.requestId);
+        if (pending) {
+            germsfoxPendingRequests.delete(data.requestId);
+            if (data.error) pending.reject(new Error(data.error));
+            else pending.resolve(data.result);
+        }
+    } else if (data.type === 'snapshots') {
+        // Unsolicited push from bundle.js's Practice whenever the saved snapshots change, in
+        // this tab or another - the Practice tab redraws if it is open
+        document.dispatchEvent(new CustomEvent('germsfox:snapshots'));
     } else if (data.type === 'highscore') {
         // Unsolicited push from bundle.js's Game.submitLeaderboardScore() (only sent when logged
         // in, and only when it beats the last submission) - fired both at death and on an
@@ -85,5 +97,15 @@ function germsfoxGetState(timeoutMs = 500) {
         });
 
         window.postMessage({ __germsfox: true, type: 'getState', requestId }, '*');
+    });
+}
+
+// Calls one of bundle.js's GERMSFOX_BRIDGE_REQUESTS and resolves to what it returns. Unlike
+// germsfoxGetState() this waits as long as it takes: these are IndexedDB reads, not a poll.
+function germsfoxRequest(fn, ...args) {
+    const requestId = ++germsfoxRequestId;
+    return new Promise((resolve, reject) => {
+        germsfoxPendingRequests.set(requestId, { resolve, reject });
+        window.postMessage({ __germsfox: true, type: 'request', fn, args, requestId }, '*');
     });
 }

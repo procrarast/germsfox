@@ -60,6 +60,7 @@
                 "sound/*",
                 "src/overrides/bundle.js",
                 "src/overrides/lib/pixi.js",
+                "src/overrides/practice.js",
                 "src/overrides/res/*"
             ],
             "matches": ["https://germs.io/*"]

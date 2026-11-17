@@ -744,6 +744,7 @@ function renderGermsfoxButton() {
         if (germsfoxSettings) {
             renderGeneralTabPane();
             renderBlocklistTabPane();
+            renderPracticeTabPane();
             const germsfoxSettingsContainer = document.getElementById("germsfoxSettingsContainer");
             const settingsContainer = document.getElementById("settingsContainer");
             germsfoxSettingsContainer.style.transform = settingsContainer.style.transform;
@@ -797,7 +798,7 @@ function renderGermsfoxSettings() {
     tabContent.classList.add("tab-content");
 
     // Germsfox's keybinds live in germs' own Controls pane - see renderControlsTabPane()
-    const tabNames = ["General", "Blocklist"];
+    const tabNames = ["General", "Blocklist", "Practice"];
 
     tabNames.forEach((name, index) => {
         const tabId = `germsfox-settings-${name.toLowerCase()}`;
@@ -856,6 +857,7 @@ function renderGermsfoxSettings() {
 
     renderGeneralTabPane();
     renderBlocklistTabPane();
+    renderPracticeTabPane();
 
     return overlay;
 }
@@ -920,6 +922,10 @@ function renderControlsTabPane() {
     const toggleFoodKeyTester = createKeyTester("toggleFood", "Toggle Food");
     const toggleMassKeyTester = createKeyTester("toggleMass", "Toggle Show Mass");
 
+    const practicePill = createPill("Practice");
+    const saveSnapshotKeyTester = createKeyTester("saveSnapshot", "Save Snapshot");
+    const reloadSnapshotKeyTester = createKeyTester("reloadSnapshot", "Reload Snapshot");
+
     pane.append(
         multiboxPill,
         multiboxKeyTester,
@@ -931,7 +937,11 @@ function renderControlsTabPane() {
         toggleSkinsKeyTester,
         toggleSkinsDropdown,
         toggleMassKeyTester,
-        toggleFoodKeyTester
+        toggleFoodKeyTester,
+
+        practicePill,
+        saveSnapshotKeyTester,
+        reloadSnapshotKeyTester
     );
 
     updateControlsTabPane();
@@ -1255,6 +1265,139 @@ function renderBlocklistTabPane() {
     }
     return pane;
 }
+
+/**
+ *  The saved practice snapshots, as a grid of thumbnails. The snapshots themselves live in
+ *  bundle.js's IndexedDB store and never come over the bridge - only what a card shows does.
+ *  Redrawn whenever they change, in this tab or another (germsfox:snapshots).
+ */
+const SNAPSHOT_SORTS = {
+    created: ["Newest", (a, b) => b.created - a.created],
+    attempts: ["Most attempts", (a, b) => b.attempts - a.attempts || b.created - a.created],
+};
+let snapshotThumbURLs = [];
+
+async function renderPracticeTabPane() {
+    const pane = document.getElementById("germsfox-settings-practice");
+    if (!pane) return;
+
+    let snapshots;
+    try {
+        snapshots = await germsfoxRequest("listSnapshots");
+    } catch (error) {
+        console.warn("Could not list snapshots: " + error);
+        snapshots = [];
+    }
+
+    // Object URLs hold their blob until revoked, and every redraw makes a fresh set
+    snapshotThumbURLs.forEach(url => URL.revokeObjectURL(url));
+    snapshotThumbURLs = [];
+    pane.replaceChildren();
+
+    const snapshotsPill = createPill("Snapshots");
+    const help = document.createElement("p");
+    help.classList.add("germsfoxPracticeHelp");
+    help.textContent = "Save the game as it is with the Save Snapshot key, load one here, and "
+        + "press Reload Snapshot to start it over. Other players in a snapshot hold still. "
+        + "Both keys are in Settings \u2192 Controls.";
+
+    const sortKey = SNAPSHOT_SORTS[settings.snapshotSort] ? settings.snapshotSort : "created";
+    const sortSelect = document.createElement("select");
+    sortSelect.classList.add("form-control", "germsfoxPracticeSort");
+    for (const [key, [label]] of Object.entries(SNAPSHOT_SORTS)) {
+        sortSelect.add(new Option(label, key, false, key === sortKey));
+    }
+    sortSelect.addEventListener("change", async () => {
+        await setSetting("snapshotSort", sortSelect.value);
+        renderPracticeTabPane();
+    });
+    const sortRow = document.createElement("label");
+    sortRow.classList.add("germsfoxPracticeSortRow");
+    sortRow.append("Sort by", sortSelect);
+
+    pane.append(snapshotsPill, help, sortRow);
+
+    if (snapshots.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No snapshots yet.";
+        pane.appendChild(empty);
+        return pane;
+    }
+
+    const grid = document.createElement("div");
+    grid.classList.add("germsfoxSnapshotGrid");
+    for (const snapshot of snapshots.sort(SNAPSHOT_SORTS[sortKey][1])) {
+        grid.appendChild(createSnapshotCard(snapshot));
+    }
+    pane.appendChild(grid);
+    return pane;
+}
+
+function createSnapshotCard(snapshot) {
+    const card = document.createElement("div");
+    card.classList.add("germsfoxSnapshot");
+    card.title = "Load this snapshot";
+
+    const thumb = document.createElement("div");
+    thumb.classList.add("germsfoxSnapshotThumb");
+    if (snapshot.thumb) {
+        const url = URL.createObjectURL(snapshot.thumb);
+        snapshotThumbURLs.push(url);
+        thumb.style.backgroundImage = `url(${url})`;
+    }
+
+    const attempts = document.createElement("span");
+    attempts.classList.add("germsfoxSnapshotAttempts");
+    attempts.textContent = snapshot.attempts === 1 ? "1 attempt" : `${snapshot.attempts} attempts`;
+    thumb.appendChild(attempts);
+
+    const info = document.createElement("div");
+    info.classList.add("germsfoxSnapshotInfo");
+    const created = new Date(snapshot.created);
+    const when = document.createElement("b");
+    when.textContent = created.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        + " " + created.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const detail = document.createElement("span");
+    // Saved while spectating, before that was refused: nothing of the player's to load into
+    if (snapshot.players === 0) card.classList.add("unplayable");
+    detail.textContent = [snapshot.mode,
+        snapshot.players === 0 ? "no cells of yours" : `${snapshot.mass.toLocaleString()} mass`,
+        snapshot.players > 1 ? `${snapshot.players} tabs` : null].filter(Boolean).join(" \u00b7 ");
+    info.append(when, detail);
+
+    // Deleting asks twice, in place - a confirm() dialog would stall the game behind it
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.classList.add("germsfoxSnapshotDelete");
+    remove.title = "Delete";
+    remove.innerHTML = '<i class="fas fa-trash"></i>';
+    remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!remove.classList.contains("armed")) {
+            remove.classList.add("armed");
+            remove.textContent = "Delete?";
+            setTimeout(() => {
+                remove.classList.remove("armed");
+                remove.innerHTML = '<i class="fas fa-trash"></i>';
+            }, 3000);
+            return;
+        }
+        germsfoxCall("deleteSnapshot", snapshot.id);
+    });
+
+    card.append(thumb, info, remove);
+    card.addEventListener("click", () => {
+        germsfoxCall("loadSnapshot", snapshot.id);
+        const overlay = document.getElementById("germsfoxSettings");
+        if (overlay) overlay.style.display = "none";
+    });
+    return card;
+}
+
+document.addEventListener("germsfox:snapshots", () => {
+    const overlay = document.getElementById("germsfoxSettings");
+    if (overlay && overlay.style.display !== "none") renderPracticeTabPane();
+});
 
 function createPill(text) {
     const pill = document.createElement("span");

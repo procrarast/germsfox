@@ -1603,3 +1603,119 @@ ul.skinList.germsfoxGroupSkins {
     float: right;
     margin-top: 5px;
 }
+/* Practice tab - see renderPracticeTabPane() */
+#germsfox-settings-practice {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-align: center;
+    height: 100%;
+    padding: 0 6px;
+}
+#germsfox-settings-practice::-webkit-scrollbar {
+    width: 5px;
+    background-color: transparent;
+    border-radius: 6px;
+}
+#germsfox-settings-practice::-webkit-scrollbar-thumb {
+    background-color: #2dfa83;
+    border-radius: 6px;
+}
+#germsfox-settings-practice .badge {
+    margin-bottom: 10px;
+}
+#germsfox-settings-practice .germsfoxPracticeHelp {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0 4px 10px 4px;
+    font-size: 8pt;
+    text-align: left;
+}
+.germsfoxPracticeSortRow {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0 4px 10px 4px;
+    font-size: 10pt;
+}
+.germsfoxPracticeSortRow select.form-control {
+    width: auto;
+    height: 28px;
+    padding: 2px 6px;
+    font-size: 10pt;
+    background-color: rgba(0, 0, 0, 0.2);
+    color: #fff;
+    border-color: rgba(0, 0, 0, 0.3);
+}
+.germsfoxPracticeSortRow option {
+    background-color: #343a40;
+}
+.germsfoxSnapshotGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 0 4px 10px 4px;
+}
+.germsfoxSnapshot {
+    position: relative;
+    background-color: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    text-align: left;
+    transition: box-shadow 0.15s;
+}
+.germsfoxSnapshot:hover {
+    box-shadow: 0 0 0 2px #2dfa83;
+}
+.germsfoxSnapshotThumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background-color: #111;
+    background-size: cover;
+    background-position: center;
+}
+.germsfoxSnapshotAttempts {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.65);
+    font-size: 8pt;
+}
+.germsfoxSnapshotInfo {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 6px 6px 6px;
+    font-size: 8pt;
+    line-height: 1.35;
+}
+.germsfoxSnapshotInfo span {
+    opacity: 0.7;
+}
+.germsfoxSnapshotDelete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 8pt;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.germsfoxSnapshot:hover .germsfoxSnapshotDelete,
+.germsfoxSnapshotDelete.armed {
+    opacity: 1;
+}
+.germsfoxSnapshotDelete.armed,
+.germsfoxSnapshotDelete:hover {
+    background-color: #dc3545;
+}
+.germsfoxSnapshot.unplayable .germsfoxSnapshotThumb {
+    opacity: 0.4;
+}

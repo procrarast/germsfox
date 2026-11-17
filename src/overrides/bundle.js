@@ -1893,10 +1893,43 @@ function modules(ks) {
          *  DIAGNOSTIC - PIXI raises `!m || m.destroyed` and prints the same sentence for both,
          *  so a missing resource reads as a freed one. Records which, for which slot. Wraps the
          *  builder because the next render rebuilds the batch and erases the evidence.
+         *
+         *  A null slot is not a missing one. BindGroup listens to every resource it holds, and
+         *  when one is destroyed onResourceChange overwrites its slot with null - so a freed
+         *  texture never shows up as `destroyed`, only as a hole, and its uid is gone. The
+         *  patch below notes what was in the slot before PIXI blanks it, and who destroyed it:
+         *  textureFreeLog keeps the last few hundred frees, and a texture from early in a long
+         *  session has rotated out of it long before the batch holding it fails.
          */
         let lastBindGroupFailure = null;
 
         function installBindGroupProbe(renderer) {
+            const bindGroupProto = PIXI.BindGroup?.prototype;
+            if (bindGroupProto && !bindGroupProto.__gfNullProbe) {
+                const realChange = bindGroupProto.onResourceChange;
+                bindGroupProto.onResourceChange = function (resource) {
+                    if (resource?.destroyed) {
+                        let freed = null;
+                        for (const index in this.resources) {
+                            if (this.resources[index] !== resource) continue;
+                            (this.__gfNulled ??= {})[index] = resource._resourceType === 'textureSource'
+                                ? `DESTROYED uid=${resource.uid}` : `DESTROYED ${resource._resourceType}`;
+                            if (resource._resourceType !== 'textureSource') continue;
+                            freed ??= {
+                                size: `${resource.pixelWidth}x${resource.pixelHeight}`,
+                                label: resource.label,
+                                at: Math.round(performance.now()),
+                                queued: pendingTextureFrees.some(texture => texture.source === resource),
+                                stack: new Error().stack,
+                            };
+                            (this.__gfFreed ??= {})[resource.uid] = freed;
+                        }
+                    }
+                    return realChange.call(this, resource);
+                };
+                bindGroupProto.__gfNullProbe = true;
+            }
+
             const system = renderer?.bindGroup;
             const proto = system && Object.getPrototypeOf(system);
             if (!proto || typeof proto._createBindGroup !== 'function' || proto.__gfBindProbe) return;
@@ -1912,8 +1945,9 @@ function modules(ks) {
 
                     for (const name in layout) {
                         const resource = resources[name] ?? resources[layout[name]];
+                        const nulled = bindGroup?.__gfNulled?.[name in resources ? name : layout[name]];
                         slots[name] = resource === undefined ? 'MISSING'
-                            : resource === null ? 'NULL'
+                            : resource === null ? (nulled ?? 'NULL')
                             : resource.destroyed ? `DESTROYED uid=${resource.uid}`
                             : `ok uid=${resource.uid ?? '?'}`;
                     }
@@ -1922,6 +1956,7 @@ function modules(ks) {
                         at: Math.round(performance.now()),
                         message: error.message,
                         slots,
+                        freed: bindGroup?.__gfFreed ?? {},
                         missing: Object.entries(slots).filter(([, v]) => v === 'MISSING' || v === 'NULL').map(([k]) => k),
                         destroyed: Object.entries(slots).filter(([, v]) => v.startsWith('DESTROYED'))
                             .map(([k, v]) => `${k} (${v})`),
@@ -3978,6 +4013,529 @@ function modules(ks) {
             return ok[oo] + ol[op] + ok[oq];
         }
         ;
+
+        // How long a save waits for the other tab to describe its half of the game
+        const PRACTICE_GATHER_MS = 250;
+        // Thumbnails are drawn at this size, cropped to fit
+        const PRACTICE_THUMB_WIDTH = 320;
+        const PRACTICE_THUMB_HEIGHT = 180;
+
+        /**
+         *  A WebSocket as far as Network can tell, carried over a MessagePort to the practice
+         *  server instead (src/overrides/practice.js). Binary messages are the game protocol,
+         *  byte for byte; anything else is the practice server talking to Practice directly.
+         */
+        class PracticeSocket {
+            constructor(port, hello) {
+                this.port = port;
+                this.binaryType = 'arraybuffer';
+                this.readyState = 0;
+                this.onopen = this.onmessage = this.onclose = this.onerror = null;
+                this.oncontrol = null;
+
+                port.onmessage = (event) => {
+                    if (this.readyState !== 1) return;
+                    if (event.data instanceof ArrayBuffer) this.onmessage?.({ data: event.data });
+                    else this.oncontrol?.(event.data);
+                };
+                port.start?.();
+
+                // Opened a task later, the way a socket would be: connect() wires the handlers
+                // after constructing it. Open before hello, so onOpen has cleared the old
+                // world before anything of the new one can arrive.
+                setTimeout(() => {
+                    if (this.readyState !== 0) return;
+                    this.readyState = 1;
+                    this.onopen?.();
+                    port.postMessage(hello);
+                }, 0);
+            }
+
+            send(data) {
+                if (this.readyState !== 1) return;
+                const buffer = ArrayBuffer.isView(data)
+                    ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+                    : data;
+                this.port.postMessage(buffer, [buffer]);
+            }
+
+            control(message) {
+                if (this.readyState === 1) this.port.postMessage(message);
+            }
+
+            close() {
+                if (this.readyState === 3) return;
+                if (this.readyState === 1) this.port.postMessage({ type: 'leave' });
+                this.readyState = 3;
+                this.port.onmessage = null;
+                this.port.close?.();
+            }
+        }
+
+        /**
+         *  Practice mode: snapshots of a game, saved and replayed against a simulated server.
+         *
+         *  A snapshot is every node this tab can see, with how far each moved over the last
+         *  tick and how many ticks ago it appeared - the practice server works boosts and
+         *  remerge timers back out of those - plus, from every other germs tab on the same
+         *  server, the same of theirs. A multiboxer's two tabs see different parts of the map
+         *  and each knows its own cells exactly, so the snapshot is the union, and each tab's
+         *  player is marked as one somebody controls. Saved while practising, it is the
+         *  simulation's own state instead, which is exact.
+         *
+         *  Replaying: the snapshot goes to the practice server, a SharedWorker every germs tab
+         *  of this origin shares, and every tab connects to it the way it would a real server.
+         *  Each tab gets back the player it saved from (by tabId, which sessionStorage keeps
+         *  across a reload of that tab and nothing else), and the tab that asked takes the
+         *  first one left over.
+         *
+         *  Snapshots live in IndexedDB on germs.io's origin. The isolated world could reach it
+         *  too, but this is the only thing that touches it: the Practice tab of Germsfox's
+         *  settings asks for the list over the bridge.
+         */
+        class Practice {
+            constructor(game) {
+                this.game = game;
+                this.tabId = this.loadTabId();
+                // The snapshot being practised, and the last one practised - reload goes back to
+                // it from anywhere, practising or not
+                this.currentId = null;
+                this.lastId = null;
+                this.worker = null;
+                this.pendingGathers = new Map();
+                this.pendingDumps = new Map();
+                this.requestIds = 0;
+                this.thumbnailRequest = null;
+
+                if (typeof BroadcastChannel === 'function') {
+                    this.channel = new BroadcastChannel('germsfox-practice');
+                    this.channel.onmessage = (event) => this.onChannel(event.data);
+                }
+            }
+
+            loadTabId() {
+                try {
+                    let id = sessionStorage.getItem('germsfoxTabId');
+                    if (!id) {
+                        id = crypto.randomUUID();
+                        sessionStorage.setItem('germsfoxTabId', id);
+                    }
+                    return id;
+                } catch (error) {
+                    return crypto.randomUUID();
+                }
+            }
+
+            get active() { return !!this.game.network.practice; }
+
+            // ---- The other tabs ---------------------------------------------------------
+
+            onChannel(message) {
+                if (!message || message.from === this.tabId) return;
+                const network = this.game.network;
+
+                switch (message.type) {
+                    case 'gather':
+                        this.channel.postMessage({
+                            type: 'gathered', from: this.tabId, requestId: message.requestId,
+                            view: this.describeView(),
+                        });
+                        break;
+                    case 'gathered':
+                        this.pendingGathers.get(message.requestId)?.push(message.view);
+                        break;
+                    case 'join':
+                        // Following another tab into practice, unless already there
+                        if (!network.practice) this.connect({ initiator: false });
+                        break;
+                    case 'leave':
+                        if (network.practice) network.connect(network.practice.returnTo, true, true);
+                        break;
+                    case 'changed':
+                        this.announceChanged(false);
+                        break;
+                }
+            }
+
+            /**
+             *  What this tab knows of the game, in snapshot terms. The position is the server's
+             *  last word on each node rather than where it is drawn, and a node only has a
+             *  velocity if the server moved it in the tick just gone.
+             */
+            describeView() {
+                const game = this.game;
+                const network = game.network;
+                const tick = network.tickCount;
+                const nodes = [];
+
+                for (const node of game.nodes.values()) {
+                    if (node.eaten) continue;
+                    const kind = node.type === nodeType.Player ? 'player'
+                        : node.type === nodeType.Virus ? 'virus'
+                        : node.isEjected ? 'ejected' : 'food';
+                    const moved = node.movedTick === tick && node.prevX !== undefined;
+                    const record = {
+                        id: node.id, kind, x: node.x, y: node.y, r: node.size,
+                        color: typeof node.baseColor === 'number' ? node.baseColor : 0,
+                        age: Math.max(0, tick - (node.bornTick ?? tick)),
+                        vx: moved ? node.x - node.prevX : 0,
+                        vy: moved ? node.y - node.prevY : 0,
+                    };
+                    if (kind === 'player') {
+                        record.owner = node.parent;
+                        if (node.name) record.name = node.name;
+                        if (node.skin) record.skin = node.skin;
+                    }
+                    nodes.push(record);
+                }
+
+                return {
+                    tabId: this.tabId,
+                    pid: game.myID,
+                    alive: game.myCells.size > 0,
+                    mouse: { x: game.mouse.x, y: game.mouse.y },
+                    name: game.settings.getItem('nick') || '',
+                    skin: network.skin,
+                    server: network.server,
+                    mode: network.mode,
+                    practicing: !!network.practice,
+                    border: game.border.slice(),
+                    nodes,
+                };
+            }
+
+            // Every other tab's view, from those that answer in time
+            gather() {
+                if (!this.channel) return Promise.resolve([]);
+                const requestId = `${this.tabId}:${++this.requestIds}`;
+                const views = [];
+                this.pendingGathers.set(requestId, views);
+                this.channel.postMessage({ type: 'gather', from: this.tabId, requestId });
+                return new Promise(resolve => setTimeout(() => {
+                    this.pendingGathers.delete(requestId);
+                    resolve(views);
+                }, PRACTICE_GATHER_MS));
+            }
+
+            // The practice server's own state, while practising
+            dump() {
+                const socket = this.game.network.ws;
+                if (!(socket instanceof PracticeSocket)) return Promise.resolve(null);
+                const requestId = ++this.requestIds;
+                return new Promise(resolve => {
+                    this.pendingDumps.set(requestId, resolve);
+                    socket.control({ type: 'dump', requestId });
+                    setTimeout(() => {
+                        if (this.pendingDumps.delete(requestId)) resolve(null);
+                    }, 1000);
+                });
+            }
+
+            // ---- Saving -----------------------------------------------------------------
+
+            async save() {
+                const game = this.game;
+                const network = game.network;
+                if (!network.open) return this.notice('Not connected - nothing to save.');
+
+                const thumbnail = this.captureThumbnail();
+                let snapshot;
+
+                if (network.practice) {
+                    snapshot = await this.dump();
+                    if (!snapshot) return this.notice('The practice server did not answer.');
+                } else {
+                    const local = this.describeView();
+                    const views = [local, ...(await this.gather())]
+                        .filter(view => view.server === local.server && !view.practicing);
+                    snapshot = this.merge(views);
+                }
+
+                /**
+                 *  A snapshot is somewhere for somebody to be put back into. Spectating - every
+                 *  tab of the multibox dead or watching - the view is full of other players'
+                 *  cells and none of ours, and a snapshot of it loaded every tab into a world it
+                 *  had no part in: nobody to control, nothing to reload toward.
+                 */
+                if (!snapshot.players.some(player => player.controlled)) {
+                    return this.notice('Nothing to save - none of your cells are in the game. Spawn first.');
+                }
+
+                Object.assign(snapshot, {
+                    version: 1,
+                    mode: network.mode,
+                    server: network.server,
+                    config: this.modeConfig(network.mode),
+                });
+
+                const controlled = snapshot.players.filter(player => player.controlled);
+                const record = {
+                    id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                    created: Date.now(),
+                    mode: network.mode,
+                    server: network.server,
+                    attempts: 0,
+                    lastPlayed: null,
+                    mass: Math.round(snapshot.nodes
+                        .filter(node => controlled.some(player => player.pid === node.owner))
+                        .reduce((sum, node) => sum + node.r * node.r / 100, 0)),
+                    thumb: await thumbnail,
+                    snapshot,
+                };
+                await this.db('readwrite', store => store.put(record));
+                this.notice('Snapshot saved.');
+                this.announceChanged();
+            }
+
+            /**
+             *  One snapshot from several tabs' views. A node two tabs can both see is taken from
+             *  the tab whose cell it is if either is, since only the owner knows its cells' ages
+             *  for sure; otherwise from whichever view came first, this tab's.
+             */
+            merge(views) {
+                const nodes = new Map();
+                for (const view of views) {
+                    for (const node of view.nodes) {
+                        const existing = nodes.get(node.id);
+                        if (!existing || (node.kind === 'player' && node.owner === view.pid)) nodes.set(node.id, node);
+                    }
+                }
+
+                const players = new Map();
+                for (const node of nodes.values()) {
+                    if (node.kind !== 'player' || players.has(node.owner)) continue;
+                    players.set(node.owner, {
+                        pid: node.owner, name: node.name ?? '', skin: node.skin ?? '',
+                        color: node.color, mouse: null, tabId: null, controlled: false,
+                    });
+                }
+                for (const view of views) {
+                    if (!view.alive || !players.has(view.pid)) continue;
+                    Object.assign(players.get(view.pid), {
+                        mouse: view.mouse, tabId: view.tabId, controlled: true,
+                        name: view.name, skin: view.skin,
+                    });
+                }
+
+                const [minX, maxX, minY, maxY] = views[0].border;
+                return {
+                    border: [minX, maxX, minY, maxY],
+                    nodes: [...nodes.values()],
+                    // Controlled first, in view order, which is the order tabs claim them in
+                    players: [...players.values()].sort((a, b) => b.controlled - a.controlled),
+                };
+            }
+
+            // What the practice server cannot know about a mode but this client does
+            modeConfig(mode) {
+                const config = {};
+                if (CELL_COUNT_CAPS[mode]) config.maxCells = CELL_COUNT_CAPS[mode];
+                config.autosplitMass = AUTOSPLIT_MASS_CAPS[mode] ?? 0;
+                return config;
+            }
+
+            /**
+             *  The next frame, shrunk. Read straight after render() puts it on the canvas,
+             *  because the drawing buffer is not kept past that (see preserveDrawingBuffer).
+             *  A hidden tab draws no frames, so this gives up rather than wait for one.
+             */
+            captureThumbnail() {
+                return new Promise(resolve => {
+                    const timeout = setTimeout(() => {
+                        this.thumbnailRequest = null;
+                        resolve(null);
+                    }, 500);
+                    this.thumbnailRequest = (source) => {
+                        clearTimeout(timeout);
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = PRACTICE_THUMB_WIDTH;
+                            canvas.height = PRACTICE_THUMB_HEIGHT;
+                            const scale = Math.max(canvas.width / source.width, canvas.height / source.height);
+                            const width = source.width * scale, height = source.height * scale;
+                            canvas.getContext('2d').drawImage(source,
+                                (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+                            canvas.toBlob(resolve, 'image/jpeg', 0.8);
+                        } catch (error) {
+                            console.warn('[Germsfox] Snapshot thumbnail failed', error);
+                            resolve(null);
+                        }
+                    };
+                });
+            }
+
+            // Called by render() once the frame is on the canvas
+            onFrame(canvas) {
+                if (!this.thumbnailRequest) return;
+                const request = this.thumbnailRequest;
+                this.thumbnailRequest = null;
+                request(canvas);
+            }
+
+            // ---- Playing ----------------------------------------------------------------
+
+            async load(id) {
+                const record = await this.db('readonly', store => store.get(id));
+                if (!record) return this.notice('That snapshot is gone.');
+                // Saved while spectating, before save() refused to - see there
+                if (!record.snapshot.players.some(player => player.controlled)) {
+                    return this.notice('That snapshot was saved while spectating and has none of your cells in it.');
+                }
+                const attempt = await this.countAttempt(id);
+                record.snapshot.id = id;
+
+                this.channel?.postMessage({ type: 'join', from: this.tabId });
+                this.connect({ initiator: true, snapshot: record.snapshot, attempt });
+            }
+
+            /**
+             *  Back to the start of the snapshot being practised - in every tab, since they
+             *  share the one simulation. Outside practice, back into the last one practised.
+             */
+            async reload() {
+                const socket = this.game.network.ws;
+                if (this.game.network.practice && socket instanceof PracticeSocket && this.currentId) {
+                    const attempt = await this.countAttempt(this.currentId);
+                    socket.control({ type: 'reload', attempt });
+                } else if (this.lastId) {
+                    await this.load(this.lastId);
+                } else {
+                    this.notice('Load a snapshot from Germsfox → Practice first.');
+                }
+            }
+
+            connect(options) {
+                const port = this.port();
+                if (!port) return this.notice('Practice mode needs SharedWorker or Worker support.');
+                this.game.network.connectPractice(port, { type: 'hello', tabId: this.tabId, ...options });
+            }
+
+            // Told by Network.connect() that this tab is going back to a real server
+            leave(silent) {
+                if (!silent) this.channel?.postMessage({ type: 'leave', from: this.tabId });
+                this.currentId = null;
+                // Practice mass is not a score: what was reached there must not be submitted
+                // by the next real life's leaderboard check. The nodes go now rather than on
+                // the next onOpen, or every frame until then counts them back into highestMass.
+                this.game.clearNodes();
+                this.game.highestMass = 0;
+                this.game.lastSubmittedMass = 0;
+            }
+
+            onControl(message) {
+                const game = this.game;
+                switch (message.type) {
+                    case 'reset':
+                        this.currentId = this.lastId = message.snapshotId ?? this.currentId;
+                        if (message.mode && message.mode !== game.network.mode) {
+                            game.network.mode = message.mode;
+                            game.syncHotSettings();
+                        }
+                        game.highestMass = 0;
+                        // Straight there: eased, the camera would sweep in from wherever the
+                        // last attempt ended
+                        if (message.centre) {
+                            const { x, y } = message.centre;
+                            Object.assign(game.camera, { x, y, targetX: x, targetY: y, driftX: 0, driftY: 0 });
+                        }
+                        if (message.alive) {
+                            clearTimeout(game.deathTimeout);
+                            game.screen = 'playing';
+                            game.freeSpec = false;
+                            game.freeze = false;
+                            game.linesplit = false;
+                            game.hideMenu();
+                        }
+                        break;
+                    case 'dump': {
+                        const resolve = this.pendingDumps.get(message.requestId);
+                        if (!resolve) break;
+                        this.pendingDumps.delete(message.requestId);
+                        resolve(message.snapshot);
+                        break;
+                    }
+                }
+            }
+
+            /**
+             *  The practice server's port. The worker is built from practice.js's text as a
+             *  data: URL: the same string in every tab, which is what makes them share it - see
+             *  the top of practice.js. One fetch a page, then one port a connection.
+             */
+            port() {
+                if (!this.workerSource) return null;
+                if (typeof SharedWorker === 'function') {
+                    const worker = new SharedWorker(this.workerSource, 'germsfox-practice');
+                    worker.onerror = (error) => console.error('[Germsfox] Practice server failed', error);
+                    return worker.port;
+                }
+                // No SharedWorker: a server of this tab's own, so no multiboxing in practice
+                this.worker?.terminate();
+                this.worker = new Worker(this.workerSource);
+                return this.worker;
+            }
+
+            async loadWorkerSource(extensionURL) {
+                try {
+                    const response = await fetch(`${extensionURL}src/overrides/practice.js`);
+                    this.workerSource = 'data:text/javascript;charset=utf-8,'
+                        + encodeURIComponent(await response.text());
+                } catch (error) {
+                    console.warn('[Germsfox] Could not load the practice server', error);
+                }
+            }
+
+            // ---- The store --------------------------------------------------------------
+
+            db(mode, action) {
+                this.dbOpen ??= new Promise((resolve, reject) => {
+                    const request = indexedDB.open('germsfox-practice', 1);
+                    request.onupgradeneeded = () => request.result.createObjectStore('snapshots', { keyPath: 'id' });
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+                return this.dbOpen.then(db => new Promise((resolve, reject) => {
+                    const request = action(db.transaction('snapshots', mode).objectStore('snapshots'));
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                }));
+            }
+
+            async countAttempt(id) {
+                const record = await this.db('readonly', store => store.get(id));
+                if (!record) return 1;
+                record.attempts = (record.attempts ?? 0) + 1;
+                record.lastPlayed = Date.now();
+                await this.db('readwrite', store => store.put(record));
+                this.announceChanged();
+                return record.attempts;
+            }
+
+            // Everything but the snapshots themselves, for the Practice tab's grid
+            async list() {
+                const records = await this.db('readonly', store => store.getAll());
+                return records.map(({ snapshot, ...summary }) => ({
+                    ...summary,
+                    players: snapshot.players.filter(player => player.controlled).length,
+                }));
+            }
+
+            async remove(id) {
+                await this.db('readwrite', store => store.delete(id));
+                if (this.lastId === id) this.lastId = null;
+                this.announceChanged();
+            }
+
+            // Tells this tab's Practice tab to redraw, and the other tabs to tell theirs
+            announceChanged(broadcast = true) {
+                window.postMessage({ __germsfox: true, type: 'snapshots' }, '*');
+                if (broadcast) this.channel?.postMessage({ type: 'changed', from: this.tabId });
+            }
+
+            notice(text) {
+                this.game.chat.onMessage('[Console]', '#ffffff', `Practice: ${text}`, -1, -99);
+            }
+        }
         ;class Network {
             constructor(game) {
                 this.game = game;
@@ -4003,12 +4561,27 @@ function modules(ks) {
                 this.modes = {};
                 this.ip = '';
                 this.skin = '';
+                // Set while connected to the practice server - see connectPractice()
+                this.practice = null;
+                // Node packets so far: the server's tick, as far as this tab knows it
+                this.tickCount = 0;
                 this.reconnectAttempts = 0;
                 this.baseReconnectDelay = 1000;
                 this.maxReconnectDelay = 30000;
                 this.reconnectMultiplier = 1.5;
             }
-            connect(mode, force) {
+            connect(mode, force, followingTab = false) {
+                /**
+                 *  Anywhere real is a way out of practice: a mode clicked in the menu, a server
+                 *  from the list, a reconnect. Forced, because the practice server can be
+                 *  wearing the very mode being asked for. `followingTab` is another tab having
+                 *  left already, which this one is following rather than announcing.
+                 */
+                if (this.practice) {
+                    this.practice = null;
+                    this.game.practice.leave(followingTab);
+                    force = true;
+                }
                 if (this.open && this.mode == mode && !force) {
                     return;
                 }
@@ -4089,6 +4662,48 @@ function modules(ks) {
                 this.ws.onclose = this.onClose.bind(this);
                 this.ws.onerror = this.onClose.bind(this);
             }
+            /**
+             *  Connects to the practice server instead of a real one - see Practice. Tears down
+             *  the way connect() does, but leaves lastMode and the daily leaderboard alone, and
+             *  keeps `server`, so the reset banner still names where the snapshot was taken
+             *  and onClose's reconnect leads back to it.
+             */
+            connectPractice(port, hello) {
+                const returnTo = this.practice?.returnTo ?? (this.server || this.mode);
+                // A real life's best is submitted before practice mass can mix into it
+                if (!this.practice) this.game.submitLeaderboardScore();
+
+                if (this.reconnect) clearTimeout(this.reconnect);
+                this.verified = false;
+                this.token = null;
+                this.cfToken = null;
+                this.open = false;
+                this.game.setConnecting(true);
+                if (this.ws) {
+                    this.ws.onopen = null;
+                    this.ws.onmessage = null;
+                    this.ws.onclose = null;
+                    try {
+                        this.ws.close();
+                    } catch (error) {}
+                    this.ws = null;
+                }
+
+                this.practice = { returnTo };
+                if (hello.snapshot?.mode && this.modes[hello.snapshot.mode]) {
+                    this.mode = hello.snapshot.mode;
+                    this.game.syncHotSettings();
+                }
+                this.game.recentreOnBorder = true;
+                this.game.log('Connecting to practice');
+
+                this.ws = new PracticeSocket(port, hello);
+                this.ws.onopen = this.onOpen.bind(this);
+                this.ws.onmessage = this.onMessage.bind(this);
+                this.ws.onclose = this.onClose.bind(this);
+                this.ws.onerror = this.onClose.bind(this);
+                this.ws.oncontrol = message => this.game.practice.onControl(message);
+            }
             getParameterByName(name, url) {
                 if (!url)
                     url = window.location.href;
@@ -4110,6 +4725,7 @@ function modules(ks) {
             // One node packet per server tick, so their spacing is the server's rate as seen
             // from here - jitter and all, which averages out.
             noteServerTick() {
+                this.tickCount++;
                 const now = performance.now();
                 const gap = now - this.lastTickAt;
                 if (gap < TICK_COALESCE_MS) return;
@@ -4196,6 +4812,8 @@ function modules(ks) {
              *  "press escape and click it again" symptom.
              */
             verify() {
+                // The practice server has nothing to verify
+                if (this.practice && this.open) this.verified = true;
                 if (this.verified) return Promise.resolve();
 
                 if (!this.verifyWait) {
@@ -4220,6 +4838,7 @@ function modules(ks) {
                 }
             }
             tryVerify() {
+                if (this.practice) return;
                 if (!this.token) {
                     if (this.game.playerCells.size > 0) {
                         return;
@@ -4228,6 +4847,7 @@ function modules(ks) {
                 }
             }
             tryVerifyCf() {
+                if (this.practice) return;
                 if (!this.cfToken) {
                     if (!this.turnstileReady) {
                         if (this.cdTimeout) {
@@ -4619,6 +5239,9 @@ function modules(ks) {
                         };
 
                         node = this.game.pool.getNode(type, nodeData);
+                        // For practice snapshots - see Practice.describeView()
+                        node.bornTick = node.movedTick = this.tickCount;
+                        node.prevX = node.prevY = undefined;
 
                         this.game.addNode(node);
                         
@@ -4626,6 +5249,9 @@ function modules(ks) {
                     }
                     
                     // Since the node exists, just update its state 
+                    node.prevX = node.x;
+                    node.prevY = node.y;
+                    node.movedTick = this.tickCount;
                     node.x = x;
                     node.y = y;
                     node.size = size;
@@ -6053,6 +6679,7 @@ function modules(ks) {
                 this.names = new NameCache(this);
                 this.camera = new Camera(this);
                 this.network = new Network(this);
+                this.practice = new Practice(this);
                 this.ui = new GameUI(this);
                 this.login = new Login(this);
                 this.chat = new Chat(this);
@@ -6083,6 +6710,8 @@ function modules(ks) {
             async start() {
                 const extensionURL = await this.waitForGermsfoxURL();
                 await this.chat.loadGermsfoxEmotes(extensionURL);
+                // Not awaited: nothing needs the practice server until a snapshot is loaded
+                this.practice.loadWorkerSource(extensionURL);
 
                 await PIXI.Assets.init({
                     basePath: extensionURL + 'src/overrides/res/assets/',
@@ -6262,7 +6891,13 @@ function modules(ks) {
                 this.bruh = new Audio(`${extensionURL}sound/bruh.mp3`);
 
                 this.cellSize = this.cellTexture.frame.width / 2;
-                this.virusSize = this.virusTexture.frame.width / 2;
+                // The virus artwork does not fill its frame the way a cell's does. Its spiky rim
+                // reaches 0.983 of the half-width at the tips and 0.904 in the valleys, 0.940 on
+                // average, where a cell's edge sits at 0.996 - so drawn at face value a virus
+                // read about 6% smaller than its server size. Measured once from texture.png;
+                // claiming a smaller texture size scales the sprite up so the average edge
+                // lands on the server radius, with the spikes straddling it.
+                this.virusSize = this.virusTexture.frame.width / 2 * (0.940 / 0.996);
                 this.foodSize = this.foodTextures[0].frame.width / 2;
 
                 this.pool.populate( () => {
@@ -6862,6 +7497,8 @@ function modules(ks) {
                 // the next frame is never armed. Caught, it is a logged hitch instead.
                 try {
                     this.renderer.render(this.stage);
+                    // Has to read the canvas before this task ends - see captureThumbnail()
+                    this.practice.onFrame(this.renderer.canvas);
                 } catch (error) {
                     if (!this.reportPoisonedBatch(error)) throw error;
                 }
@@ -6888,13 +7525,22 @@ function modules(ks) {
                         const log = GF_DIAG.freeLog();
                         console.error('[Germsfox] Bind group held a DESTROYED texture: '
                             + failure.destroyed.join(', '));
+                        // Grouped by stack - a bulk free puts the same one on every slot
+                        const byStack = new Map();
                         for (const entry of failure.destroyed) {
-                            const uid = Number(entry.match(/uid=(\d+)/)?.[1]);
-                            const freed = log.find(item => item.uid === uid);
-                            console.error(freed
-                                ? `  uid ${uid} (${freed.size}) freed ${failure.at - freed.at}ms earlier, `
-                                  + `${freed.queued ? 'through' : 'WITHOUT'} the free queue:\n${freed.stack}`
-                                : `  uid ${uid} - no record of it being freed`);
+                            // Samplers go with their source and carry no uid worth looking up
+                            if (!/uid=\d+/.test(entry)) continue;
+                            const uid = Number(entry.match(/uid=(\d+)/)[1]);
+                            const freed = failure.freed[uid] ?? log.find(item => item.uid === uid);
+                            const stack = freed?.stack ?? 'no record of it being freed';
+                            if (!byStack.has(stack)) byStack.set(stack, []);
+                            byStack.get(stack).push(freed
+                                ? `uid ${uid} (${freed.size}${freed.label ? ` "${freed.label}"` : ''}) freed `
+                                  + `${failure.at - freed.at}ms earlier, ${freed.queued ? 'through' : 'WITHOUT'} the free queue`
+                                : `uid ${uid}`);
+                        }
+                        for (const [stack, lines] of byStack) {
+                            console.error(`  ${lines.join('\n  ')}\n${stack}`);
                         }
                     } else {
                         console.error('[Germsfox] Bind group was MISSING resources, not holding '
@@ -7863,6 +8509,8 @@ function modules(ks) {
 
             submitLeaderboardScore() {
                 if (!this.login.uuid || this.login.uuid === 'logout') return;
+                // Practice mass is simulated, not earned
+                if (this.network.practice) return;
 
                 if (this.highestMass <= this.lastSubmittedMass) return;
 
@@ -9075,6 +9723,15 @@ function modules(ks) {
             unbindGermsKey: instance.unbindGermsKey.bind(instance),
             cycleDisplayPreference: instance.cycleDisplayPreference.bind(instance),
             toggleSetting: instance.toggleSetting.bind(instance),
+            saveSnapshot: instance.practice.save.bind(instance.practice),
+            reloadSnapshot: instance.practice.reload.bind(instance.practice),
+            loadSnapshot: instance.practice.load.bind(instance.practice),
+            deleteSnapshot: instance.practice.remove.bind(instance.practice),
+        };
+
+        // Like the callables above, but answered: the result goes back as a 'response'
+        const GERMSFOX_BRIDGE_REQUESTS = {
+            listSnapshots: instance.practice.list.bind(instance.practice),
         };
 
         function germsfoxGetState() {
@@ -9109,14 +9766,27 @@ function modules(ks) {
             if (data.type === 'call') {
                 const fn = GERMSFOX_BRIDGE_CALLABLE[data.fn];
                 if (fn) {
+                    const failed = error => console.error('[Germsfox bridge] "' + data.fn + '" call failed:', error);
                     try {
-                        fn(...(data.args || []));
+                        // Some are async - snapshots - and fail later rather than throw here
+                        Promise.resolve(fn(...(data.args || []))).catch(failed);
                     } catch (error) {
-                        console.error('[Germsfox bridge] "' + data.fn + '" call failed:', error);
+                        failed(error);
                     }
                 } else {
                     console.warn('[Germsfox bridge] Unknown/disallowed call: ' + data.fn);
                 }
+            } else if (data.type === 'request' && data.requestId != null) {
+                const fn = GERMSFOX_BRIDGE_REQUESTS[data.fn];
+                const reply = (result, error) => window.postMessage({
+                    __germsfox: true, type: 'response', requestId: data.requestId, result, error,
+                }, '*');
+                if (!fn) return reply(null, 'Unknown request: ' + data.fn);
+                Promise.resolve().then(() => fn(...(data.args || [])))
+                    .then(result => reply(result), error => {
+                        console.error('[Germsfox bridge] "' + data.fn + '" request failed:', error);
+                        reply(null, String(error));
+                    });
             } else if (data.type === 'getState' && data.requestId != null) {
                 window.postMessage({ __germsfox: true, type: 'state', requestId: data.requestId, state: germsfoxGetState() }, '*');
             }

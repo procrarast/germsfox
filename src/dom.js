@@ -243,8 +243,15 @@ function renderGameMenu() {
 
     const menuLeft = document.getElementById("menuLeft");
 
+    // Nov 2026: germs.io added a trailer promo. Its #hype card took the social icons card's
+    // slot in menuLeft (which moved to menuRight), plus a hidden #trailer video overlay.
+    // Remove both and put the social icons card back, restoring the old layout.
+    document.getElementById("hype")?.remove();
+    document.getElementById("trailer")?.remove();
+
     const partyCard = document.getElementsByClassName("partyCard")[0];
     const socialIconsCard = document.getElementById("socialIcons").parentElement.parentElement;
+    if (socialIconsCard.parentElement !== menuLeft) menuLeft.append(socialIconsCard);
     menuLeft.insertBefore(partyCard, socialIconsCard);
 
     // Remove locked name features from login menu, leaving only locked name code redemption

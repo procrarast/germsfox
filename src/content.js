@@ -173,16 +173,6 @@ async function init() {
                 if (event.repeat) break;
                 germsfoxCall('toggleSetting', 'hideFood');
                 break;
-            case settings.controls.saveSnapshot[0]:
-                event.preventDefault();
-                if (event.repeat) break;
-                germsfoxCall('saveSnapshot');
-                break;
-            case settings.controls.reloadSnapshot[0]:
-                event.preventDefault();
-                if (event.repeat) break;
-                germsfoxCall('reloadSnapshot');
-                break;
         }
     });
 

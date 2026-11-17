@@ -37,10 +37,7 @@ const DEFAULT_CONTROLS = {
     toggleNames: ["KeyN", "N"],
     toggleSkins: ["KeyB", "B"],
     toggleMass: ["KeyM", "M"],
-    toggleFood: ["", ""],
-    // Unbound until chosen - any default would take a key someone already plays with
-    saveSnapshot: ["", ""],
-    reloadSnapshot: ["", ""]
+    toggleFood: ["", ""]
     // Spectating a party member has no binding here: both its keys live in germs' own
     // controls, handled in bundle.js - Spectate toggles, Split steps to the next member.
 };
@@ -65,8 +62,6 @@ const DEFAULT_SETTINGS = {
     enableDebug: false,
     leaderboardOptOut: false,
     showDailyLeaderboard: true,
-    // How the Practice tab orders snapshots - see renderPracticeTabPane()
-    snapshotSort: "created",
 };
 
 /**

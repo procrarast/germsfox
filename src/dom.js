@@ -185,14 +185,11 @@ function renderUpdateNotice() {
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
     appendUpdateText(body,
-        "Germs moved a few things around on the main menu, which broke most of Germsfox. Fixed now.\n\n" +
-        "Looks like a big germs update is on the way. When it lands, Germsfox will quietly switch itself off " +
-        "and leave the game alone until I catch up, so nothing breaks in the meantime.\n\n" +
-        "Also, viruses are drawn at their real size now. They used to look a little small."
+        "Fixed Germsfox failing because of UI changes.\n\n" +
+        "When v6 happens, this extension will safely turn itself off and you may uninstall if you want. If it becomes necessary for me to make another one, I'll learn how to do it for the new client too.\n\n"
     );
     // After every version's message, so it never needs writing into one
     appendUpdateText(body, "\n\nChangelog: https://pishi.dev/germsfox/changelog/");
-    appendUpdateText(body, "\n(You can also click the Germsfox version in the main menu!)");
 
     const signoffEmote = document.createElement("img");
     signoffEmote.className = "germsfoxUpdateIcon";

@@ -185,7 +185,10 @@ function renderUpdateNotice() {
     const body = document.createElement("p");
     body.id = "germsfoxUpdateBody";
     appendUpdateText(body,
-        "Added a changelog to my website and fixed some issues people were having with certain keybinds."
+        "Germs moved a few things around on the main menu, which broke most of Germsfox. Fixed now.\n\n" +
+        "Looks like a big germs update is on the way. When it lands, Germsfox will quietly switch itself off " +
+        "and leave the game alone until I catch up, so nothing breaks in the meantime.\n\n" +
+        "Also, viruses are drawn at their real size now. They used to look a little small."
     );
     // After every version's message, so it never needs writing into one
     appendUpdateText(body, "\n\nChangelog: https://pishi.dev/germsfox/changelog/");

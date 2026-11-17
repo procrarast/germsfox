@@ -16,7 +16,50 @@ let playButtonObserver;
 
 init();
 
+/**
+ *  Whether this page is the germs.io build Germsfox supports - see the gate in background.js.
+ *  If it isn't, nothing of ours touches the page and germs runs as shipped.
+ *
+ *  If the overrides were in the wrong state for this load (the site updated since the last
+ *  check, or a Germsfox update just bumped the supported build), the page has already been
+ *  served the wrong bundle/pixi, so reload once now that background.js has corrected them.
+ */
+async function germsfoxSupported() {
+    const script = document.getElementById("bundle");
+    let bundle = null;
+    if (script?.src) {
+        const url = new URL(script.src);
+        if (url.origin === location.origin) bundle = url.pathname.slice(1) + url.search;
+    }
+
+    let reply;
+    try {
+        reply = await chrome.runtime.sendMessage({ action: "checkBundle", bundle });
+    } catch (error) {
+        console.debug("Germsfox: couldn't reach background.js", error);
+        return false;
+    }
+    if (!reply) return false;
+
+    if (reply.changed) {
+        let reloaded = null;
+        try { reloaded = sessionStorage.getItem("germsfoxGateReload"); } catch {}
+        if (reloaded !== String(bundle)) {
+            try { sessionStorage.setItem("germsfoxGateReload", String(bundle)); } catch {}
+            location.reload();
+            return false;
+        }
+    }
+    if (!reply.supported) {
+        console.info(`Germsfox: germs.io is running a build this version doesn't support `
+            + `(${bundle ?? "no bundle.js"}); standing down until Germsfox updates.`);
+    }
+    return reply.supported;
+}
+
 async function init() {
+    if (!await germsfoxSupported()) return;
+
     settings = await getSettings();
     germsSettings = await getGermsSettings();
 

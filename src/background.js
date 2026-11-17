@@ -8,12 +8,60 @@ console.log("Running background.js");
 
 const LEADERBOARD_API = 'https://pishi.dev/leaderboard';
 
+/**
+ *  Compatibility gate. Our bundle.js and pixi.js stand in for the site's own (overrides.json),
+ *  so they are only safe against the germs.io build they were made from - identified by the
+ *  page's <script id="bundle" src="js/bundle.js?v=...">. When the site ships anything else
+ *  (new hash, renamed file, no bundle.js at all), the overrides ruleset is switched off and the
+ *  content scripts stand down, so germs runs untouched until a Germsfox update bumps this.
+ */
+const SUPPORTED_BUNDLE = "js/bundle.js?v=398b35fe";
+
 const handlers = {
     switchTabs,
     switchWindows,
     submitScore,
     getDailyLeaderboard,
+    checkBundle,
 };
+
+// Returns true if the ruleset actually changed state
+async function setOverrides(on) {
+    const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
+    if (enabled.includes("overrides") === on) return false;
+    await chrome.declarativeNetRequest.updateEnabledRulesets(
+        on ? { enableRulesetIds: ["overrides"] } : { disableRulesetIds: ["overrides"] });
+    console.info(`Germsfox overrides ${on ? "enabled" : "disabled"}`);
+    return true;
+}
+
+// From content.js: `bundle` is the page's bundle script src relative to the site root, or null
+async function checkBundle(request) {
+    const supported = request.bundle === SUPPORTED_BUNDLE;
+    const changed = await setOverrides(supported);
+    return { supported, changed };
+}
+
+/**
+ *  Settle the ruleset before the next page load rather than after it, so a germs update
+ *  normally never even gets our files once. Static ruleset state also resets to the
+ *  manifest's on every extension update, which this corrects. Offline (or blocked): leave it;
+ *  content.js corrects it on the next visit.
+ */
+async function probeSite() {
+    try {
+        const response = await fetch("https://germs.io/", { cache: "no-store" });
+        if (!response.ok) return;
+        const html = await response.text();
+        const tag = html.match(/<script\b[^>]*\bid=["']bundle["'][^>]*>/i)?.[0];
+        const bundle = tag?.match(/\bsrc=["']\/?([^"']+)["']/i)?.[1] ?? null;
+        await setOverrides(bundle === SUPPORTED_BUNDLE);
+    } catch (error) {
+        console.debug("Couldn't check the germs.io build:", error);
+    }
+}
+chrome.runtime.onInstalled.addListener(probeSite);
+chrome.runtime.onStartup.addListener(probeSite);
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === "loading" && tab.url?.startsWith("https://germs.io")) {
